@@ -91,4 +91,92 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  /* Improved focus styles for better accessibility */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-[#0A3D62];
+  }
+
+  /* Ensure buttons have adequate contrast */
+  button[disabled],
+  .button[disabled],
+  [aria-disabled="true"] {
+    @apply opacity-70 cursor-not-allowed;
+  }
+}
+
+/* Add these at the end of your globals.css file */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Improve table responsiveness */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Ensure proper text wrapping */
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Fix for mobile inputs */
+input,
+select,
+textarea {
+  font-size: 16px; /* Prevents zoom on focus in iOS */
+}
+
+/* Ensure proper spacing in mobile views */
+.container {
+  width: 100%;
+  padding-right: 1rem;
+  padding-left: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container {
+    padding-right: 1.5rem;
+    padding-left: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding-right: 2rem;
+    padding-left: 2rem;
+  }
+}
+
+/* Improved button styles for better visibility */
+.btn,
+button[type="submit"],
+button[type="button"],
+input[type="submit"],
+input[type="button"] {
+  @apply font-medium;
+}
+
+/* Ensure disabled buttons have clear visual indication */
+button:disabled,
+.button:disabled,
+[aria-disabled="true"] {
+  @apply opacity-70 cursor-not-allowed;
 }
