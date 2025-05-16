@@ -5,13 +5,13 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useRouter, usePathname } from "next/navigation"
-import type { Session, User } from "@supabase/supabase-js"
+import type { User } from "@supabase/supabase-js"
 import type { UserProfile } from "@/types/user"
+import { useSession } from "@/providers/session-provider"
 
 type AuthContextType = {
   user: User | null
   profile: UserProfile | null
-  session: Session | null
   isLoading: boolean
   refreshUserProfile: () => Promise<void>
   signUp: (email: string, password: string) => Promise<{ data?: any; error: any }>
@@ -25,11 +25,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClientComponentClient()
+  const { session } = useSession()
 
   // Function to fetch user profile data
   const fetchUserProfile = async (userId: string) => {
@@ -63,11 +63,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           phone_number: userData.phone_number,
           city: userData.city,
           country: userData.country,
-          account_number: userData.account_number,
+          account_number: userData.account_no || userData.account_number, // Handle both field names
           balance: userData.balance || 0,
-          email_verified: false,
-          phone_verified: false,
-          kyc_status: "not_submitted",
+          email_verified: userData.email_verified || false,
+          phone_verified: userData.phone_verified || false,
+          kyc_status: userData.kyc_status || "not_submitted",
           created_at: userData.created_at,
           updated_at: userData.updated_at,
         } as UserProfile
@@ -103,86 +103,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    const fetchSession = async () => {
+    const fetchData = async () => {
       setIsLoading(true)
-      console.log("Fetching session...")
-
-      try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession()
-
-        if (error) {
-          console.error("Error fetching session:", error)
-        }
-
-        console.log("Session fetched:", session ? "Session exists" : "No session")
-        setSession(session)
-        setUser(session?.user || null)
-
-        if (session?.user) {
-          console.log("User is logged in, fetching profile")
-          // Fetch user profile
-          const profileData = await fetchUserProfile(session.user.id)
-          if (profileData) {
-            setProfile(profileData)
-            console.log("Profile set successfully")
-          } else {
-            console.log("No profile data found")
-          }
-        }
-      } catch (error) {
-        console.error("Error in fetchSession:", error)
-      } finally {
-        setIsLoading(false)
-        console.log("Session fetch completed")
-      }
-    }
-
-    fetchSession()
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session ? "Session exists" : "No session")
-
-      setSession(session)
-      setUser(session?.user || null)
 
       if (session?.user) {
-        console.log("User logged in, fetching profile on auth state change")
-        // Fetch user profile when auth state changes
+        console.log("User is logged in, fetching profile")
+        setUser(session.user)
+
+        // Fetch user profile
         const profileData = await fetchUserProfile(session.user.id)
         if (profileData) {
           setProfile(profileData)
-          console.log("Profile set on auth state change")
+          console.log("Profile set successfully")
         } else {
-          console.log("No profile found on auth state change")
+          console.log("No profile data found")
         }
       } else {
+        setUser(null)
         setProfile(null)
-        console.log("No user, profile set to null")
       }
 
-      // Handle redirects based on auth state
-      const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password"].includes(pathname)
-      console.log("Current path:", pathname, "Is auth route:", isAuthRoute)
-
-      if (!session && !isAuthRoute && pathname !== "/" && !pathname.includes("/auth/callback")) {
-        console.log("No session, redirecting to login")
-        router.push("/login")
-      } else if (session && isAuthRoute) {
-        console.log("Session exists on auth route, redirecting to dashboard")
-        router.push("/dashboard")
-      }
-    })
-
-    return () => {
-      console.log("Cleaning up auth subscription")
-      subscription.unsubscribe()
+      setIsLoading(false)
     }
-  }, [supabase, router, pathname])
+
+    fetchData()
+  }, [session])
+
+  useEffect(() => {
+    // Handle redirects based on auth state
+    const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password"].includes(pathname)
+
+    if (!session && !isAuthRoute && pathname !== "/" && !pathname.includes("/auth/callback")) {
+      console.log("No session, redirecting to login")
+      router.push("/login")
+    } else if (session && isAuthRoute) {
+      console.log("Session exists on auth route, redirecting to dashboard")
+      router.push("/dashboard")
+    }
+  }, [session, pathname, router])
 
   const signUp = async (email: string, password: string) => {
     console.log("Signing up with email:", email)
@@ -329,7 +287,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         profile,
-        session,
         isLoading,
         refreshUserProfile,
         signUp,

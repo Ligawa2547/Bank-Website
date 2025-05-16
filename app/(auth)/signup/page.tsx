@@ -112,7 +112,11 @@ export default function SignupPage() {
           phone_number: phone,
           city: city,
           country: country,
-          account_number: accountNumber,
+          account_no: accountNumber, // Using account_no column
+          balance: 0, // Initialize with zero balance
+          email_verified: false,
+          phone_verified: false,
+          kyc_status: "not_submitted",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -131,7 +135,7 @@ export default function SignupPage() {
           phone_number: phone,
           city: city,
           country: country,
-          account_number: accountNumber,
+          account_number: accountNumber, // Using account_number column
           balance: 0,
           email_verified: false,
           phone_verified: false,
