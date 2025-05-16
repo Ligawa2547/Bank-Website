@@ -69,7 +69,7 @@ export default function TransfersPage() {
       const { data, error } = await supabase
         .from("user_profiles")
         .select("first_name, last_name")
-        .eq("account_number", recipientAccount)
+        .eq("account_no", recipientAccount)
         .single()
 
       if (error || !data) {
@@ -159,7 +159,7 @@ export default function TransfersPage() {
       const { error: senderError } = await supabase
         .from("user_profiles")
         .update({ balance: profile.balance - Number(amount) })
-        .eq("account_number", profile.account_number)
+        .eq("account_no", profile.account_number)
 
       if (senderError) {
         console.error("Error updating sender balance:", senderError)
@@ -171,14 +171,14 @@ export default function TransfersPage() {
       const { data: recipientData, error: recipientError } = await supabase
         .from("user_profiles")
         .select("balance")
-        .eq("account_number", recipientAccount)
+        .eq("account_no", recipientAccount)
         .single()
 
       if (!recipientError && recipientData) {
         await supabase
           .from("user_profiles")
           .update({ balance: recipientData.balance + Number(amount) })
-          .eq("account_number", recipientAccount)
+          .eq("account_no", recipientAccount)
       }
 
       // Create notification for sender

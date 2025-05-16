@@ -49,7 +49,7 @@ export async function GET(request: Request) {
       const { data: profileData, error: profileError } = await supabase
         .from("user_profiles")
         .select("*")
-        .eq("account_number", transactionData.account_no)
+        .eq("account_no", transactionData.account_no)
         .single()
 
       if (profileError || !profileData) {
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
       await supabase
         .from("user_profiles")
         .update({ balance: profileData.balance + transactionData.amount })
-        .eq("account_number", transactionData.account_no)
+        .eq("account_no", transactionData.account_no)
 
       // Create notification
       await supabase.from("notifications").insert({
