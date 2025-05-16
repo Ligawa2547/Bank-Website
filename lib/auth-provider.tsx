@@ -1,0 +1,325 @@
+"use client"
+
+import type React from "react"
+
+import { createContext, useContext, useEffect, useState } from "react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useRouter, usePathname } from "next/navigation"
+import type { Session, User } from "@supabase/supabase-js"
+import type { UserProfile } from "@/types/user"
+
+type AuthContextType = {
+  user: User | null
+  profile: UserProfile | null
+  session: Session | null
+  isLoading: boolean
+  refreshUserProfile: () => Promise<void>
+  signUp: (email: string, password: string) => Promise<{ data?: any; error: any }>
+  signIn: (email: string, password: string) => Promise<{ error: any }>
+  signInWithMagicLink: (email: string) => Promise<{ error: any }>
+  signOut: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
+  const pathname = usePathname()
+  const supabase = createClientComponentClient()
+
+  // Function to fetch user profile data
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      console.log("Fetching user profile for user ID:", userId)
+
+      // Use a single query to try both tables at once
+      const [profileResponse, userResponse] = await Promise.allSettled([
+        supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle(),
+        supabase.from("users").select("*").eq("id", userId).maybeSingle(),
+      ])
+
+      // Check user_profiles result
+      if (profileResponse.status === "fulfilled" && profileResponse.value.data) {
+        console.log("User profile found in user_profiles table")
+        return profileResponse.value.data
+      }
+
+      // Check users result
+      if (userResponse.status === "fulfilled" && userResponse.value.data) {
+        console.log("User data found in users table")
+        const userData = userResponse.value.data
+
+        // Convert users table format to UserProfile format
+        return {
+          id: userData.id,
+          user_id: userData.id,
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          email: userData.email,
+          phone_number: userData.phone_number,
+          city: userData.city,
+          country: userData.country,
+          account_number: userData.account_number,
+          balance: userData.balance || 0,
+          email_verified: false,
+          phone_verified: false,
+          kyc_status: "not_submitted",
+          created_at: userData.created_at,
+          updated_at: userData.updated_at,
+        } as UserProfile
+      }
+
+      console.log("No user profile found in either table")
+      return null
+    } catch (error) {
+      console.error("Error in fetchUserProfile:", error)
+      return null
+    }
+  }
+
+  // Function to refresh user profile data
+  const refreshUserProfile = async () => {
+    if (!user) {
+      console.log("Cannot refresh profile: No user is logged in")
+      return
+    }
+
+    try {
+      console.log("Refreshing user profile for user ID:", user.id)
+      const profileData = await fetchUserProfile(user.id)
+      if (profileData) {
+        setProfile(profileData)
+        console.log("User profile refreshed successfully")
+      } else {
+        console.log("No profile data found during refresh")
+      }
+    } catch (error) {
+      console.error("Error refreshing user profile:", error)
+    }
+  }
+
+  useEffect(() => {
+    const fetchSession = async () => {
+      setIsLoading(true)
+      console.log("Fetching session...")
+
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+
+        if (error) {
+          console.error("Error fetching session:", error)
+        }
+
+        console.log("Session fetched:", session ? "Session exists" : "No session")
+        setSession(session)
+        setUser(session?.user || null)
+
+        if (session?.user) {
+          console.log("User is logged in, fetching profile")
+          // Fetch user profile
+          const profileData = await fetchUserProfile(session.user.id)
+          if (profileData) {
+            setProfile(profileData)
+            console.log("Profile set successfully")
+          } else {
+            console.log("No profile data found")
+          }
+        }
+      } catch (error) {
+        console.error("Error in fetchSession:", error)
+      } finally {
+        setIsLoading(false)
+        console.log("Session fetch completed")
+      }
+    }
+
+    fetchSession()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event, session ? "Session exists" : "No session")
+
+      setSession(session)
+      setUser(session?.user || null)
+
+      if (session?.user) {
+        console.log("User logged in, fetching profile on auth state change")
+        // Fetch user profile when auth state changes
+        const profileData = await fetchUserProfile(session.user.id)
+        if (profileData) {
+          setProfile(profileData)
+          console.log("Profile set on auth state change")
+        } else {
+          console.log("No profile found on auth state change")
+        }
+      } else {
+        setProfile(null)
+        console.log("No user, profile set to null")
+      }
+
+      // Handle redirects based on auth state
+      const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password"].includes(pathname)
+      console.log("Current path:", pathname, "Is auth route:", isAuthRoute)
+
+      if (!session && !isAuthRoute && pathname !== "/" && !pathname.includes("/auth/callback")) {
+        console.log("No session, redirecting to login")
+        router.push("/login")
+      } else if (session && isAuthRoute) {
+        console.log("Session exists on auth route, redirecting to dashboard")
+        router.push("/dashboard")
+      }
+    })
+
+    return () => {
+      console.log("Cleaning up auth subscription")
+      subscription.unsubscribe()
+    }
+  }, [supabase, router, pathname])
+
+  const signUp = async (email: string, password: string) => {
+    console.log("Signing up with email:", email)
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (error) {
+        console.error("Signup error:", error)
+      } else {
+        console.log("Signup successful:", data ? "Data exists" : "No data")
+      }
+
+      return { data, error }
+    } catch (e) {
+      console.error("Unexpected error during signup:", e)
+      return { error: { message: "An unexpected error occurred" } }
+    }
+  }
+
+  const signIn = async (email: string, password: string) => {
+    console.log("Signing in with email:", email)
+    let attempts = 0
+    const maxAttempts = 2
+
+    while (attempts <= maxAttempts) {
+      try {
+        if (attempts > 0) {
+          console.log(`Auth provider retry attempt ${attempts}...`)
+        }
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (error) {
+          console.error("Sign in error:", error)
+
+          // Don't retry for invalid credentials
+          if (error.message?.includes("Invalid login credentials") || error.message?.includes("Email not confirmed")) {
+            return { error }
+          }
+
+          // For other errors, retry if we haven't reached max attempts
+          if (attempts < maxAttempts) {
+            attempts++
+            // Add a small delay before retrying
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            continue
+          }
+        } else {
+          console.log("Sign in successful:", data ? "Data exists" : "No data")
+        }
+
+        return { error }
+      } catch (e) {
+        console.error("Unexpected error during sign in:", e)
+
+        // Retry if we haven't reached max attempts
+        if (attempts < maxAttempts) {
+          attempts++
+          // Add a small delay before retrying
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          continue
+        }
+
+        return { error: { message: "An unexpected error occurred" } }
+      }
+    }
+
+    // If we've exhausted all attempts
+    return { error: { message: "Failed to sign in after multiple attempts" } }
+  }
+
+  const signInWithMagicLink = async (email: string) => {
+    console.log("Sending magic link to:", email)
+    try {
+      const { data, error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (error) {
+        console.error("Magic link error:", error)
+      } else {
+        console.log("Magic link sent successfully:", data ? "Data exists" : "No data")
+      }
+
+      return { error }
+    } catch (e) {
+      console.error("Unexpected error during magic link:", e)
+      return { error: { message: "An unexpected error occurred" } }
+    }
+  }
+
+  const signOut = async () => {
+    console.log("Signing out")
+    try {
+      await supabase.auth.signOut()
+      console.log("Sign out successful")
+      router.push("/login")
+    } catch (e) {
+      console.error("Error during sign out:", e)
+    }
+  }
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        session,
+        isLoading,
+        refreshUserProfile,
+        signUp,
+        signIn,
+        signInWithMagicLink,
+        signOut,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider")
+  }
+  return context
+}
