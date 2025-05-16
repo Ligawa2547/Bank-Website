@@ -1,10 +1,14 @@
 "use client"
 
-import type React from "react"
+import { useEffect } from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
+
+import type React from "react"
 import Link from "next/link"
-import { Shield, Eye, EyeOff } from "lucide-react"
+import Image from "next/image"
+import { useRouter } from "next/navigation"
+import { Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,11 +24,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("password")
-  const [loginStatus, setLoginStatus] = useState<"idle" | "success" | "error">("idle")
+  const [loginStatus, setLoginStatus] = useState<"idle" | "success" | "error" | "retrying">("idle")
   const [statusMessage, setStatusMessage] = useState("")
+  const [retryCount, setRetryCount] = useState(0)
+  const [logoError, setLogoError] = useState(false)
+  const router = useRouter()
   const { signIn, signInWithMagicLink } = useAuth()
   const { toast } = useToast()
-  const [retryCount, setRetryCount] = useState(0)
 
   // Add a timeout to reset loading state if it takes too long
   useEffect(() => {
@@ -49,129 +55,113 @@ export default function LoginPage() {
     }
   }, [isLoading, toast])
 
+  // Check network connectivity
+  const checkConnectivity = async () => {
+    try {
+      // First check navigator.onLine
+      if (!navigator.onLine) {
+        return false
+      }
+
+      // Then try to fetch a small endpoint to confirm actual connectivity
+      const response = await fetch("/api/health-check", {
+        method: "GET",
+        headers: { "Cache-Control": "no-cache" },
+      })
+      return response.ok
+    } catch (error) {
+      console.error("Connectivity check failed:", error)
+      return false
+    }
+  }
+
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoginStatus("idle")
     setStatusMessage("")
+
+    // Check if we're offline
+    const isConnected = await checkConnectivity()
+    if (!isConnected) {
+      setLoginStatus("error")
+      setStatusMessage("You appear to be offline. Please check your internet connection and try again.")
+      toast({
+        title: "Network Error",
+        description: "You appear to be offline. Please check your internet connection.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
+    const currentRetry = retryCount
 
-    // Maximum number of retry attempts
-    const maxRetries = 3
-    let currentRetry = 0
-    setRetryCount(currentRetry)
-    let success = false
+    try {
+      const { error } = await signIn(email, password)
 
-    while (currentRetry <= maxRetries && !success) {
-      try {
-        if (currentRetry > 0) {
-          console.log(`Retry attempt ${currentRetry}...`)
-          // Add exponential backoff delay between retries
-          const backoffDelay = Math.min(1000 * Math.pow(2, currentRetry - 1), 8000)
-          setStatusMessage(`Network issue detected. Retrying in ${backoffDelay / 1000} seconds...`)
-          await new Promise((resolve) => setTimeout(resolve, backoffDelay))
-        }
+      if (error) {
+        console.error("Login error:", error)
 
-        setRetryCount(currentRetry)
+        // Check if it's a network error
+        if (
+          error.message.includes("fetch") ||
+          error.message.includes("network") ||
+          error.message.includes("Failed to fetch") ||
+          error.message.includes("NetworkError") ||
+          error.message.includes("timeout")
+        ) {
+          // Network error - we can retry
+          if (currentRetry < 3) {
+            // Implement exponential backoff
+            const backoffTime = Math.pow(2, currentRetry) * 1000 // 1s, 2s, 4s, 8s
+            setLoginStatus("retrying")
+            setStatusMessage(`Network issue detected. Retrying in ${backoffTime / 1000} seconds...`)
 
-        // Check for network connectivity before attempting to sign in
-        try {
-          await fetch("/api/health-check", {
-            method: "HEAD",
-            cache: "no-store",
-            headers: { "Cache-Control": "no-cache" },
-          })
-        } catch (networkError) {
-          console.error("Network connectivity issue detected:", networkError)
-          if (currentRetry < maxRetries) {
-            currentRetry++
-            continue
+            await new Promise((resolve) => setTimeout(resolve, backoffTime))
+
+            setRetryCount(currentRetry + 1)
+            // Try again
+            handlePasswordLogin(e)
+            return
           } else {
-            throw new Error("Network connectivity issue. Please check your internet connection.")
-          }
-        }
-
-        const { error } = await signIn(email, password)
-
-        if (error) {
-          console.error("Login error:", error)
-
-          // Handle specific error types
-          if (
-            error.message?.includes("Failed to fetch") ||
-            error.message?.includes("NetworkError") ||
-            error.message?.includes("network") ||
-            error.message?.includes("timeout")
-          ) {
-            // For network errors, retry with backoff
-            if (currentRetry < maxRetries) {
-              currentRetry++
-              continue
-            } else {
-              throw new Error("Network issue persists. Please try again later or check your internet connection.")
-            }
-          }
-
-          // Don't retry for invalid credentials or other specific errors
-          if (error.message?.includes("Invalid login credentials") || error.message?.includes("Email not confirmed")) {
             setLoginStatus("error")
-            setStatusMessage(error.message || "Failed to sign in. Please check your credentials.")
-
-            toast({
-              title: "Error",
-              description: error.message,
-              variant: "destructive",
-            })
-            break
+            setStatusMessage("Network connection issue. Please check your internet and try again later.")
           }
-
+        } else {
+          // Auth error - no retry
           setLoginStatus("error")
-          setStatusMessage(error.message || "Failed to sign in. Please check your credentials.")
-
-          toast({
-            title: "Error",
-            description: error.message,
-            variant: "destructive",
-          })
-          return
+          setStatusMessage(error.message)
         }
 
-        success = true
+        toast({
+          title: "Login Failed",
+          description: error.message,
+          variant: "destructive",
+        })
+      } else {
         setLoginStatus("success")
-        setStatusMessage("Logged in successfully! Redirecting to dashboard...")
+        setStatusMessage("Login successful! Redirecting...")
 
         toast({
           title: "Success",
-          description: "Logged in successfully",
+          description: "You have successfully logged in.",
         })
-      } catch (error: any) {
-        console.error("Unexpected error during login:", error)
 
-        // For network or timeout errors, retry with backoff
-        if (
-          (error.message?.includes("fetch") ||
-            error.message?.includes("network") ||
-            error.message?.includes("internet") ||
-            error.message?.includes("connection")) &&
-          currentRetry < maxRetries
-        ) {
-          currentRetry++
-          continue
-        }
-
-        setLoginStatus("error")
-        setStatusMessage(error.message || "An unexpected error occurred. Please try again.")
-
-        toast({
-          title: "Error",
-          description: error.message || "Something went wrong",
-          variant: "destructive",
-        })
-        break
-      } finally {
-        if (currentRetry >= maxRetries || success) {
-          setIsLoading(false)
-        }
+        // Redirect to dashboard
+        router.push("/dashboard")
       }
+    } catch (error: any) {
+      console.error("Unexpected error during login:", error)
+      setLoginStatus("error")
+      setStatusMessage(error.message || "An unexpected error occurred. Please try again.")
+
+      toast({
+        title: "Error",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -260,14 +250,27 @@ export default function LoginPage() {
         <CardHeader className="space-y-1">
           <div className="flex justify-center mb-4">
             <Link href="/" className="flex items-center gap-2">
-              <Shield className="h-8 w-8 text-[#0A3D62]" />
+              {logoError ? (
+                <div className="h-8 w-8 bg-[#0A3D62] rounded-md flex items-center justify-center text-white font-bold">
+                  I&E
+                </div>
+              ) : (
+                <Image
+                  src="/images/iae-logo.png"
+                  alt="I&E National Bank"
+                  width={32}
+                  height={32}
+                  className="h-8 w-auto"
+                  onError={() => setLogoError(true)}
+                />
+              )}
               <span className="text-2xl font-bold text-[#0A3D62]">I&E National Bank</span>
             </Link>
           </div>
-          <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
-          <CardDescription className="text-center">Sign in to your account to continue</CardDescription>
+          <CardTitle className="text-2xl text-center">Sign in to your account</CardTitle>
+          <CardDescription className="text-center">Enter your email and password to sign in</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           {loginStatus === "success" && (
             <Alert className="mb-4 bg-green-50 border-green-200">
               <AlertTitle>Success!</AlertTitle>
@@ -282,10 +285,10 @@ export default function LoginPage() {
             </Alert>
           )}
 
-          {isLoading && retryCount > 0 && (
+          {loginStatus === "retrying" && (
             <Alert className="mb-4 bg-yellow-50 border-yellow-200">
-              <AlertTitle>Retrying connection...</AlertTitle>
-              <AlertDescription>Attempt {retryCount} of 3. Please wait while we try to reconnect.</AlertDescription>
+              <AlertTitle>Retrying Connection</AlertTitle>
+              <AlertDescription>{statusMessage}</AlertDescription>
             </Alert>
           )}
 

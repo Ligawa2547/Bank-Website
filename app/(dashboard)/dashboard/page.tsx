@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-provider"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Transaction } from "@/types/user"
+import { AccountDetailsCard } from "@/components/dashboard/account-details-card"
 
 export default function DashboardPage() {
   const { user, profile } = useAuth()
@@ -77,6 +78,15 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Account Details Card */}
+      {profile && (
+        <AccountDetailsCard
+          accountNumber={profile.account_number}
+          accountName={`${profile.first_name} ${profile.last_name}`}
+          balance={profile.balance}
+        />
+      )}
 
       {/* Account Summary */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Menu, User, Settings, LogOut, Search } from "lucide-react"
 import { useAuth } from "@/lib/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ import { NotificationsPopover } from "@/components/dashboard/notifications-popov
 export function DashboardHeader({ onMenuToggle }: { onMenuToggle?: () => void }) {
   const { user, profile, signOut } = useAuth()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [logoError, setLogoError] = useState(false)
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-white px-4 md:px-6">
@@ -28,7 +30,20 @@ export function DashboardHeader({ onMenuToggle }: { onMenuToggle?: () => void })
       </div>
 
       <Link href="/" className="flex items-center gap-2">
-        <img src="/images/iae-logo.png" alt="I&E National Bank" className="h-8 w-auto" />
+        {logoError ? (
+          <div className="h-8 w-8 bg-[#0A3D62] rounded-md flex items-center justify-center text-white font-bold">
+            I&E
+          </div>
+        ) : (
+          <Image
+            src="/images/iae-logo.png"
+            alt="I&E National Bank"
+            width={32}
+            height={32}
+            className="h-8 w-auto"
+            onError={() => setLogoError(true)}
+          />
+        )}
         <span className="font-bold text-lg text-[#0A3D62] hidden md:inline-flex">I&E National Bank</span>
       </Link>
 

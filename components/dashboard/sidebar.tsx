@@ -1,7 +1,8 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-
+import { useState } from "react"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { Shield, Home, CreditCard, PiggyBank, Send, Bell, UserCircle, Settings, HelpCircle, Users } from "lucide-react"
@@ -17,6 +18,7 @@ export function DashboardSidebar({
 }) {
   const pathname = usePathname()
   const { user, profile } = useAuth()
+  const [logoError, setLogoError] = useState(false)
 
   const isAdmin = user?.email?.endsWith("@trustbank.com")
 
@@ -96,7 +98,20 @@ export function DashboardSidebar({
         <div className="flex h-full flex-col">
           <div className="border-b p-4 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 px-2">
-              <img src="/images/iae-logo.png" alt="I&E National Bank" className="h-8 w-auto" />
+              {logoError ? (
+                <div className="h-8 w-8 bg-[#0A3D62] rounded-md flex items-center justify-center text-white font-bold">
+                  I&E
+                </div>
+              ) : (
+                <Image
+                  src="/images/iae-logo.png"
+                  alt="I&E National Bank"
+                  width={32}
+                  height={32}
+                  className="h-8 w-auto"
+                  onError={() => setLogoError(true)}
+                />
+              )}
               <span className="font-bold text-lg">I&E National Bank</span>
             </Link>
             <button
