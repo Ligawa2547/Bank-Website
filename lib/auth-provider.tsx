@@ -5,13 +5,13 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useRouter, usePathname } from "next/navigation"
-import type { User } from "@supabase/supabase-js"
+import type { Session, User } from "@supabase/supabase-js"
 import type { UserProfile } from "@/types/user"
-import { useSession } from "@/providers/session-provider"
 
 type AuthContextType = {
   user: User | null
   profile: UserProfile | null
+  session: Session | null
   isLoading: boolean
   refreshUserProfile: () => Promise<void>
   signUp: (email: string, password: string) => Promise<{ data?: any; error: any }>
@@ -25,11 +25,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClientComponentClient()
-  const { session } = useSession()
 
   // Function to fetch user profile data
   const fetchUserProfile = async (userId: string) => {
@@ -103,44 +103,86 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchSession = async () => {
       setIsLoading(true)
+      console.log("Fetching session...")
+
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+
+        if (error) {
+          console.error("Error fetching session:", error)
+        }
+
+        console.log("Session fetched:", session ? "Session exists" : "No session")
+        setSession(session)
+        setUser(session?.user || null)
+
+        if (session?.user) {
+          console.log("User is logged in, fetching profile")
+          // Fetch user profile
+          const profileData = await fetchUserProfile(session.user.id)
+          if (profileData) {
+            setProfile(profileData)
+            console.log("Profile set successfully")
+          } else {
+            console.log("No profile data found")
+          }
+        }
+      } catch (error) {
+        console.error("Error in fetchSession:", error)
+      } finally {
+        setIsLoading(false)
+        console.log("Session fetch completed")
+      }
+    }
+
+    fetchSession()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event, session ? "Session exists" : "No session")
+
+      setSession(session)
+      setUser(session?.user || null)
 
       if (session?.user) {
-        console.log("User is logged in, fetching profile")
-        setUser(session.user)
-
-        // Fetch user profile
+        console.log("User logged in, fetching profile on auth state change")
+        // Fetch user profile when auth state changes
         const profileData = await fetchUserProfile(session.user.id)
         if (profileData) {
           setProfile(profileData)
-          console.log("Profile set successfully")
+          console.log("Profile set on auth state change")
         } else {
-          console.log("No profile data found")
+          console.log("No profile found on auth state change")
         }
       } else {
-        setUser(null)
         setProfile(null)
+        console.log("No user, profile set to null")
       }
 
-      setIsLoading(false)
+      // Handle redirects based on auth state
+      const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password"].includes(pathname)
+      console.log("Current path:", pathname, "Is auth route:", isAuthRoute)
+
+      if (!session && !isAuthRoute && pathname !== "/" && !pathname.includes("/auth/callback")) {
+        console.log("No session, redirecting to login")
+        router.push("/login")
+      } else if (session && isAuthRoute) {
+        console.log("Session exists on auth route, redirecting to dashboard")
+        router.push("/dashboard")
+      }
+    })
+
+    return () => {
+      console.log("Cleaning up auth subscription")
+      subscription.unsubscribe()
     }
-
-    fetchData()
-  }, [session])
-
-  useEffect(() => {
-    // Handle redirects based on auth state
-    const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password"].includes(pathname)
-
-    if (!session && !isAuthRoute && pathname !== "/" && !pathname.includes("/auth/callback")) {
-      console.log("No session, redirecting to login")
-      router.push("/login")
-    } else if (session && isAuthRoute) {
-      console.log("Session exists on auth route, redirecting to dashboard")
-      router.push("/dashboard")
-    }
-  }, [session, pathname, router])
+  }, [supabase, router, pathname])
 
   const signUp = async (email: string, password: string) => {
     console.log("Signing up with email:", email)
@@ -287,6 +329,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         profile,
+        session,
         isLoading,
         refreshUserProfile,
         signUp,

@@ -9,7 +9,7 @@ import { Shield, Home, CreditCard, PiggyBank, Send, Bell, UserCircle, Settings, 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-provider"
 
-export function DashboardSidebar({
+export function Sidebar({
   isOpen = false,
   onClose,
 }: {
@@ -196,7 +196,12 @@ export function DashboardSidebar({
                   <p className="text-xs text-gray-600">Need help? Contact us</p>
                 </div>
               </div>
-              <Button asChild className="mt-2 w-full bg-[#0A5483] hover:bg-[#0F7AB3]" size="sm">
+              <Button
+                asChild
+                className="mt-2 w-full bg-[#0A5483] hover:bg-[#0F7AB3] text-white"
+                size="sm"
+                aria-label="Contact Support"
+              >
                 <Link href="/dashboard/support">Contact Support</Link>
               </Button>
             </div>

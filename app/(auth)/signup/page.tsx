@@ -323,7 +323,7 @@ export default function SignupPage() {
             </div>
             <Button
               type="submit"
-              className="w-full bg-[#0A3D62] hover:bg-[#0F5585]"
+              className="w-full bg-[#0A3D62] text-white hover:bg-[#0F5585]"
               disabled={isLoading || signupStatus === "success"}
             >
               {isLoading ? "Creating account..." : signupStatus === "success" ? "Account Created" : "Create account"}

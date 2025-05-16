@@ -16,15 +16,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { NotificationsPopover } from "@/components/dashboard/notifications-popover"
 
-export function DashboardHeader({ onMenuToggle }: { onMenuToggle?: () => void }) {
+export function Header({ onMenuToggle }: { onMenuToggle?: () => void }) {
   const { user, profile, signOut } = useAuth()
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [logoError, setLogoError] = useState(false)
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-white px-4 md:px-6">
       <div className="flex items-center md:hidden">
-        <Button variant="ghost" size="icon" onClick={onMenuToggle} className="mr-2" aria-label="Toggle menu">
+        <Button variant="secondary" size="icon" onClick={onMenuToggle} className="mr-2" aria-label="Toggle menu">
           <Menu className="h-5 w-5" />
         </Button>
       </div>
@@ -59,9 +58,8 @@ export function DashboardHeader({ onMenuToggle }: { onMenuToggle?: () => void })
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
+            <Button variant="secondary" size="icon" className="rounded-full" aria-label="User menu">
               <User className="h-5 w-5" />
-              <span className="sr-only">Open user menu</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -78,19 +76,19 @@ export function DashboardHeader({ onMenuToggle }: { onMenuToggle?: () => void })
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/profile">
+              <Link href="/dashboard/profile" className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
                 <span>Profile</span>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/settings">
+              <Link href="/dashboard/settings" className="cursor-pointer">
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => signOut()}>
+            <DropdownMenuItem onClick={() => signOut()} className="cursor-pointer text-red-600 focus:text-red-600">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
             </DropdownMenuItem>
@@ -100,3 +98,6 @@ export function DashboardHeader({ onMenuToggle }: { onMenuToggle?: () => void })
     </header>
   )
 }
+
+// Also export as DashboardHeader for backward compatibility
+export { Header as DashboardHeader }

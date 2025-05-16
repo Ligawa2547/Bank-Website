@@ -1,9 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
-
-import { useState } from "react"
-
+import { useEffect, useState } from "react"
 import type React from "react"
 import Link from "next/link"
 import Image from "next/image"
@@ -342,8 +339,9 @@ export default function LoginPage() {
                 </div>
                 <Button
                   type="submit"
-                  className="w-full bg-[#0A3D62] hover:bg-[#0F5585]"
+                  className="w-full"
                   disabled={isLoading || loginStatus === "success"}
+                  aria-label="Sign in with password"
                 >
                   {isLoading ? (
                     <>
@@ -374,8 +372,9 @@ export default function LoginPage() {
                 </div>
                 <Button
                   type="submit"
-                  className="w-full bg-[#0A3D62] hover:bg-[#0F5585]"
+                  className="w-full"
                   disabled={isLoading || loginStatus === "success"}
+                  aria-label="Send magic link"
                 >
                   {isLoading ? "Sending link..." : loginStatus === "success" ? "Link Sent" : "Send magic link"}
                 </Button>
@@ -394,7 +393,7 @@ export default function LoginPage() {
         <CardFooter className="flex justify-center">
           <div className="text-sm text-center">
             Don&apos;t have an account?{" "}
-            <Link href="/signup" className="underline text-[#0A3D62]">
+            <Link href="/signup" className="font-medium underline text-[#0A3D62] hover:text-[#0F5585]">
               Sign up
             </Link>
           </div>

@@ -237,7 +237,10 @@ export default function TransfersPage() {
                     <AlertDescription className="text-green-700">
                       Your transfer has been processed successfully.
                     </AlertDescription>
-                    <Button className="mt-4 bg-[#0A3D62]" onClick={() => setTransferSuccess(false)}>
+                    <Button
+                      className="mt-4 bg-[#0A3D62] text-white hover:bg-[#0F5585]"
+                      onClick={() => setTransferSuccess(false)}
+                    >
                       Make Another Transfer
                     </Button>
                   </Alert>
@@ -258,6 +261,7 @@ export default function TransfersPage() {
                           variant="outline"
                           onClick={handleVerifyAccount}
                           disabled={isLoading || !recipientAccount}
+                          className="border-2 border-[#0A3D62] text-[#0A3D62] hover:bg-[#0A3D62]/10"
                         >
                           {isLoading ? "Verifying..." : "Verify"}
                         </Button>
@@ -307,7 +311,7 @@ export default function TransfersPage() {
                     <div className="pt-2">
                       <Button
                         type="submit"
-                        className="w-full bg-[#0A3D62]"
+                        className="w-full bg-[#0A3D62] text-white hover:bg-[#0F5585]"
                         disabled={isLoading || !recipientName || !amount}
                       >
                         {isLoading ? "Processing..." : "Transfer Money"}
@@ -342,7 +346,10 @@ export default function TransfersPage() {
                     <AlertDescription className="text-green-700">
                       Your account has been credited successfully.
                     </AlertDescription>
-                    <Button className="mt-4 bg-[#0A3D62]" onClick={() => setDepositSuccess(false)}>
+                    <Button
+                      className="mt-4 bg-[#0A3D62] text-white hover:bg-[#0F5585]"
+                      onClick={() => setDepositSuccess(false)}
+                    >
                       Make Another Deposit
                     </Button>
                   </Alert>

@@ -1,54 +1,73 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Copy, CheckCircle2 } from "lucide-react"
 import { useState } from "react"
+import { Copy, CheckCircle } from "lucide-react"
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
 
 interface AccountDetailsCardProps {
   accountNumber: string
   accountName: string
   balance: number
+  currency?: string
 }
 
-export function AccountDetailsCard({ accountNumber, accountName, balance }: AccountDetailsCardProps) {
+export function AccountDetailsCard({ accountNumber, accountName, balance, currency = "USD" }: AccountDetailsCardProps) {
   const [copied, setCopied] = useState(false)
+  const { toast } = useToast()
 
-  const copyToClipboard = () => {
+  const handleCopyAccountNumber = () => {
     navigator.clipboard.writeText(accountNumber)
     setCopied(true)
+
+    toast({
+      title: "Account number copied",
+      description: "The account number has been copied to your clipboard.",
+    })
+
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).format(amount)
+  }
+
   return (
-    <Card className="bg-gradient-to-br from-[#0A3D62] to-[#0F7AB3] text-white">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg font-medium">Account Details</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <Card className="overflow-hidden">
+      <div className="bg-gradient-to-r from-[#0A3D62] to-[#0F5585] p-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h3 className="text-white text-lg font-medium">Available Balance</h3>
+            <p className="text-3xl font-bold text-white mt-2">{formatCurrency(balance)}</p>
+          </div>
+        </div>
+      </div>
+      <CardContent className="p-6">
         <div className="space-y-4">
           <div>
-            <p className="text-sm text-white/70">Account Name</p>
-            <p className="text-lg font-semibold">{accountName}</p>
+            <CardDescription className="text-sm text-gray-500 mb-1">Account Name</CardDescription>
+            <CardTitle className="text-base">{accountName}</CardTitle>
           </div>
+
           <div>
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-white/70">Account Number</p>
+            <CardDescription className="text-sm text-gray-500 mb-1">Account Number</CardDescription>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base font-mono">{accountNumber}</CardTitle>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-8 text-white/90 hover:text-white hover:bg-white/10"
-                onClick={copyToClipboard}
+                onClick={handleCopyAccountNumber}
+                className="border-2 border-[#0A3D62] text-[#0A3D62] hover:bg-[#0A3D62]/10"
+                aria-label="Copy account number"
               >
-                {copied ? <CheckCircle2 className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-                {copied ? "Copied" : "Copy"}
+                {copied ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                <span className="ml-1">{copied ? "Copied" : "Copy"}</span>
               </Button>
             </div>
-            <p className="text-xl font-mono tracking-wider">{accountNumber}</p>
-          </div>
-          <div>
-            <p className="text-sm text-white/70">Available Balance</p>
-            <p className="text-2xl font-bold">${balance.toFixed(2)}</p>
           </div>
         </div>
       </CardContent>

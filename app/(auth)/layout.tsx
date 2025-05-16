@@ -4,13 +4,10 @@ import type React from "react"
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Sidebar } from "@/components/dashboard/sidebar"
-import { Header } from "@/components/dashboard/header"
-import { InactivityMonitor } from "@/components/inactivity-monitor"
 import { AuthProvider } from "@/lib/auth-provider"
 import { useSession } from "@/components/client-providers"
 
-export default function DashboardLayout({
+export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode
@@ -19,8 +16,8 @@ export default function DashboardLayout({
   const router = useRouter()
 
   useEffect(() => {
-    if (!isLoading && !session) {
-      router.push("/login")
+    if (!isLoading && session) {
+      router.push("/dashboard")
     }
   }, [isLoading, session, router])
 
@@ -32,21 +29,10 @@ export default function DashboardLayout({
     )
   }
 
-  if (!session) {
-    return null
-  }
-
   return (
     <AuthProvider>
-      <div className="flex h-screen flex-col md:flex-row">
-        <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-y-auto bg-gray-50 p-4 dark:bg-gray-900">
-            <div className="mx-auto max-w-7xl">{children}</div>
-          </main>
-        </div>
-        <InactivityMonitor timeout={15} />
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 py-12 dark:bg-gray-900 sm:px-6 lg:px-8">
+        {children}
       </div>
     </AuthProvider>
   )
