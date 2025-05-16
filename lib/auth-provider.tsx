@@ -202,8 +202,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       return { data, error }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Unexpected error during signup:", e)
+      // Improve error message for network issues
+      if (e.message?.includes("fetch") || !navigator.onLine) {
+        return { error: { message: "Network connection issue. Please check your internet connection and try again." } }
+      }
       return { error: { message: "An unexpected error occurred" } }
     }
   }
@@ -211,12 +215,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     console.log("Signing in with email:", email)
     let attempts = 0
-    const maxAttempts = 2
+    const maxAttempts = 3
 
     while (attempts <= maxAttempts) {
       try {
         if (attempts > 0) {
           console.log(`Auth provider retry attempt ${attempts}...`)
+          // Add exponential backoff
+          await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * Math.pow(2, attempts - 1), 8000)))
+        }
+
+        // Check network connectivity
+        if (!navigator.onLine) {
+          throw new Error("You appear to be offline. Please check your internet connection.")
         }
 
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -235,8 +246,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // For other errors, retry if we haven't reached max attempts
           if (attempts < maxAttempts) {
             attempts++
-            // Add a small delay before retrying
-            await new Promise((resolve) => setTimeout(resolve, 1000))
             continue
           }
         } else {
@@ -244,28 +253,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         return { error }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Unexpected error during sign in:", e)
+
+        // Improve error message for network issues
+        if (e.message?.includes("fetch") || e.message?.includes("network") || !navigator.onLine) {
+          if (attempts < maxAttempts) {
+            attempts++
+            continue
+          }
+          return {
+            error: { message: "Network connection issue. Please check your internet connection and try again." },
+          }
+        }
 
         // Retry if we haven't reached max attempts
         if (attempts < maxAttempts) {
           attempts++
-          // Add a small delay before retrying
-          await new Promise((resolve) => setTimeout(resolve, 1000))
           continue
         }
 
-        return { error: { message: "An unexpected error occurred" } }
+        return { error: { message: e.message || "An unexpected error occurred" } }
       }
     }
 
     // If we've exhausted all attempts
-    return { error: { message: "Failed to sign in after multiple attempts" } }
+    return { error: { message: "Failed to sign in after multiple attempts. Please try again later." } }
   }
 
   const signInWithMagicLink = async (email: string) => {
     console.log("Sending magic link to:", email)
     try {
+      // Check network connectivity
+      if (!navigator.onLine) {
+        return { error: { message: "You appear to be offline. Please check your internet connection." } }
+      }
+
       const { data, error } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -280,8 +303,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       return { error }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Unexpected error during magic link:", e)
+      // Improve error message for network issues
+      if (e.message?.includes("fetch") || !navigator.onLine) {
+        return { error: { message: "Network connection issue. Please check your internet connection and try again." } }
+      }
       return { error: { message: "An unexpected error occurred" } }
     }
   }

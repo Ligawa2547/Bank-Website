@@ -41,7 +41,7 @@ export default function LoginPage() {
           description: "Request took too long. Please try again.",
           variant: "destructive",
         })
-      }, 30000) // 30 seconds timeout (increased from 15 seconds)
+      }, 45000) // 45 seconds timeout (increased from 30 seconds)
     }
 
     return () => {
@@ -56,20 +56,60 @@ export default function LoginPage() {
     setIsLoading(true)
 
     // Maximum number of retry attempts
-    const maxRetries = 2
-    setRetryCount(0)
+    const maxRetries = 3
+    let currentRetry = 0
+    setRetryCount(currentRetry)
     let success = false
 
-    while (retryCount <= maxRetries && !success) {
+    while (currentRetry <= maxRetries && !success) {
       try {
-        if (retryCount > 0) {
-          console.log(`Retry attempt ${retryCount}...`)
+        if (currentRetry > 0) {
+          console.log(`Retry attempt ${currentRetry}...`)
+          // Add exponential backoff delay between retries
+          const backoffDelay = Math.min(1000 * Math.pow(2, currentRetry - 1), 8000)
+          setStatusMessage(`Network issue detected. Retrying in ${backoffDelay / 1000} seconds...`)
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay))
+        }
+
+        setRetryCount(currentRetry)
+
+        // Check for network connectivity before attempting to sign in
+        try {
+          await fetch("/api/health-check", {
+            method: "HEAD",
+            cache: "no-store",
+            headers: { "Cache-Control": "no-cache" },
+          })
+        } catch (networkError) {
+          console.error("Network connectivity issue detected:", networkError)
+          if (currentRetry < maxRetries) {
+            currentRetry++
+            continue
+          } else {
+            throw new Error("Network connectivity issue. Please check your internet connection.")
+          }
         }
 
         const { error } = await signIn(email, password)
 
         if (error) {
           console.error("Login error:", error)
+
+          // Handle specific error types
+          if (
+            error.message?.includes("Failed to fetch") ||
+            error.message?.includes("NetworkError") ||
+            error.message?.includes("network") ||
+            error.message?.includes("timeout")
+          ) {
+            // For network errors, retry with backoff
+            if (currentRetry < maxRetries) {
+              currentRetry++
+              continue
+            } else {
+              throw new Error("Network issue persists. Please try again later or check your internet connection.")
+            }
+          }
 
           // Don't retry for invalid credentials or other specific errors
           if (error.message?.includes("Invalid login credentials") || error.message?.includes("Email not confirmed")) {
@@ -82,12 +122,6 @@ export default function LoginPage() {
               variant: "destructive",
             })
             break
-          }
-
-          // For network or timeout errors, retry
-          if (retryCount < maxRetries) {
-            setRetryCount(retryCount + 1)
-            continue
           }
 
           setLoginStatus("error")
@@ -112,9 +146,15 @@ export default function LoginPage() {
       } catch (error: any) {
         console.error("Unexpected error during login:", error)
 
-        // For network or timeout errors, retry
-        if (retryCount < maxRetries) {
-          setRetryCount(retryCount + 1)
+        // For network or timeout errors, retry with backoff
+        if (
+          (error.message?.includes("fetch") ||
+            error.message?.includes("network") ||
+            error.message?.includes("internet") ||
+            error.message?.includes("connection")) &&
+          currentRetry < maxRetries
+        ) {
+          currentRetry++
           continue
         }
 
@@ -128,7 +168,7 @@ export default function LoginPage() {
         })
         break
       } finally {
-        if (retryCount >= maxRetries || success) {
+        if (currentRetry >= maxRetries || success) {
           setIsLoading(false)
         }
       }
@@ -141,41 +181,76 @@ export default function LoginPage() {
     setStatusMessage("")
     setIsLoading(true)
 
-    try {
-      const { error } = await signInWithMagicLink(email)
+    // Maximum number of retry attempts
+    const maxRetries = 2
+    let currentRetry = 0
 
-      if (error) {
-        console.error("Magic link error:", error)
+    while (currentRetry <= maxRetries) {
+      try {
+        if (currentRetry > 0) {
+          console.log(`Magic link retry attempt ${currentRetry}...`)
+          // Add exponential backoff delay between retries
+          const backoffDelay = Math.min(1000 * Math.pow(2, currentRetry - 1), 4000)
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay))
+        }
+
+        const { error } = await signInWithMagicLink(email)
+
+        if (error) {
+          console.error("Magic link error:", error)
+
+          // For network errors, retry
+          if (
+            error.message?.includes("Failed to fetch") ||
+            error.message?.includes("NetworkError") ||
+            error.message?.includes("network")
+          ) {
+            if (currentRetry < maxRetries) {
+              currentRetry++
+              continue
+            }
+          }
+
+          setLoginStatus("error")
+          setStatusMessage(error.message || "Failed to send magic link. Please try again.")
+
+          toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive",
+          })
+          return
+        }
+
+        setLoginStatus("success")
+        setStatusMessage("Magic link sent! Please check your email to complete login.")
+
+        toast({
+          title: "Success",
+          description: "Check your email for the magic link to log in.",
+        })
+        break
+      } catch (error: any) {
+        console.error("Unexpected error during magic link login:", error)
+
+        // For network errors, retry
+        if ((error.message?.includes("fetch") || error.message?.includes("network")) && currentRetry < maxRetries) {
+          currentRetry++
+          continue
+        }
+
         setLoginStatus("error")
-        setStatusMessage(error.message || "Failed to send magic link. Please try again.")
+        setStatusMessage(error.message || "An unexpected error occurred. Please try again.")
 
         toast({
           title: "Error",
-          description: error.message,
+          description: error.message || "Something went wrong",
           variant: "destructive",
         })
-        return
+        break
+      } finally {
+        setIsLoading(false)
       }
-
-      setLoginStatus("success")
-      setStatusMessage("Magic link sent! Please check your email to complete login.")
-
-      toast({
-        title: "Success",
-        description: "Check your email for the magic link to log in.",
-      })
-    } catch (error: any) {
-      console.error("Unexpected error during magic link login:", error)
-      setLoginStatus("error")
-      setStatusMessage(error.message || "An unexpected error occurred. Please try again.")
-
-      toast({
-        title: "Error",
-        description: error.message || "Something went wrong",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -204,6 +279,13 @@ export default function LoginPage() {
             <Alert className="mb-4 bg-red-50 border-red-200" variant="destructive">
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{statusMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          {isLoading && retryCount > 0 && (
+            <Alert className="mb-4 bg-yellow-50 border-yellow-200">
+              <AlertTitle>Retrying connection...</AlertTitle>
+              <AlertDescription>Attempt {retryCount} of 3. Please wait while we try to reconnect.</AlertDescription>
             </Alert>
           )}
 
@@ -263,7 +345,7 @@ export default function LoginPage() {
                   {isLoading ? (
                     <>
                       <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                      {retryCount > 0 ? `Retrying (${retryCount})...` : "Signing in..."}
+                      {retryCount > 0 ? `Retrying (${retryCount}/3)...` : "Signing in..."}
                     </>
                   ) : loginStatus === "success" ? (
                     "Signed In"
