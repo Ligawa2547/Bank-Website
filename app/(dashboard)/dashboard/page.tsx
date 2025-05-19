@@ -249,7 +249,7 @@ dashboarddashboard    return new Intl.NumberFormat("en-US", {
                     <div
                       className="h-full bg-[#0A3D62]"
                       style={{
-                        width: `${Math.min(100, (account.current_amount / account.target_amount) * 100)}%`,
+                        width: `${Math.min(10, (account.current_amount / account.target_amount) * 100)}%`,
                       }}
                     />
                   </div>
