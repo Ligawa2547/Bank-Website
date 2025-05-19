@@ -60,7 +60,7 @@ export default function DashboardPage() {
   }, [user, profile, supabase])
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
+dashboarddashboard    return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
     }).format(amount)
@@ -82,14 +82,14 @@ export default function DashboardPage() {
       {/* Account Details Card */}
       {profile && (
         <AccountDetailsCard
-          accountNumber={profile.account_number}
-          accountName={`${profile.first_name} ${profile.last_name}`}
-          balance={profile.balance}
+          accountNumber={users.account_number}
+          accountName={`${users.first_name} ${users.last_name}`}
+          balance={users.balance}
         />
       )}
 
       {/* Account Summary */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="gr:id gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Current Balance</CardTitle>
