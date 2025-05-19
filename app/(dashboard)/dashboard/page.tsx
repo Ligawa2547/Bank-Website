@@ -28,7 +28,7 @@ export default function DashboardPage() {
         const { data: transactionsData, error: transactionsError } = await supabase
           .from("transactions")
           .select("*")
-          .eq("account_no", profile.account_number) // Using account_no column
+          .eq("account_no", profile.account_number)
           .order("created_at", { ascending: false })
           .limit(5)
 
@@ -42,7 +42,7 @@ export default function DashboardPage() {
         const { data: savingsData, error: savingsError } = await supabase
           .from("savings_accounts")
           .select("*")
-          .eq("account_no", profile.account_number) // Using account_no column
+          .eq("account_no", profile.account_number)
 
         if (!savingsError && savingsData) {
           setSavingsAccounts(savingsData)
@@ -60,7 +60,7 @@ export default function DashboardPage() {
   }, [user, profile, supabase])
 
   const formatCurrency = (amount: number) => {
-dashboarddashboard    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
     }).format(amount)
@@ -82,14 +82,14 @@ dashboarddashboard    return new Intl.NumberFormat("en-US", {
       {/* Account Details Card */}
       {profile && (
         <AccountDetailsCard
-          accountNumber={users.account_number}
-          accountName={`${users.first_name} ${users.last_name}`}
-          balance={users.balance}
+          accountNumber={profile.account_number}
+          accountName={`${profile.first_name} ${profile.last_name}`}
+          balance={profile.balance}
         />
       )}
 
       {/* Account Summary */}
-      <div className="gr:id gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Current Balance</CardTitle>
@@ -249,7 +249,7 @@ dashboarddashboard    return new Intl.NumberFormat("en-US", {
                     <div
                       className="h-full bg-[#0A3D62]"
                       style={{
-                        width: `${Math.min(10, (account.current_amount / account.target_amount) * 100)}%`,
+                        width: `${Math.min(100, (account.current_amount / account.target_amount) * 100)}%`,
                       }}
                     />
                   </div>
