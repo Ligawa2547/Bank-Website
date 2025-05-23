@@ -28,7 +28,7 @@ export default function DashboardPage() {
         const { data: transactionsData, error: transactionsError } = await supabase
           .from("transactions")
           .select("*")
-          .eq("account_no", profile.account_number)
+          .eq("account_no", profile.account_number) // Using account_no column
           .order("created_at", { ascending: false })
           .limit(5)
 
@@ -42,7 +42,7 @@ export default function DashboardPage() {
         const { data: savingsData, error: savingsError } = await supabase
           .from("savings_accounts")
           .select("*")
-          .eq("account_no", profile.account_number)
+          .eq("account_no", profile.account_number) // Using account_no column
 
         if (!savingsError && savingsData) {
           setSavingsAccounts(savingsData)
