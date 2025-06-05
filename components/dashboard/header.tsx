@@ -13,15 +13,17 @@ import {
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { useSession } from "@/components/client-providers"
+import { useSession } from "@/providers/session-provider"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { NotificationsPopover } from "./notifications-popover"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export function Header() {
-  const { session, supabase } = useSession()
+  const { session } = useSession()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const supabase = createClientComponentClient()
 
   const handleSignOut = async () => {
     setIsLoading(true)

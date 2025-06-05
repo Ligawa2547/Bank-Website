@@ -31,49 +31,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const supabase = createClientComponentClient()
 
-  // Function to fetch user profile data
+  // Function to fetch user profile data from public.users table
   const fetchUserProfile = async (userId: string) => {
     try {
       console.log("Fetching user profile for user ID:", userId)
 
-      // Use a single query to try both tables at once
-      const [profileResponse, userResponse] = await Promise.allSettled([
-        supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle(),
-        supabase.from("users").select("*").eq("id", userId).maybeSingle(),
-      ])
+      // Fetch directly from public.users table using maybeSingle() to handle no rows gracefully
+      const { data: userData, error } = await supabase.from("users").select("*").eq("id", userId).maybeSingle()
 
-      // Check user_profiles result
-      if (profileResponse.status === "fulfilled" && profileResponse.value.data) {
-        console.log("User profile found in user_profiles table")
-        return profileResponse.value.data
+      if (error) {
+        console.error("Error fetching user data:", error)
+        return null
       }
 
-      // Check users result
-      if (userResponse.status === "fulfilled" && userResponse.value.data) {
-        console.log("User data found in users table")
-        const userData = userResponse.value.data
+      if (userData) {
+        console.log("User data found in public.users table:", userData)
 
         // Convert users table format to UserProfile format
-        return {
+        const userProfile: UserProfile = {
           id: userData.id,
           user_id: userData.id,
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-          email: userData.email,
-          phone_number: userData.phone_number,
-          city: userData.city,
-          country: userData.country,
-          account_number: userData.account_no || userData.account_number, // Handle both field names
+          first_name: userData.first_name || null,
+          last_name: userData.last_name || null,
+          email: userData.email || null,
+          phone_number: userData.phone_number || null,
+          city: userData.city || null,
+          country: userData.country || null,
+          account_number: userData.account_no || null, // Use account_no from users table
           balance: userData.balance || 0,
           email_verified: userData.email_verified || false,
           phone_verified: userData.phone_verified || false,
           kyc_status: userData.kyc_status || "not_submitted",
-          created_at: userData.created_at,
-          updated_at: userData.updated_at,
-        } as UserProfile
+          created_at: userData.created_at || null,
+          updated_at: userData.updated_at || null,
+        }
+
+        return userProfile
       }
 
-      console.log("No user profile found in either table")
+      console.log("No user profile found in public.users table for user ID:", userId)
       return null
     } catch (error) {
       console.error("Error in fetchUserProfile:", error)
@@ -96,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("User profile refreshed successfully")
       } else {
         console.log("No profile data found during refresh")
+        setProfile(null)
       }
     } catch (error) {
       console.error("Error refreshing user profile:", error)
@@ -122,15 +119,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user || null)
 
         if (session?.user) {
-          console.log("User is logged in, fetching profile")
-          // Fetch user profile
+          console.log("User is logged in, fetching profile from public.users table")
+          // Fetch user profile from public.users table
           const profileData = await fetchUserProfile(session.user.id)
           if (profileData) {
             setProfile(profileData)
             console.log("Profile set successfully")
           } else {
-            console.log("No profile data found")
+            console.log("No profile data found in public.users table")
+            setProfile(null)
           }
+        } else {
+          setProfile(null)
         }
       } catch (error) {
         console.error("Error in fetchSession:", error)
@@ -151,14 +151,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user || null)
 
       if (session?.user) {
-        console.log("User logged in, fetching profile on auth state change")
+        console.log("User logged in, fetching profile from public.users table on auth state change")
         // Fetch user profile when auth state changes
         const profileData = await fetchUserProfile(session.user.id)
         if (profileData) {
           setProfile(profileData)
           console.log("Profile set on auth state change")
         } else {
-          console.log("No profile found on auth state change")
+          console.log("No profile found in public.users table on auth state change")
+          setProfile(null)
         }
       } else {
         setProfile(null)

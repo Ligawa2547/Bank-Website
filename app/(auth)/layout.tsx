@@ -1,11 +1,10 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { AuthProvider } from "@/lib/auth-provider"
-import { useSession } from "@/components/client-providers"
+import { useSession } from "@/providers/session-provider"
 
 export default function AuthLayout({
   children,
