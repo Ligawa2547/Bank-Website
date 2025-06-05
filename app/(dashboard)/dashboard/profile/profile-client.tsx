@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,20 +10,67 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
+interface UserData {
+  id: string
+  email: string
+  first_name?: string
+  last_name?: string
+  phone_number?: string
+  city?: string
+  country?: string
+  account_no?: string
+  balance?: number
+}
+
 export default function ProfileClient() {
-  const { user, profile, refreshUserProfile } = useAuth()
+  const { user } = useAuth()
+  const [userData, setUserData] = useState<UserData | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
-    first_name: profile?.first_name || "",
-    last_name: profile?.last_name || "",
-    email: profile?.email || user?.email || "",
-    phone_number: profile?.phone_number || "",
-    city: profile?.city || "",
-    country: profile?.country || "",
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone_number: "",
+    city: "",
+    country: "",
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [isFetching, setIsFetching] = useState(true)
   const { toast } = useToast()
   const supabase = createClientComponentClient()
+
+  // Fetch user data from the users table
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user) return
+
+      try {
+        setIsFetching(true)
+        const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single()
+
+        if (error) {
+          console.error("Error fetching user data:", error)
+          return
+        }
+
+        setUserData(data)
+        setFormData({
+          first_name: data.first_name || "",
+          last_name: data.last_name || "",
+          email: data.email || user.email || "",
+          phone_number: data.phone_number || "",
+          city: data.city || "",
+          country: data.country || "",
+        })
+      } catch (error) {
+        console.error("Error fetching user data:", error)
+      } finally {
+        setIsFetching(false)
+      }
+    }
+
+    fetchUserData()
+  }, [user, supabase])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -36,39 +83,36 @@ export default function ProfileClient() {
 
     setIsLoading(true)
     try {
-      // Try to update user_profiles first
-      const { error: profileError } = await supabase
-        .from("user_profiles")
+      // Update the users table
+      const { error } = await supabase
+        .from("users")
         .update({
           first_name: formData.first_name,
           last_name: formData.last_name,
           phone_number: formData.phone_number,
           city: formData.city,
           country: formData.country,
+          updated_at: new Date().toISOString(),
         })
-        .eq("user_id", user.id)
+        .eq("id", user.id)
 
-      // If no rows were affected, try updating the users table
-      if (profileError) {
-        console.log("Error updating user_profiles or no rows affected, trying users table")
-        const { error: userError } = await supabase
-          .from("users")
-          .update({
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            phone_number: formData.phone_number,
-            city: formData.city,
-            country: formData.country,
-          })
-          .eq("id", user.id)
-
-        if (userError) {
-          throw userError
-        }
+      if (error) {
+        throw error
       }
 
-      // Refresh the profile data
-      await refreshUserProfile()
+      // Update local state
+      setUserData((prev) =>
+        prev
+          ? {
+              ...prev,
+              first_name: formData.first_name,
+              last_name: formData.last_name,
+              phone_number: formData.phone_number,
+              city: formData.city,
+              country: formData.country,
+            }
+          : null,
+      )
 
       toast({
         title: "Profile updated",
@@ -88,12 +132,24 @@ export default function ProfileClient() {
     }
   }
 
-  if (!profile && !user) {
+  if (isFetching) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent mx-auto mb-4"></div>
           <h2 className="text-lg font-medium">Loading profile...</h2>
           <p className="text-sm text-gray-500">Please wait while we load your profile information.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!userData && !user) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-lg font-medium">Profile not found</h2>
+          <p className="text-sm text-gray-500">Unable to load your profile information.</p>
         </div>
       </div>
     )
@@ -187,14 +243,24 @@ export default function ProfileClient() {
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <p className="text-sm font-medium text-gray-500">Account Number</p>
-              <p className="font-mono text-lg">{profile?.account_number || "Not available"}</p>
+              <p className="font-mono text-lg font-semibold">{userData?.account_no || "Not available"}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Account Balance</p>
+              <p className="text-lg font-semibold text-green-600">${userData?.balance?.toFixed(2) || "0.00"}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">Account Status</p>
               <div className="flex items-center">
                 <div className="mr-2 h-2 w-2 rounded-full bg-green-500"></div>
-                <p>Active</p>
+                <p className="text-green-600 font-medium">Active</p>
               </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Member Since</p>
+              <p className="text-sm">
+                {userData?.created_at ? new Date(userData.created_at).toLocaleDateString() : "Not available"}
+              </p>
             </div>
           </div>
         </div>
