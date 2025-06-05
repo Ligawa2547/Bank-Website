@@ -1,151 +1,94 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useAuth } from "@/lib/auth-provider"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Notification } from "@/types/user"
-import { formatDistanceToNow } from "date-fns"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export function NotificationsPopover() {
-  const { user, profile } = useAuth()
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClientComponentClient()
+  const notifications = [
+    {
+      id: 1,
+      title: "Payment Received",
+      message: "You received $500.00 from John Doe",
+      time: "2 minutes ago",
+      unread: true,
+    },
+    {
+      id: 2,
+      title: "Transfer Complete",
+      message: "Your transfer of $200.00 to Jane Smith was successful",
+      time: "1 hour ago",
+      unread: true,
+    },
+    {
+      id: 3,
+      title: "Account Alert",
+      message: "Your account balance is below $100.00",
+      time: "3 hours ago",
+      unread: false,
+    },
+  ]
 
-  // Fetch notifications
-  useEffect(() => {
-    if (!user || !profile?.account_number) return
-
-    const fetchNotifications = async () => {
-      setIsLoading(true)
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("account_no", profile.account_number) // Using account_no column
-        .order("created_at", { ascending: false })
-        .limit(10)
-
-      if (!error && data) {
-        setNotifications(data)
-        setUnreadCount(data.filter((n) => !n.is_read).length)
-      } else if (error) {
-        console.error("Error fetching notifications:", error)
-      }
-      setIsLoading(false)
-    }
-
-    fetchNotifications()
-
-    // Subscribe to new notifications
-    const channel = supabase
-      .channel(`notifications:${profile.account_number}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `account_no=eq.${profile.account_number}`, // Using account_no column
-        },
-        (payload) => {
-          // @ts-ignore
-          setNotifications((prev) => [payload.new, ...prev].slice(0, 10))
-          setUnreadCount((prev) => prev + 1)
-        },
-      )
-      .subscribe()
-
-    return () => {
-      channel.unsubscribe()
-    }
-  }, [user, profile, supabase])
-
-  // Mark notification as read
-  const markAsRead = async (id: string) => {
-    const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", id)
-
-    if (!error) {
-      setNotifications(notifications.map((n) => (n.id === id ? { ...n, is_read: true } : n)))
-      setUnreadCount((prev) => prev - 1)
-    }
-  }
-
-  // Mark all as read
-  const markAllAsRead = async () => {
-    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id)
-
-    if (unreadIds.length === 0) return
-
-    const { error } = await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds)
-
-    if (!error) {
-      setNotifications(notifications.map((n) => ({ ...n, is_read: true })))
-      setUnreadCount(0)
-    }
-  }
+  const unreadCount = notifications.filter((n) => n.unread).length
 
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative hover:bg-gray-100 dark:hover:bg-gray-700"
+          aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ""}`}
+        >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
+            <Badge
+              variant="destructive"
+              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center"
+            >
+              {unreadCount}
+            </Badge>
           )}
-          <span className="sr-only">Notifications</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
-        <div className="flex items-center justify-between border-b p-3">
-          <h3 className="font-medium">Notifications</h3>
+      <PopoverContent className="w-80" align="end">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-lg">Notifications</h3>
           {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" className="text-xs text-[#0A3D62]" onClick={markAllAsRead}>
-              Mark all as read
-            </Button>
+            <Badge variant="secondary" className="text-xs">
+              {unreadCount} new
+            </Badge>
           )}
         </div>
-        <div className="max-h-[300px] overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center p-4">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]" />
-            </div>
-          ) : notifications.length > 0 ? (
-            notifications.map((notification) => (
+        <ScrollArea className="h-80">
+          <div className="space-y-3">
+            {notifications.map((notification) => (
               <div
                 key={notification.id}
-                className={`border-b p-3 ${!notification.is_read ? "bg-blue-50" : ""}`}
-                onClick={() => !notification.is_read && markAsRead(notification.id)}
+                className={`p-3 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
+                  notification.unread
+                    ? "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800"
+                    : "bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-700"
+                }`}
               >
-                <div className="flex justify-between gap-2">
-                  <p className="text-sm font-medium">{notification.title}</p>
-                  <span className="text-xs text-gray-500">
-                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600">{notification.message}</p>
-                {!notification.is_read && (
-                  <div className="mt-1 flex justify-end">
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="h-auto p-0 text-xs text-[#0A3D62]"
-                      onClick={() => markAsRead(notification.id)}
-                    >
-                      Mark as read
-                    </Button>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm mb-1">{notification.title}</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{notification.message}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500">{notification.time}</p>
                   </div>
-                )}
+                  {notification.unread && <div className="w-2 h-2 bg-blue-500 rounded-full mt-1 ml-2" />}
+                </div>
               </div>
-            ))
-          ) : (
-            <div className="p-4 text-center text-sm text-gray-500">No notifications</div>
-          )}
+            ))}
+          </div>
+        </ScrollArea>
+        <div className="mt-4 pt-3 border-t">
+          <Button variant="ghost" className="w-full text-sm">
+            View all notifications
+          </Button>
         </div>
       </PopoverContent>
     </Popover>
