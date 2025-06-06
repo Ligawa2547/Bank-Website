@@ -39,12 +39,40 @@ export type Transaction = {
 export type SavingsAccount = {
   id: string
   user_id: string
+  account_no: string
   name: string
   target_amount: number
   current_amount: number
   is_locked: boolean
   start_date: string
   end_date?: string
+  created_at: string
+  updated_at: string
+}
+
+export type SavingsTransaction = {
+  id: string
+  savings_account_id: string
+  account_no: string
+  transaction_type: "deposit" | "withdrawal"
+  amount: number
+  status: "pending" | "completed" | "failed"
+  reference: string
+  narration: string
+  created_at: string
+}
+
+export type KYCDocument = {
+  id: string
+  user_id: string
+  account_no: string
+  document_type: "national_id" | "passport" | "drivers_license" | "utility_bill" | "bank_statement"
+  document_number?: string
+  document_url: string
+  status: "pending" | "approved" | "rejected"
+  rejection_reason?: string
+  submitted_at: string
+  reviewed_at?: string
   created_at: string
   updated_at: string
 }

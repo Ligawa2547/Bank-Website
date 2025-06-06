@@ -130,7 +130,7 @@ export default function SavingsPage() {
     setIsSubmitting(true)
 
     try {
-      // Create savings account with account_no
+      // Start a transaction
       const { data: newSavingsAccount, error: savingsError } = await supabase
         .from("savings_accounts")
         .insert({
@@ -142,31 +142,44 @@ export default function SavingsPage() {
           account_no: profile.account_number, // Using account_no column
         })
         .select()
+        .single()
 
       if (savingsError) {
         throw new Error(savingsError.message)
       }
 
-      // If there's an initial deposit, update user's balance and create transaction
+      // If there's an initial deposit, handle the transaction
       if (initialDeposit > 0) {
         // Update user's balance
         const { error: updateError } = await supabase
-          .from("user_profiles")
-          .update({ balance: profile.balance - initialDeposit })
-          .eq("user_id", user.id)
+          .from("users")
+          .update({ account_balance: profile.balance - initialDeposit })
+          .eq("id", user.id)
 
         if (updateError) {
           throw new Error(updateError.message)
         }
 
-        // Create transaction record
+        // Create main transaction record
+        const transactionRef = `SAV-${Date.now()}`
         await supabase.from("transactions").insert({
-          account_no: profile.account_number, // Using account_no column
+          account_no: profile.account_number,
           transaction_type: "withdrawal",
           amount: initialDeposit,
           status: "completed",
-          reference: `SAV-${Date.now()}`,
+          reference: transactionRef,
           narration: `Initial deposit to ${formData.name} savings`,
+        })
+
+        // Create savings transaction record
+        await supabase.from("savings_transactions").insert({
+          savings_account_id: newSavingsAccount.id,
+          account_no: profile.account_number,
+          transaction_type: "deposit",
+          amount: initialDeposit,
+          status: "completed",
+          reference: transactionRef,
+          narration: `Initial deposit to ${formData.name}`,
         })
       }
 
@@ -179,7 +192,7 @@ export default function SavingsPage() {
       const { data, error } = await supabase
         .from("savings_accounts")
         .select("*")
-        .eq("account_no", profile.account_number) // Using account_no column
+        .eq("account_no", profile.account_number)
         .order("created_at", { ascending: false })
 
       if (!error && data) {
@@ -247,22 +260,34 @@ export default function SavingsPage() {
 
       // Update user's balance
       const { error: updateError } = await supabase
-        .from("user_profiles")
-        .update({ balance: profile.balance - amount })
-        .eq("user_id", user.id)
+        .from("users")
+        .update({ account_balance: profile.balance - amount })
+        .eq("id", user.id)
 
       if (updateError) {
         throw new Error(updateError.message)
       }
 
-      // Create transaction record
+      // Create main transaction record
+      const transactionRef = `SAV-${Date.now()}`
       await supabase.from("transactions").insert({
-        account_no: profile.account_number, // Using account_no column
+        account_no: profile.account_number,
         transaction_type: "withdrawal",
         amount,
         status: "completed",
-        reference: `SAV-${Date.now()}`,
+        reference: transactionRef,
         narration: `Deposit to ${selectedAccount.name} savings`,
+      })
+
+      // Create savings transaction record
+      await supabase.from("savings_transactions").insert({
+        savings_account_id: selectedAccount.id,
+        account_no: profile.account_number,
+        transaction_type: "deposit",
+        amount,
+        status: "completed",
+        reference: transactionRef,
+        narration: `Deposit to ${selectedAccount.name}`,
       })
 
       toast({
@@ -274,7 +299,7 @@ export default function SavingsPage() {
       const { data, error } = await supabase
         .from("savings_accounts")
         .select("*")
-        .eq("account_no", profile.account_number) // Using account_no column
+        .eq("account_no", profile.account_number)
         .order("created_at", { ascending: false })
 
       if (!error && data) {
@@ -310,7 +335,7 @@ export default function SavingsPage() {
       const { data, error: fetchError } = await supabase
         .from("savings_accounts")
         .select("*")
-        .eq("account_no", profile?.account_number) // Using account_no column
+        .eq("account_no", profile?.account_number)
         .order("created_at", { ascending: false })
 
       if (!fetchError && data) {
@@ -338,22 +363,34 @@ export default function SavingsPage() {
       if (account.current_amount > 0) {
         // Update user's balance
         const { error: updateError } = await supabase
-          .from("user_profiles")
-          .update({ balance: profile.balance + account.current_amount })
-          .eq("user_id", user.id)
+          .from("users")
+          .update({ account_balance: profile.balance + account.current_amount })
+          .eq("id", user.id)
 
         if (updateError) {
           throw new Error(updateError.message)
         }
 
-        // Create transaction record
+        // Create main transaction record
+        const transactionRef = `SAV-${Date.now()}`
         await supabase.from("transactions").insert({
-          account_no: profile.account_number, // Using account_no column
+          account_no: profile.account_number,
           transaction_type: "deposit",
           amount: account.current_amount,
           status: "completed",
-          reference: `SAV-${Date.now()}`,
+          reference: transactionRef,
           narration: `Withdrawal from ${account.name} savings (account closed)`,
+        })
+
+        // Create savings transaction record
+        await supabase.from("savings_transactions").insert({
+          savings_account_id: account.id,
+          account_no: profile.account_number,
+          transaction_type: "withdrawal",
+          amount: account.current_amount,
+          status: "completed",
+          reference: transactionRef,
+          narration: `Account closure withdrawal from ${account.name}`,
         })
       }
 
@@ -368,7 +405,7 @@ export default function SavingsPage() {
       const { data, error: fetchError } = await supabase
         .from("savings_accounts")
         .select("*")
-        .eq("account_no", profile.account_number) // Using account_no column
+        .eq("account_no", profile.account_number)
         .order("created_at", { ascending: false })
 
       if (!fetchError && data) {
