@@ -17,21 +17,27 @@ import { useSession } from "@/providers/session-provider"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { NotificationsPopover } from "./notifications-popover"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useAuth } from "@/lib/auth-provider"
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const { session } = useSession()
+  const { signOut } = useAuth()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const supabase = createClientComponentClient()
 
   const handleSignOut = async () => {
     setIsLoading(true)
     try {
-      await supabase.auth.signOut()
-      router.push("/login")
+      await signOut()
+      // The signOut function in auth provider already handles the redirect
     } catch (error) {
       console.error("Error signing out:", error)
+      // Fallback redirect if auth provider doesn't handle it
+      router.push("/login")
     } finally {
       setIsLoading(false)
     }
@@ -49,7 +55,7 @@ export function Header() {
   return (
     <header className="flex h-16 items-center justify-between border-b bg-white px-4 shadow-sm dark:bg-gray-800 dark:border-gray-700 md:px-6">
       {/* Mobile menu button */}
-      <Button variant="ghost" size="icon" className="md:hidden" aria-label="Toggle menu">
+      <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick} aria-label="Toggle menu">
         <Menu className="h-5 w-5" />
       </Button>
 
