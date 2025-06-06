@@ -53,31 +53,37 @@ export function Header({ onMenuClick }: HeaderProps) {
     .slice(0, 2)
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-white px-4 shadow-sm dark:bg-gray-800 dark:border-gray-700 md:px-6">
+    <header className="flex h-14 sm:h-16 items-center justify-between border-b bg-white px-3 sm:px-4 shadow-sm dark:bg-gray-800 dark:border-gray-700 md:px-6">
       {/* Mobile menu button */}
-      <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick} aria-label="Toggle menu">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden h-10 w-10"
+        onClick={onMenuClick}
+        aria-label="Toggle menu"
+      >
         <Menu className="h-5 w-5" />
       </Button>
 
       {/* Search bar */}
-      <div className="flex flex-1 items-center justify-center px-4 md:justify-start">
+      <div className="flex flex-1 items-center justify-center px-2 sm:px-4 md:justify-start">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             type="search"
-            placeholder="Search transactions, accounts..."
-            className="pl-10 pr-4 w-full bg-gray-50 border-gray-200 focus:bg-white dark:bg-gray-700 dark:border-gray-600"
+            placeholder="Search..."
+            className="pl-10 pr-4 w-full bg-gray-50 border-gray-200 focus:bg-white dark:bg-gray-700 dark:border-gray-600 text-sm"
           />
         </div>
       </div>
 
       {/* Right side actions */}
-      <div className="flex items-center space-x-2 md:space-x-4">
+      <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-4">
         {/* Notifications */}
         <NotificationsPopover />
 
-        {/* Quick actions */}
-        <div className="hidden md:flex items-center space-x-2">
+        {/* Quick actions - hidden on mobile */}
+        <div className="hidden lg:flex items-center space-x-2">
           <Button
             variant="outline"
             size="sm"
@@ -94,28 +100,28 @@ export function Header({ onMenuClick }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="relative h-10 w-10 rounded-full p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
-              <Avatar className="h-10 w-10">
+              <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
                 <AvatarImage src={session?.user?.user_metadata?.avatar_url || "/placeholder.svg"} alt={userName} />
-                <AvatarFallback className="bg-primary text-primary-foreground font-medium">
+                <AvatarFallback className="bg-primary text-primary-foreground font-medium text-xs sm:text-sm">
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
               {/* Online indicator */}
-              <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-800" />
+              <div className="absolute bottom-0 right-0 h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-800" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-64" align="end" forceMount>
+          <DropdownMenuContent className="w-56 sm:w-64" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-2">
                 <div className="flex items-center space-x-2">
-                  <p className="text-sm font-medium leading-none">{userName}</p>
+                  <p className="text-sm font-medium leading-none truncate">{userName}</p>
                   <Badge variant="secondary" className="text-xs">
                     Premium
                   </Badge>
                 </div>
-                <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
+                <p className="text-xs leading-none text-muted-foreground truncate">{userEmail}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -127,6 +133,14 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
             </DropdownMenuItem>
+            {/* Mobile-only quick actions */}
+            <div className="lg:hidden">
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/dashboard/transfers")} className="cursor-pointer">
+                <CreditCard className="mr-2 h-4 w-4" />
+                <span>Transfer Money</span>
+              </DropdownMenuItem>
+            </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleSignOut}
