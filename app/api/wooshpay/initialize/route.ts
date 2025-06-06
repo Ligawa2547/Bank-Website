@@ -4,8 +4,6 @@ import { NextResponse } from "next/server"
 import { wooshPayClient } from "@/lib/wooshpay/client"
 
 export async function POST(request: Request) {
-  console.log("WooshPay initialize endpoint called")
-
   try {
     // Verify authentication
     const supabase = createRouteHandlerClient({ cookies })
@@ -14,22 +12,20 @@ export async function POST(request: Request) {
     } = await supabase.auth.getSession()
 
     if (!session) {
-      console.log("No session found")
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    console.log("Session found for user:", session.user.id)
-
     // Parse request body
-    const body = await request.json()
-    console.log("Request body:", body)
-
-    const { email, amount, reference, metadata } = body
+    const { email, amount, reference, metadata } = await request.json()
 
     // Validate required fields
     if (!email || !amount || !reference) {
-      console.log("Missing required fields:", { email: !!email, amount: !!amount, reference: !!reference })
       return NextResponse.json({ message: "Missing required fields" }, { status: 400 })
+    }
+
+    // Validate amount
+    if (isNaN(Number(amount)) || Number(amount) <= 0) {
+      return NextResponse.json({ message: "Invalid amount" }, { status: 400 })
     }
 
     // Get user profile for additional metadata
@@ -39,37 +35,57 @@ export async function POST(request: Request) {
       .eq("id", session.user.id)
       .single()
 
-    if (userError) {
-      console.error("Error fetching user profile:", userError)
+    if (userError || !userProfile) {
+      return NextResponse.json({ message: "User profile not found" }, { status: 404 })
     }
 
-    console.log("User profile:", userProfile)
+    // Create a pending transaction in the database first
+    const transactionData = {
+      account_no: userProfile.account_no,
+      amount: Number(amount),
+      transaction_type: "deposit",
+      status: "pending",
+      reference,
+      narration: "Deposit via WooshPay",
+      recipient_account_number: userProfile.account_no,
+      recipient_name: `${userProfile.first_name} ${userProfile.last_name}`,
+      created_at: new Date().toISOString(),
+    }
+
+    const { error: transactionError } = await supabase.from("transactions").insert(transactionData)
+
+    if (transactionError) {
+      console.error("Error creating transaction:", transactionError)
+      return NextResponse.json({ message: "Failed to create transaction record" }, { status: 500 })
+    }
 
     // Initialize WooshPay transaction
     const wooshPayData = {
       email,
-      amount: Number(amount), // Keep as dollars, not cents for WooshPay
+      amount: Number(amount),
       reference,
       callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?verify=${reference}`,
       metadata: {
         user_id: session.user.id,
-        account_no: userProfile?.account_no,
+        account_no: userProfile.account_no,
         ...metadata,
       },
       customer: {
-        name: userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : undefined,
-        phone: userProfile?.phone_number,
+        name: `${userProfile.first_name} ${userProfile.last_name}`,
+        phone: userProfile.phone_number,
+        email: email,
       },
     }
 
-    console.log("Sending to WooshPay:", wooshPayData)
-
     const wooshPayResponse = await wooshPayClient.initializePayment(wooshPayData)
 
-    console.log("WooshPay response:", wooshPayResponse)
-
     if (!wooshPayResponse.status) {
-      console.log("WooshPay returned error:", wooshPayResponse.message)
+      // If WooshPay fails, update transaction status
+      await supabase
+        .from("transactions")
+        .update({ status: "failed", narration: `Failed: ${wooshPayResponse.message}` })
+        .eq("reference", reference)
+
       return NextResponse.json(
         {
           message: wooshPayResponse.message || "Payment initialization failed",
@@ -78,8 +94,7 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!wooshPayResponse.data) {
-      console.log("WooshPay response missing data")
+    if (!wooshPayResponse.data?.authorization_url) {
       return NextResponse.json(
         {
           message: "Invalid response from payment gateway",
@@ -88,14 +103,17 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log("Payment initialized successfully")
-    return NextResponse.json(wooshPayResponse.data)
+    return NextResponse.json({
+      authorization_url: wooshPayResponse.data.authorization_url,
+      reference: reference,
+      amount: amount,
+    })
   } catch (error: any) {
     console.error("WooshPay initialization error:", error)
     return NextResponse.json(
       {
-        message: error.message || "Internal server error",
-        details: error.toString(),
+        message: "Internal server error",
+        details: process.env.NODE_ENV === "development" ? error.message : undefined,
       },
       { status: 500 },
     )

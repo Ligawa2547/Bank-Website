@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { useSession } from "@/providers/session-provider"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, CheckCircle } from "lucide-react"
 
 interface WooshPayPaymentProps {
   onSuccess?: () => void
@@ -21,7 +21,7 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
   const [amount, setAmount] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
-  const [debugInfo, setDebugInfo] = useState("")
+  const [success, setSuccess] = useState("")
   const { session } = useSession()
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -29,9 +29,7 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    setDebugInfo("")
-
-    console.log("Starting payment process...")
+    setSuccess("")
 
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       setError("Please enter a valid amount")
@@ -46,8 +44,6 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
     setIsLoading(true)
 
     try {
-      console.log("Fetching user data...")
-
       // Get user data
       const { data: userData, error: userError } = await supabase
         .from("users")
@@ -56,107 +52,55 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
         .single()
 
       if (userError || !userData) {
-        console.error("User data error:", userError)
         setError("User data not found. Please try again.")
-        setDebugInfo(`User error: ${userError?.message}`)
         setIsLoading(false)
         return
       }
-
-      console.log("User data found:", userData.account_no)
 
       // Generate a unique reference
       const reference = `dep_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
-      console.log("Generated reference:", reference)
 
-      // Create a pending transaction in the database
-      const transactionData = {
-        account_no: userData.account_no,
-        amount: Number(amount),
-        transaction_type: "deposit",
-        status: "pending",
-        reference,
-        narration: "Deposit via WooshPay",
-        recipient_account_number: userData.account_no,
-        recipient_name: `${userData.first_name} ${userData.last_name}`,
-        created_at: new Date().toISOString(),
-      }
-
-      console.log("Creating transaction:", transactionData)
-
-      const { error: transactionError } = await supabase.from("transactions").insert(transactionData)
-
-      if (transactionError) {
-        console.error("Error creating transaction:", transactionError)
-        setError("Failed to initiate payment. Please try again.")
-        setDebugInfo(`Transaction error: ${transactionError.message}`)
-        setIsLoading(false)
-        return
-      }
-
-      console.log("Transaction created successfully")
-
-      // Initialize WooshPay payment
-      const paymentData = {
-        email: session.user.email,
-        amount: Number(amount),
-        reference,
-        metadata: {
-          account_number: userData.account_no,
-          user_id: session.user.id,
-        },
-      }
-
-      console.log("Initializing WooshPay payment:", paymentData)
-
+      // Initialize payment through API (server-side)
       const response = await fetch("/api/wooshpay/initialize", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(paymentData),
+        body: JSON.stringify({
+          email: session.user.email,
+          amount: Number(amount),
+          reference,
+          metadata: {
+            account_number: userData.account_no,
+            user_id: session.user.id,
+            user_name: `${userData.first_name} ${userData.last_name}`,
+          },
+        }),
       })
 
-      console.log("API response status:", response.status)
-
-      const responseText = await response.text()
-      console.log("API response text:", responseText)
-
-      let data
-      try {
-        data = JSON.parse(responseText)
-      } catch (parseError) {
-        console.error("Failed to parse response:", parseError)
-        setError("Invalid response from server")
-        setDebugInfo(`Parse error: ${parseError}`)
-        setIsLoading(false)
-        return
-      }
-
-      console.log("Parsed response data:", data)
+      const data = await response.json()
 
       if (!response.ok) {
         setError(data.message || "Failed to initialize payment")
-        setDebugInfo(`API error: ${response.status} - ${JSON.stringify(data)}`)
         setIsLoading(false)
         return
       }
 
       if (!data.authorization_url) {
         setError("No payment URL received from gateway")
-        setDebugInfo(`Missing authorization_url in response: ${JSON.stringify(data)}`)
         setIsLoading(false)
         return
       }
 
-      console.log("Redirecting to:", data.authorization_url)
+      // Store payment reference for verification
+      localStorage.setItem("wooshpay_reference", reference)
+      localStorage.setItem("wooshpay_amount", amount)
 
       // Redirect to WooshPay checkout
       window.location.href = data.authorization_url
     } catch (error: any) {
       console.error("Payment error:", error)
       setError("An error occurred while processing your payment. Please try again.")
-      setDebugInfo(`Catch error: ${error.message}`)
       setIsLoading(false)
     }
   }
@@ -175,6 +119,7 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
             min="1"
             step="0.01"
             required
+            className="text-lg"
           />
         </div>
 
@@ -185,33 +130,30 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
           </Alert>
         )}
 
-        {debugInfo && process.env.NODE_ENV === "development" && (
-          <Alert>
-            <AlertDescription>
-              <strong>Debug Info:</strong> {debugInfo}
-            </AlertDescription>
+        {success && (
+          <Alert className="border-green-200 bg-green-50">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">{success}</AlertDescription>
           </Alert>
         )}
 
-        <Button type="submit" className="w-full bg-[#0A3D62] text-white hover:bg-[#0F5585]" disabled={isLoading}>
-          {isLoading ? "Processing..." : "Pay with WooshPay"}
-        </Button>
+        <div className="flex gap-2">
+          <Button type="submit" className="flex-1 bg-[#0A3D62] text-white hover:bg-[#0F5585]" disabled={isLoading}>
+            {isLoading ? "Processing..." : "Pay with WooshPay"}
+          </Button>
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+              Cancel
+            </Button>
+          )}
+        </div>
       </form>
 
-      {process.env.NODE_ENV === "development" && (
-        <div className="mt-4 p-4 bg-gray-100 rounded-md">
-          <h4 className="font-semibold mb-2">Debug Information:</h4>
-          <p>
-            <strong>Session:</strong> {session?.user?.email || "No session"}
-          </p>
-          <p>
-            <strong>Environment:</strong> {process.env.NODE_ENV}
-          </p>
-          <p>
-            <strong>App URL:</strong> {process.env.NEXT_PUBLIC_APP_URL}
-          </p>
-        </div>
-      )}
+      <div className="text-sm text-gray-600 space-y-1">
+        <p>• Secure payment processing</p>
+        <p>• Instant account funding</p>
+        <p>• 24/7 transaction support</p>
+      </div>
     </div>
   )
 }
