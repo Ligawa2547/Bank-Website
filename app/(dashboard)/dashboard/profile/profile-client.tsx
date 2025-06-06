@@ -19,7 +19,7 @@ interface UserData {
   city?: string
   country?: string
   account_no?: string
-  balance?: number
+  account_balance?: number
   status?: string
   created_at?: string
   updated_at?: string
@@ -201,6 +201,7 @@ export default function ProfileClient() {
             city: formData.city,
             country: formData.country,
             status: "pending", // Default status for new users
+            account_balance: 0, // Default balance
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -403,7 +404,7 @@ export default function ProfileClient() {
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-500">Account Balance</p>
-              <p className="text-lg font-semibold text-green-600">${userData?.balance?.toFixed(2) || "0.00"}</p>
+              <p className="text-lg font-semibold text-green-600">${userData?.account_balance?.toFixed(2) || "0.00"}</p>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-500">Account Status</p>

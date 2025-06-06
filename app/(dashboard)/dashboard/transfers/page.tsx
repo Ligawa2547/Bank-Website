@@ -14,7 +14,6 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { WooshPayPayment } from "@/components/wooshpay-payment"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { CheckCircle, AlertCircle } from "lucide-react"
-import Script from "next/script"
 
 export default function TransfersPage() {
   const { user, profile, refreshUserProfile } = useAuth()
@@ -122,26 +121,112 @@ export default function TransfersPage() {
       const reference = `trf_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
       const transferAmount = Number(amount)
 
-      // Start a Supabase transaction
-      const { data: transactionData, error: transactionError } = await supabase.rpc("transfer_funds", {
-        p_sender_id: user.id,
-        p_recipient_id: recipientId,
-        p_sender_account: profile.account_number,
-        p_recipient_account: recipientAccount,
-        p_amount: transferAmount,
-        p_narration: narration || "Transfer",
-        p_reference: reference,
-        p_sender_name: `${profile.first_name} ${profile.last_name}`,
-        p_recipient_name: recipientName,
-      })
+      // Get current balances
+      const { data: senderData, error: senderError } = await supabase
+        .from("users")
+        .select("account_balance")
+        .eq("id", user.id)
+        .single()
 
-      if (transactionError) {
-        console.error("Transfer error:", transactionError)
-        setError(transactionError.message || "Failed to process transfer. Please try again.")
+      if (senderError || !senderData) {
+        setError("Failed to verify sender balance.")
         return
       }
 
-      console.log("Transfer successful:", transactionData)
+      const { data: recipientData, error: recipientError } = await supabase
+        .from("users")
+        .select("account_balance")
+        .eq("id", recipientId)
+        .single()
+
+      if (recipientError || !recipientData) {
+        setError("Failed to verify recipient account.")
+        return
+      }
+
+      // Check balance again
+      if (transferAmount > senderData.account_balance) {
+        setError("Insufficient balance.")
+        return
+      }
+
+      // Update sender balance
+      const { error: updateSenderError } = await supabase
+        .from("users")
+        .update({ account_balance: senderData.account_balance - transferAmount })
+        .eq("id", user.id)
+
+      if (updateSenderError) {
+        console.error("Error updating sender balance:", updateSenderError)
+        setError("Failed to update sender balance.")
+        return
+      }
+
+      // Update recipient balance
+      const { error: updateRecipientError } = await supabase
+        .from("users")
+        .update({ account_balance: recipientData.account_balance + transferAmount })
+        .eq("id", recipientId)
+
+      if (updateRecipientError) {
+        console.error("Error updating recipient balance:", updateRecipientError)
+        // Try to rollback sender balance
+        await supabase.from("users").update({ account_balance: senderData.account_balance }).eq("id", user.id)
+        setError("Failed to update recipient balance. Transfer cancelled.")
+        return
+      }
+
+      // Create outgoing transaction
+      const { error: outgoingError } = await supabase.from("transactions").insert({
+        account_no: profile.account_number,
+        amount: transferAmount,
+        transaction_type: "transfer_out",
+        status: "completed",
+        reference,
+        narration: narration || "Transfer",
+        recipient_account_number: recipientAccount,
+        recipient_name: recipientName,
+        sender_account_number: profile.account_number,
+        sender_name: `${profile.first_name} ${profile.last_name}`,
+      })
+
+      if (outgoingError) {
+        console.error("Error creating outgoing transaction:", outgoingError)
+      }
+
+      // Create incoming transaction for recipient
+      const { error: incomingError } = await supabase.from("transactions").insert({
+        account_no: recipientAccount,
+        amount: transferAmount,
+        transaction_type: "transfer_in",
+        status: "completed",
+        reference,
+        narration: narration || "Transfer",
+        recipient_account_number: recipientAccount,
+        recipient_name: recipientName,
+        sender_account_number: profile.account_number,
+        sender_name: `${profile.first_name} ${profile.last_name}`,
+      })
+
+      if (incomingError) {
+        console.error("Error creating incoming transaction:", incomingError)
+      }
+
+      // Create notification for sender
+      await supabase.from("notifications").insert({
+        account_no: profile.account_number,
+        title: "Transfer Successful",
+        message: `You have successfully transferred USD ${transferAmount.toFixed(2)} to ${recipientName}`,
+        is_read: false,
+      })
+
+      // Create notification for recipient
+      await supabase.from("notifications").insert({
+        account_no: recipientAccount,
+        title: "Transfer Received",
+        message: `You have received USD ${transferAmount.toFixed(2)} from ${profile.first_name} ${profile.last_name}`,
+        is_read: false,
+      })
 
       // Refresh user profile to get updated balance
       await refreshUserProfile()
@@ -161,168 +246,164 @@ export default function TransfersPage() {
   }
 
   return (
-    <>
-      <Script src="https://js.wooshpay.co/v1/inline.js" />
+    <div className="max-w-3xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6">Transfers & Payments</h1>
 
-      <div className="max-w-3xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Transfers & Payments</h1>
+      <Tabs defaultValue="transfer">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="transfer">Transfer Money</TabsTrigger>
+          <TabsTrigger value="deposit">Fund Account</TabsTrigger>
+        </TabsList>
 
-        <Tabs defaultValue="transfer">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="transfer">Transfer Money</TabsTrigger>
-            <TabsTrigger value="deposit">Fund Account</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="transfer">
-            <Card>
-              <CardHeader>
-                <CardTitle>Transfer Money</CardTitle>
-                <CardDescription>Send money to other accounts within the bank.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {transferSuccess ? (
-                  <Alert className="bg-green-50 border-green-200">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    <AlertTitle className="text-green-800">Transfer Successful</AlertTitle>
-                    <AlertDescription className="text-green-700">
-                      Your transfer has been processed successfully.
-                    </AlertDescription>
-                    <Button
-                      className="mt-4 bg-[#0A3D62] text-white hover:bg-[#0F5585]"
-                      onClick={() => setTransferSuccess(false)}
-                    >
-                      Make Another Transfer
-                    </Button>
-                  </Alert>
-                ) : (
-                  <form onSubmit={handleTransfer} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="recipient">Recipient Account Number</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="recipient"
-                          placeholder="Enter account number"
-                          value={recipientAccount}
-                          onChange={(e) => setRecipientAccount(e.target.value)}
-                          required
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={handleVerifyAccount}
-                          disabled={isLoading || !recipientAccount}
-                          className="border-2 border-[#0A3D62] text-[#0A3D62] hover:bg-[#0A3D62]/10"
-                        >
-                          {isLoading ? "Verifying..." : "Verify"}
-                        </Button>
-                      </div>
-                    </div>
-
-                    {recipientName && (
-                      <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                        <p className="text-sm text-green-800">
-                          <span className="font-medium">Recipient:</span> {recipientName}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <Label htmlFor="amount">Amount (USD)</Label>
+        <TabsContent value="transfer">
+          <Card>
+            <CardHeader>
+              <CardTitle>Transfer Money</CardTitle>
+              <CardDescription>Send money to other accounts within the bank.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {transferSuccess ? (
+                <Alert className="bg-green-50 border-green-200">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <AlertTitle className="text-green-800">Transfer Successful</AlertTitle>
+                  <AlertDescription className="text-green-700">
+                    Your transfer has been processed successfully.
+                  </AlertDescription>
+                  <Button
+                    className="mt-4 bg-[#0A3D62] text-white hover:bg-[#0F5585]"
+                    onClick={() => setTransferSuccess(false)}
+                  >
+                    Make Another Transfer
+                  </Button>
+                </Alert>
+              ) : (
+                <form onSubmit={handleTransfer} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="recipient">Recipient Account Number</Label>
+                    <div className="flex gap-2">
                       <Input
-                        id="amount"
-                        type="number"
-                        placeholder="Enter amount"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        min="1"
-                        step="0.01"
+                        id="recipient"
+                        placeholder="Enter account number"
+                        value={recipientAccount}
+                        onChange={(e) => setRecipientAccount(e.target.value)}
                         required
                       />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="narration">Description (Optional)</Label>
-                      <Input
-                        id="narration"
-                        placeholder="What's this transfer for?"
-                        value={narration}
-                        onChange={(e) => setNarration(e.target.value)}
-                      />
-                    </div>
-
-                    {error && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
-                    )}
-
-                    <div className="pt-2">
                       <Button
-                        type="submit"
-                        className="w-full bg-[#0A3D62] text-white hover:bg-[#0F5585]"
-                        disabled={isLoading || !recipientName || !amount}
+                        type="button"
+                        variant="outline"
+                        onClick={handleVerifyAccount}
+                        disabled={isLoading || !recipientAccount}
+                        className="border-2 border-[#0A3D62] text-[#0A3D62] hover:bg-[#0A3D62]/10"
                       >
-                        {isLoading ? "Processing..." : "Transfer Money"}
+                        {isLoading ? "Verifying..." : "Verify"}
                       </Button>
                     </div>
-                  </form>
-                )}
-              </CardContent>
-              <CardFooter className="flex justify-between border-t p-4 text-sm text-gray-500">
-                <p className="text-sm text-gray-500">Available Balance: USD {profile?.balance?.toFixed(2) || "0.00"}</p>
-                <p>Daily Limit: USD 1,000,000.00</p>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="deposit">
-            <Card>
-              <CardHeader>
-                <CardTitle>Fund Your Account</CardTitle>
-                <CardDescription>Add money to your account using WooshPay.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isVerifying ? (
-                  <div className="flex flex-col items-center justify-center py-8">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
-                    <p className="mt-4 text-center">Verifying your payment...</p>
                   </div>
-                ) : depositSuccess ? (
-                  <Alert className="bg-green-50 border-green-200">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    <AlertTitle className="text-green-800">Deposit Successful</AlertTitle>
-                    <AlertDescription className="text-green-700">
-                      Your account has been credited successfully.
-                    </AlertDescription>
+
+                  {recipientName && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                      <p className="text-sm text-green-800">
+                        <span className="font-medium">Recipient:</span> {recipientName}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount (USD)</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      placeholder="Enter amount"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      min="1"
+                      step="0.01"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="narration">Description (Optional)</Label>
+                    <Input
+                      id="narration"
+                      placeholder="What's this transfer for?"
+                      value={narration}
+                      onChange={(e) => setNarration(e.target.value)}
+                    />
+                  </div>
+
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="pt-2">
                     <Button
-                      className="mt-4 bg-[#0A3D62] text-white hover:bg-[#0F5585]"
-                      onClick={() => setDepositSuccess(false)}
+                      type="submit"
+                      className="w-full bg-[#0A3D62] text-white hover:bg-[#0F5585]"
+                      disabled={isLoading || !recipientName || !amount}
                     >
-                      Make Another Deposit
+                      {isLoading ? "Processing..." : "Transfer Money"}
                     </Button>
-                  </Alert>
-                ) : (
-                  <>
-                    {error && (
-                      <Alert variant="destructive" className="mb-4">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
-                    )}
-                    <WooshPayPayment />
-                  </>
-                )}
-              </CardContent>
-              <CardFooter className="border-t p-4 text-sm text-gray-500">
-                <p>Deposits are processed instantly via WooshPay.</p>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </>
+                  </div>
+                </form>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-between border-t p-4 text-sm text-gray-500">
+              <p className="text-sm text-gray-500">Available Balance: USD {profile?.balance?.toFixed(2) || "0.00"}</p>
+              <p>Daily Limit: USD 1,000,000.00</p>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="deposit">
+          <Card>
+            <CardHeader>
+              <CardTitle>Fund Your Account</CardTitle>
+              <CardDescription>Add money to your account using WooshPay.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isVerifying ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
+                  <p className="mt-4 text-center">Verifying your payment...</p>
+                </div>
+              ) : depositSuccess ? (
+                <Alert className="bg-green-50 border-green-200">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <AlertTitle className="text-green-800">Deposit Successful</AlertTitle>
+                  <AlertDescription className="text-green-700">
+                    Your account has been credited successfully.
+                  </AlertDescription>
+                  <Button
+                    className="mt-4 bg-[#0A3D62] text-white hover:bg-[#0F5585]"
+                    onClick={() => setDepositSuccess(false)}
+                  >
+                    Make Another Deposit
+                  </Button>
+                </Alert>
+              ) : (
+                <>
+                  {error && (
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                  <WooshPayPayment />
+                </>
+              )}
+            </CardContent>
+            <CardFooter className="border-t p-4 text-sm text-gray-500">
+              <p>Deposits are processed instantly via WooshPay.</p>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   )
 }

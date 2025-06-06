@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           city: userData.city || null,
           country: userData.country || null,
           account_number: userData.account_no || null, // Use account_no from users table
-          balance: userData.balance || 0,
+          balance: userData.account_balance || 0, // Use account_balance column
           status: userData.status || "pending", // Include status from users table
           email_verified: userData.email_verified || false,
           phone_verified: userData.phone_verified || false,

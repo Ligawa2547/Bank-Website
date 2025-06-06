@@ -141,7 +141,9 @@ export function Sidebar({
                   </div>
                   <div className="text-xs text-gray-500">{profile.account_number}</div>
                 </div>
-                <div className="text-lg font-semibold text-[#0A3D62]">${profile.balance.toFixed(2)}</div>
+                <div className="text-lg font-semibold text-[#0A3D62]">
+                  ${typeof profile.balance === "number" ? profile.balance.toFixed(2) : "0.00"}
+                </div>
               </div>
             </div>
           )}
