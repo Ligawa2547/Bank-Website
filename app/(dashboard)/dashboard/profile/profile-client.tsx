@@ -20,6 +20,7 @@ interface UserData {
   country?: string
   account_no?: string
   balance?: number
+  status?: string
   created_at?: string
   updated_at?: string
   email_verified?: boolean
@@ -43,6 +44,48 @@ export default function ProfileClient() {
   const [isFetching, setIsFetching] = useState(true)
   const { toast } = useToast()
   const supabase = createClientComponentClient()
+
+  // Function to get status display information
+  const getStatusInfo = (status?: string) => {
+    switch (status?.toLowerCase()) {
+      case "active":
+        return {
+          color: "text-green-600",
+          bgColor: "bg-green-500",
+          label: "Active",
+        }
+      case "inactive":
+        return {
+          color: "text-red-600",
+          bgColor: "bg-red-500",
+          label: "Inactive",
+        }
+      case "suspended":
+        return {
+          color: "text-orange-600",
+          bgColor: "bg-orange-500",
+          label: "Suspended",
+        }
+      case "pending":
+        return {
+          color: "text-yellow-600",
+          bgColor: "bg-yellow-500",
+          label: "Pending",
+        }
+      case "closed":
+        return {
+          color: "text-gray-600",
+          bgColor: "bg-gray-500",
+          label: "Closed",
+        }
+      default:
+        return {
+          color: "text-gray-600",
+          bgColor: "bg-gray-500",
+          label: "Unknown",
+        }
+    }
+  }
 
   // Fetch user data from the public.users table
   useEffect(() => {
@@ -157,6 +200,7 @@ export default function ProfileClient() {
             phone_number: formData.phone_number,
             city: formData.city,
             country: formData.country,
+            status: "pending", // Default status for new users
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -204,6 +248,8 @@ export default function ProfileClient() {
       </div>
     )
   }
+
+  const statusInfo = getStatusInfo(userData?.status)
 
   return (
     <div className="container mx-auto max-w-4xl p-4">
@@ -362,8 +408,8 @@ export default function ProfileClient() {
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-500">Account Status</p>
               <div className="flex items-center">
-                <div className="mr-2 h-2 w-2 rounded-full bg-green-500"></div>
-                <p className="text-green-600 font-medium">Active</p>
+                <div className={`mr-2 h-2 w-2 rounded-full ${statusInfo.bgColor}`}></div>
+                <p className={`font-medium ${statusInfo.color}`}>{statusInfo.label}</p>
               </div>
             </div>
             <div className="space-y-2">
