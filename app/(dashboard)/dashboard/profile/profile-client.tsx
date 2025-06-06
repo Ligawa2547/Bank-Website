@@ -404,7 +404,9 @@ export default function ProfileClient() {
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-500">Account Balance</p>
-              <p className="text-lg font-semibold text-green-600">${userData?.account_balance?.toFixed(2) || "0.00"}</p>
+              <p className="text-lg font-semibold text-green-600">
+                ${typeof userData?.account_balance === "number" ? userData.account_balance.toFixed(2) : "0.00"}
+              </p>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-500">Account Status</p>

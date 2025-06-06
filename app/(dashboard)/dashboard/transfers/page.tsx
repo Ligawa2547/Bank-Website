@@ -353,7 +353,9 @@ export default function TransfersPage() {
               )}
             </CardContent>
             <CardFooter className="flex justify-between border-t p-4 text-sm text-gray-500">
-              <p className="text-sm text-gray-500">Available Balance: USD {profile?.balance?.toFixed(2) || "0.00"}</p>
+              <p className="text-sm text-gray-500">
+                Available Balance: USD {typeof profile?.balance === "number" ? profile.balance.toFixed(2) : "0.00"}
+              </p>
               <p>Daily Limit: USD 1,000,000.00</p>
             </CardFooter>
           </Card>
