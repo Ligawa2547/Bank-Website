@@ -56,6 +56,16 @@ export default function SignupPage() {
     }
   }, [isLoading, toast])
 
+  // Generate unique account number
+  const generateAccountNumber = () => {
+    // Generate 10-digit account number starting with 10 (bank code)
+    const timestamp = Date.now().toString().slice(-6) // Last 6 digits of timestamp
+    const random = Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, "0") // 4 random digits
+    return `10${timestamp}${random}`.slice(0, 10) // Ensure exactly 10 digits
+  }
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setSignupStatus("idle")
@@ -100,10 +110,10 @@ export default function SignupPage() {
 
       // If signup was successful, store user details in the users table
       if (data && data.user) {
-        // Generate a random account number
-        const accountNumber = Math.floor(10000000 + Math.random() * 90000000).toString()
+        // Generate a unique account number
+        const accountNumber = generateAccountNumber()
 
-        // Insert into users table
+        // Insert into public.users table with all required fields
         const { error: usersError } = await supabase.from("users").insert({
           id: data.user.id,
           email: email,
@@ -112,8 +122,9 @@ export default function SignupPage() {
           phone_number: phone,
           city: city,
           country: country,
-          account_no: accountNumber, // Using account_no column
-          balance: 0, // Initialize with zero balance
+          account_no: accountNumber,
+          account_balance: 0, // Initialize with zero balance
+          status: "active", // Set account as active
           email_verified: false,
           phone_verified: false,
           kyc_status: "not_submitted",
@@ -123,10 +134,18 @@ export default function SignupPage() {
 
         if (usersError) {
           console.error("Error inserting into users table:", usersError)
-          // Continue with the flow even if this fails, as the auth record was created
+          setSignupStatus("error")
+          setStatusMessage("Failed to create user profile. Please contact support.")
+
+          toast({
+            title: "Error",
+            description: "Failed to create user profile. Please contact support.",
+            variant: "destructive",
+          })
+          return
         }
 
-        // Also insert into user_profiles table for compatibility
+        // Also insert into user_profiles table for compatibility (if needed)
         const { error: profilesError } = await supabase.from("user_profiles").insert({
           user_id: data.user.id,
           first_name: firstName,
@@ -135,7 +154,7 @@ export default function SignupPage() {
           phone_number: phone,
           city: city,
           country: country,
-          account_number: accountNumber, // Using account_number column
+          account_number: accountNumber,
           balance: 0,
           email_verified: false,
           phone_verified: false,
@@ -146,20 +165,23 @@ export default function SignupPage() {
 
         if (profilesError) {
           console.error("Error inserting into user_profiles table:", profilesError)
+          // Don't fail the signup for this, as the main users table insert succeeded
         }
 
         setSignupStatus("success")
-        setStatusMessage("Account created successfully! Please check your email for confirmation link.")
+        setStatusMessage(
+          `Account created successfully! Your account number is ${accountNumber}. Please check your email for confirmation link.`,
+        )
 
         toast({
           title: "Success",
-          description: "Check your email for the confirmation link to complete your registration.",
+          description: `Account created! Your account number: ${accountNumber}`,
         })
 
         // Don't redirect immediately, let the user see the success message
         setTimeout(() => {
           router.push("/login")
-        }, 5000)
+        }, 7000)
       } else {
         // This case happens when Supabase returns success but no user object
         setSignupStatus("success")

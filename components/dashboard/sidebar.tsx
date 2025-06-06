@@ -5,7 +5,19 @@ import { useState } from "react"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { Shield, Home, CreditCard, PiggyBank, Send, Bell, UserCircle, Settings, HelpCircle, Users } from "lucide-react"
+import {
+  Shield,
+  Home,
+  CreditCard,
+  PiggyBank,
+  Send,
+  Bell,
+  UserCircle,
+  Settings,
+  HelpCircle,
+  Users,
+  TrendingUp,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-provider"
 
@@ -34,6 +46,12 @@ export function Sidebar({
       icon: Send,
       href: "/dashboard/transfers",
       active: pathname === "/dashboard/transfers",
+    },
+    {
+      title: "Loans",
+      icon: TrendingUp,
+      href: "/dashboard/loans",
+      active: pathname === "/dashboard/loans",
     },
     {
       title: "Savings",
