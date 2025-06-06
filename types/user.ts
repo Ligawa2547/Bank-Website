@@ -21,8 +21,9 @@ export type UserProfile = {
 
 export type Transaction = {
   id: string
-  user_id: string
-  transaction_type: "deposit" | "withdrawal" | "transfer_in" | "transfer_out"
+  user_id?: string
+  account_no?: string
+  transaction_type: "deposit" | "withdrawal" | "transfer_in" | "transfer_out" | "loan_disbursement" | "loan_repayment"
   amount: number
   status: "pending" | "completed" | "failed"
   reference: string
@@ -32,6 +33,7 @@ export type Transaction = {
   sender_account_number?: string
   sender_name?: string
   created_at: string
+  updated_at?: string
 }
 
 export type SavingsAccount = {

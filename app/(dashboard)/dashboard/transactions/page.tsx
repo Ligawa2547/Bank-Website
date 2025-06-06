@@ -27,19 +27,51 @@ export default function TransactionsPage() {
 
     const fetchTransactions = async () => {
       setIsLoading(true)
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("account_no", profile.account_number) // Using account_no column
-        .order("created_at", { ascending: false })
+      try {
+        console.log("Fetching transactions for account:", profile.account_number)
 
-      if (!error && data) {
-        setTransactions(data)
-        setFilteredTransactions(data)
-      } else if (error) {
-        console.error("Error fetching transactions:", error)
+        // Fetch transactions where the user is either sender or recipient
+        const { data, error } = await supabase
+          .from("transactions")
+          .select("*")
+          .or(
+            `account_no.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number},sender_account_number.eq.${profile.account_number}`,
+          )
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("Error fetching transactions:", error)
+          setIsLoading(false)
+          return
+        }
+
+        console.log(`Found ${data?.length || 0} transactions`)
+
+        if (data && data.length > 0) {
+          // Process transactions to ensure correct transaction_type
+          const processedData = data.map((transaction) => {
+            // If transaction doesn't have a type, determine it based on account numbers
+            if (!transaction.transaction_type) {
+              if (transaction.sender_account_number === profile.account_number) {
+                return { ...transaction, transaction_type: "transfer_out" }
+              } else if (transaction.recipient_account_number === profile.account_number) {
+                return { ...transaction, transaction_type: "transfer_in" }
+              }
+            }
+            return transaction
+          })
+
+          setTransactions(processedData)
+          setFilteredTransactions(processedData)
+        } else {
+          setTransactions([])
+          setFilteredTransactions([])
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching transactions:", err)
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
     }
 
     fetchTransactions()
@@ -102,14 +134,64 @@ export default function TransactionsPage() {
         return "Transfer In"
       case "transfer_out":
         return "Transfer Out"
+      case "loan_disbursement":
+        return "Loan Disbursement"
       default:
-        return type
+        return type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ")
     }
   }
 
   // Pagination
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage)
   const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
+  // Handle export transactions
+  const handleExportTransactions = () => {
+    // Create CSV content
+    let csvContent = "Date,Description,Reference,Status,Amount\n"
+
+    filteredTransactions.forEach((transaction) => {
+      const date = new Date(transaction.created_at).toLocaleDateString()
+      let description = ""
+
+      if (transaction.transaction_type === "deposit") {
+        description = "Deposit"
+      } else if (transaction.transaction_type === "withdrawal") {
+        description = "Withdrawal"
+      } else if (transaction.transaction_type === "transfer_in") {
+        description = `From ${transaction.sender_name || transaction.sender_account_number || "Unknown"}`
+      } else if (transaction.transaction_type === "transfer_out") {
+        description = `To ${transaction.recipient_name || transaction.recipient_account_number || "Unknown"}`
+      } else if (transaction.transaction_type === "loan_disbursement") {
+        description = "Loan Disbursement"
+      }
+
+      if (transaction.narration) {
+        description += ` - ${transaction.narration}`
+      }
+
+      // Escape quotes in description
+      description = description.replace(/"/g, '""')
+
+      const status = transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)
+
+      let amount = transaction.amount
+      if (transaction.transaction_type === "withdrawal" || transaction.transaction_type === "transfer_out") {
+        amount = -amount
+      }
+
+      csvContent += `"${date}","${description}","${transaction.reference}","${status}",${amount}\n`
+    })
+
+    // Create download link
+    const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent)
+    const link = document.createElement("a")
+    link.setAttribute("href", encodedUri)
+    link.setAttribute("download", `transactions_${new Date().toISOString().split("T")[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -141,6 +223,7 @@ export default function TransactionsPage() {
                   <SelectItem value="withdrawal">Withdrawals</SelectItem>
                   <SelectItem value="transfer_in">Transfers In</SelectItem>
                   <SelectItem value="transfer_out">Transfers Out</SelectItem>
+                  <SelectItem value="loan_disbursement">Loan Disbursements</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -159,7 +242,7 @@ export default function TransactionsPage() {
                 </SelectContent>
               </Select>
 
-              <Button variant="outline" size="icon" title="Export Transactions">
+              <Button variant="outline" size="icon" title="Export Transactions" onClick={handleExportTransactions}>
                 <Download className="h-4 w-4" />
               </Button>
             </div>
@@ -204,7 +287,11 @@ export default function TransactionsPage() {
                                 ? "Withdrawal"
                                 : transaction.transaction_type === "transfer_in"
                                   ? `From ${transaction.sender_name || transaction.sender_account_number || "Unknown"}`
-                                  : `To ${transaction.recipient_name || transaction.recipient_account_number || "Unknown"}`}
+                                  : transaction.transaction_type === "transfer_out"
+                                    ? `To ${transaction.recipient_name || transaction.recipient_account_number || "Unknown"}`
+                                    : transaction.transaction_type === "loan_disbursement"
+                                      ? "Loan Disbursement"
+                                      : getTransactionTypeLabel(transaction.transaction_type)}
                           </div>
                           <div className="text-xs text-gray-500">{transaction.narration || "-"}</div>
                         </td>
@@ -224,12 +311,16 @@ export default function TransactionsPage() {
                         </td>
                         <td
                           className={`py-3 px-4 text-right font-medium ${
-                            transaction.transaction_type === "deposit" || transaction.transaction_type === "transfer_in"
+                            transaction.transaction_type === "deposit" ||
+                            transaction.transaction_type === "transfer_in" ||
+                            transaction.transaction_type === "loan_disbursement"
                               ? "text-green-600"
                               : "text-red-600"
                           }`}
                         >
-                          {transaction.transaction_type === "deposit" || transaction.transaction_type === "transfer_in"
+                          {transaction.transaction_type === "deposit" ||
+                          transaction.transaction_type === "transfer_in" ||
+                          transaction.transaction_type === "loan_disbursement"
                             ? "+"
                             : "-"}
                           {formatCurrency(transaction.amount)}
