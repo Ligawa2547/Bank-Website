@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import type React from "react"
+
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +25,10 @@ import {
   User,
   Home,
   Building,
+  Camera,
+  File,
+  Trash2,
+  Eye,
 } from "lucide-react"
 
 interface KYCDocument {
@@ -36,14 +42,53 @@ interface KYCDocument {
 }
 
 const DOCUMENT_TYPES = [
-  { id: "national_id", name: "National ID", icon: User, required: true },
-  { id: "passport", name: "Passport", icon: FileText, required: false },
-  { id: "drivers_license", name: "Driver's License", icon: CreditCard, required: false },
-  { id: "utility_bill", name: "Utility Bill", icon: Home, required: true },
-  { id: "bank_statement", name: "Bank Statement", icon: Building, required: false },
+  {
+    id: "national_id",
+    name: "National ID",
+    icon: User,
+    required: true,
+    description: "Government-issued national identity card",
+  },
+  { id: "passport", name: "Passport", icon: FileText, required: false, description: "International passport document" },
+  {
+    id: "drivers_license",
+    name: "Driver's License",
+    icon: CreditCard,
+    required: false,
+    description: "Valid driver's license",
+  },
+  {
+    id: "utility_bill",
+    name: "Utility Bill",
+    icon: Home,
+    required: true,
+    description: "Recent utility bill (electricity, water, gas)",
+  },
+  {
+    id: "bank_statement",
+    name: "Bank Statement",
+    icon: Building,
+    required: false,
+    description: "Recent bank account statement",
+  },
 ]
 
 const KYC_FEE = 35
+
+// Supported file types
+const SUPPORTED_FILE_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/bmp",
+  "image/webp",
+  "image/tiff",
+  "image/svg+xml",
+]
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
 export default function KYCPage() {
   const { user, profile, refreshProfile } = useAuth()
@@ -52,6 +97,8 @@ export default function KYCPage() {
   const [uploading, setUploading] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [dragOver, setDragOver] = useState<string | null>(null)
+  const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({})
   const supabase = createClient()
 
   useEffect(() => {
@@ -82,23 +129,37 @@ export default function KYCPage() {
     }
   }
 
+  const validateFile = (file: File): string | null => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return `File size must be less than ${MAX_FILE_SIZE / (1024 * 1024)}MB`
+    }
+
+    // Check file type
+    if (!SUPPORTED_FILE_TYPES.includes(file.type)) {
+      return "Unsupported file format. Please upload PDF, JPG, PNG, GIF, BMP, WebP, TIFF, or SVG files"
+    }
+
+    return null
+  }
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  }
+
   const handleFileUpload = async (documentType: string, file: File) => {
     if (!user) return
 
     // Validate file
-    if (file.size > 5 * 1024 * 1024) {
+    const validationError = validateFile(file)
+    if (validationError) {
       toast({
-        title: "File too large",
-        description: "Please upload a file smaller than 5MB",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!["application/pdf", "image/jpeg", "image/png"].includes(file.type)) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload a PDF, JPG, or PNG file",
+        title: "Invalid file",
+        description: validationError,
         variant: "destructive",
       })
       return
@@ -108,35 +169,57 @@ export default function KYCPage() {
 
     try {
       // Upload file to Supabase storage
-      const fileExt = file.name.split(".").pop()
+      const fileExt = file.name.split(".").pop()?.toLowerCase()
       const fileName = `${user.id}/${documentType}_${Date.now()}.${fileExt}`
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("kyc-documents")
-        .upload(fileName, file)
+        .upload(fileName, file, {
+          cacheControl: "3600",
+          upsert: false,
+        })
 
       if (uploadError) throw uploadError
 
       // Get public URL
       const { data: urlData } = supabase.storage.from("kyc-documents").getPublicUrl(fileName)
 
+      // Delete existing document of the same type if it exists
+      const existingDoc = documents.find((doc) => doc.document_type === documentType)
+      if (existingDoc) {
+        await supabase.from("kyc_documents").delete().eq("id", existingDoc.id)
+
+        // Also delete the old file from storage
+        const oldFileName = existingDoc.file_url.split("/").pop()
+        if (oldFileName) {
+          await supabase.storage.from("kyc-documents").remove([`${user.id}/${oldFileName}`])
+        }
+      }
+
       // Save document record
       const { error: insertError } = await supabase.from("kyc_documents").insert({
         user_id: user.id,
+        account_no: profile?.account_number,
         document_type: documentType,
-        file_name: file.name,
-        file_url: urlData.publicUrl,
+        document_number: file.name.split(".")[0], // Use filename without extension as document number
+        document_url: urlData.publicUrl,
         status: "pending",
+        submitted_at: new Date().toISOString(),
       })
 
       if (insertError) throw insertError
 
       toast({
-        title: "Document uploaded",
-        description: "Your document has been uploaded successfully",
+        title: "Document uploaded successfully",
+        description: `${DOCUMENT_TYPES.find((dt) => dt.id === documentType)?.name} has been uploaded and is pending review`,
       })
 
       fetchDocuments()
+
+      // Clear the file input
+      if (fileInputRefs.current[documentType]) {
+        fileInputRefs.current[documentType]!.value = ""
+      }
     } catch (error) {
       console.error("Error uploading document:", error)
       toast({
@@ -147,6 +230,51 @@ export default function KYCPage() {
     } finally {
       setUploading(null)
     }
+  }
+
+  const handleDrop = (e: React.DragEvent, documentType: string) => {
+    e.preventDefault()
+    setDragOver(null)
+
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      handleFileUpload(documentType, files[0])
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent, documentType: string) => {
+    e.preventDefault()
+    setDragOver(documentType)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(null)
+  }
+
+  const deleteDocument = async (docId: string, documentType: string) => {
+    try {
+      const { error } = await supabase.from("kyc_documents").delete().eq("id", docId)
+      if (error) throw error
+
+      toast({
+        title: "Document deleted",
+        description: "Document has been removed successfully",
+      })
+
+      fetchDocuments()
+    } catch (error) {
+      console.error("Error deleting document:", error)
+      toast({
+        title: "Delete failed",
+        description: "Failed to delete document. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const viewDocument = (url: string) => {
+    window.open(url, "_blank")
   }
 
   const handleSubmitKYC = async () => {
@@ -193,19 +321,27 @@ export default function KYCPage() {
       // Record the fee transaction
       const { error: transactionError } = await supabase.from("transactions").insert({
         user_id: user.id,
-        account_number: profile.account_number,
+        account_no: profile.account_number,
         transaction_type: "withdrawal",
         amount: KYC_FEE,
-        description: "KYC Verification Fee",
+        narration: "KYC Verification Fee",
         reference: `KYC_${Date.now()}`,
         status: "completed",
       })
 
       if (transactionError) throw transactionError
 
+      // Create notification
+      await supabase.from("notifications").insert({
+        user_id: user.id,
+        title: "KYC Verification Submitted",
+        message: `Your KYC verification has been submitted for review. Fee of $${KYC_FEE} has been deducted from your account.`,
+        is_read: false,
+      })
+
       toast({
         title: "KYC submitted successfully",
-        description: `Your KYC verification has been submitted. Fee of $${KYC_FEE} has been deducted.`,
+        description: `Your KYC verification has been submitted for review. Fee of $${KYC_FEE} has been deducted.`,
       })
 
       // Refresh profile to get updated status
@@ -362,42 +498,98 @@ export default function KYCPage() {
           </Card>
 
           {/* Document Upload */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
             {DOCUMENT_TYPES.map((docType) => {
               const uploadedDoc = documents.find((doc) => doc.document_type === docType.id)
               const Icon = docType.icon
+              const isDragOver = dragOver === docType.id
 
               return (
-                <Card key={docType.id}>
+                <Card key={docType.id} className={isDragOver ? "border-blue-500 bg-blue-50" : ""}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
                       <Icon className="h-4 w-4" />
                       {docType.name}
                       {docType.required && <Badge variant="secondary">Required</Badge>}
                     </CardTitle>
+                    <CardDescription className="text-sm">{docType.description}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {uploadedDoc ? (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{uploadedDoc.file_name}</span>
+                          <div className="flex items-center gap-2">
+                            <File className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm font-medium truncate max-w-[150px]" title={uploadedDoc.file_name}>
+                              {uploadedDoc.file_name}
+                            </span>
+                          </div>
                           <Badge className={getStatusColor(uploadedDoc.status)}>
                             {getStatusIcon(uploadedDoc.status)}
                             <span className="ml-1 capitalize">{uploadedDoc.status}</span>
                           </Badge>
                         </div>
+
                         {uploadedDoc.status === "rejected" && uploadedDoc.rejection_reason && (
-                          <p className="text-sm text-red-600">{uploadedDoc.rejection_reason}</p>
+                          <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                            <strong>Rejection reason:</strong> {uploadedDoc.rejection_reason}
+                          </div>
                         )}
-                        <p className="text-xs text-gray-500">
-                          Uploaded: {new Date(uploadedDoc.uploaded_at).toLocaleDateString()}
-                        </p>
+
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-500">
+                            Uploaded: {new Date(uploadedDoc.uploaded_at).toLocaleDateString()}
+                          </p>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => viewDocument(uploadedDoc.file_url)}>
+                              <Eye className="h-3 w-3 mr-1" />
+                              View
+                            </Button>
+                            {(uploadedDoc.status === "rejected" || profile?.kyc_status === "not_submitted") && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteDocument(uploadedDoc.id, docType.id)}
+                              >
+                                <Trash2 className="h-3 w-3 mr-1" />
+                                Delete
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {(uploadedDoc.status === "rejected" || profile?.kyc_status === "not_submitted") && (
+                          <div className="pt-2 border-t">
+                            <input
+                              ref={(el) => (fileInputRefs.current[docType.id] = el)}
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.svg"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  handleFileUpload(docType.id, file)
+                                }
+                              }}
+                              className="hidden"
+                              id={`reupload-${docType.id}`}
+                              disabled={uploading === docType.id}
+                            />
+                            <label
+                              htmlFor={`reupload-${docType.id}`}
+                              className="flex items-center justify-center gap-2 p-2 border border-dashed border-gray-300 rounded cursor-pointer hover:border-gray-400 transition-colors text-sm"
+                            >
+                              <Upload className="h-3 w-3" />
+                              Replace Document
+                            </label>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <input
+                          ref={(el) => (fileInputRefs.current[docType.id] = el)}
                           type="file"
-                          accept=".pdf,.jpg,.jpeg,.png"
+                          accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.svg"
                           onChange={(e) => {
                             const file = e.target.files?.[0]
                             if (file) {
@@ -408,20 +600,45 @@ export default function KYCPage() {
                           id={`upload-${docType.id}`}
                           disabled={uploading === docType.id}
                         />
-                        <label
-                          htmlFor={`upload-${docType.id}`}
-                          className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 transition-colors"
+
+                        {/* Drag and Drop Area */}
+                        <div
+                          onDrop={(e) => handleDrop(e, docType.id)}
+                          onDragOver={(e) => handleDragOver(e, docType.id)}
+                          onDragLeave={handleDragLeave}
+                          className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                            isDragOver ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+                          }`}
                         >
                           {uploading === docType.id ? (
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                              <p className="text-sm text-gray-600">Uploading...</p>
+                            </div>
                           ) : (
-                            <Upload className="h-4 w-4" />
+                            <div className="flex flex-col items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                <Upload className="h-6 w-6 text-gray-400" />
+                                <Camera className="h-6 w-6 text-gray-400" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-700">
+                                  Drop your file here or{" "}
+                                  <label
+                                    htmlFor={`upload-${docType.id}`}
+                                    className="text-blue-600 hover:text-blue-700 cursor-pointer underline"
+                                  >
+                                    browse
+                                  </label>
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">PDF, JPG, PNG, GIF, BMP, WebP, TIFF, SVG</p>
+                                <p className="text-xs text-gray-500">
+                                  Maximum file size: {MAX_FILE_SIZE / (1024 * 1024)}MB
+                                </p>
+                              </div>
+                            </div>
                           )}
-                          <span className="text-sm">
-                            {uploading === docType.id ? "Uploading..." : "Upload Document"}
-                          </span>
-                        </label>
-                        <p className="text-xs text-gray-500">PDF, JPG, PNG (max 5MB)</p>
+                        </div>
                       </div>
                     )}
                   </CardContent>
@@ -479,17 +696,29 @@ export default function KYCPage() {
                           <div>
                             <p className="font-medium">{docType?.name || doc.document_type}</p>
                             <p className="text-sm text-gray-600">{doc.file_name}</p>
+                            <p className="text-xs text-gray-500">
+                              Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}
+                            </p>
                           </div>
                         </div>
-                        <Badge className={getStatusColor(doc.status)}>
-                          {getStatusIcon(doc.status)}
-                          <span className="ml-1 capitalize">{doc.status}</span>
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getStatusColor(doc.status)}>
+                            {getStatusIcon(doc.status)}
+                            <span className="ml-1 capitalize">{doc.status}</span>
+                          </Badge>
+                          <Button variant="outline" size="sm" onClick={() => viewDocument(doc.file_url)}>
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     )
                   })
                 ) : (
-                  <p className="text-center text-gray-500 py-8">No documents uploaded yet</p>
+                  <div className="text-center py-8">
+                    <FileCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">No documents uploaded yet</p>
+                    <p className="text-sm text-gray-400">Upload your documents to get started</p>
+                  </div>
                 )}
               </div>
             </CardContent>
