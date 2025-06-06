@@ -1,4 +1,4 @@
-import { WOOSHPAY_SERVER_CONFIG, WOOSHPAY_ENDPOINTS } from "./config"
+import { WOOSHPAY_SERVER_CONFIG, WOOSHPAY_ENDPOINTS, isWooshPayConfigured } from "./config"
 
 export interface WooshPayInitializeRequest {
   email: string
@@ -47,17 +47,27 @@ export interface WooshPayVerifyResponse {
 class WooshPayClient {
   private baseUrl: string
   private secretKey: string
+  private isConfigured: boolean
 
   constructor() {
-    this.baseUrl = WOOSHPAY_SERVER_CONFIG.baseUrl
-    this.secretKey = WOOSHPAY_SERVER_CONFIG.secretKey
+    this.baseUrl = WOOSHPAY_SERVER_CONFIG.baseUrl || "https://api.wooshpay.com"
+    this.secretKey = WOOSHPAY_SERVER_CONFIG.secretKey || ""
+    this.isConfigured = isWooshPayConfigured()
 
-    if (!this.secretKey) {
-      throw new Error("WooshPay secret key is not configured")
+    if (!this.isConfigured) {
+      console.warn("WooshPay is not properly configured. Payment functionality will be disabled.")
+    }
+  }
+
+  private checkConfiguration(): void {
+    if (!this.isConfigured) {
+      throw new Error("WooshPay is not properly configured. Please check your environment variables.")
     }
   }
 
   private async makeRequest(endpoint: string, options: RequestInit = {}) {
+    this.checkConfiguration()
+
     const url = `${this.baseUrl}${endpoint}`
 
     console.log(`Making WooshPay request to: ${url}`)
@@ -125,6 +135,11 @@ class WooshPayClient {
         amount,
       }),
     })
+  }
+
+  // Helper method to check if client is configured
+  isReady(): boolean {
+    return this.isConfigured
   }
 }
 

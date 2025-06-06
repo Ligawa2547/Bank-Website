@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { useSession } from "@/providers/session-provider"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle } from "lucide-react"
+import { AlertCircle, CheckCircle, AlertTriangle } from "lucide-react"
 
 interface WooshPayPaymentProps {
   onSuccess?: () => void
@@ -22,14 +22,51 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [isServiceAvailable, setIsServiceAvailable] = useState(true)
   const { session } = useSession()
   const router = useRouter()
   const supabase = createClientComponentClient()
+
+  // Check service availability on component mount
+  useEffect(() => {
+    const checkServiceAvailability = async () => {
+      try {
+        const response = await fetch("/api/wooshpay/initialize", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: "test@example.com",
+            amount: 1,
+            reference: "test_availability_check",
+          }),
+        })
+
+        if (response.status === 503) {
+          const data = await response.json()
+          if (data.error === "WOOSHPAY_NOT_CONFIGURED") {
+            setIsServiceAvailable(false)
+            setError("Payment service is currently unavailable. Please contact support.")
+          }
+        }
+      } catch (error) {
+        console.log("Service availability check failed, assuming available")
+      }
+    }
+
+    checkServiceAvailability()
+  }, [])
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setSuccess("")
+
+    if (!isServiceAvailable) {
+      setError("Payment service is currently unavailable. Please contact support.")
+      return
+    }
 
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       setError("Please enter a valid amount")
@@ -81,7 +118,12 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
       const data = await response.json()
 
       if (!response.ok) {
-        setError(data.message || "Failed to initialize payment")
+        if (response.status === 503) {
+          setError("Payment service is temporarily unavailable. Please try again later.")
+          setIsServiceAvailable(false)
+        } else {
+          setError(data.message || "Failed to initialize payment")
+        }
         setIsLoading(false)
         return
       }
@@ -103,6 +145,25 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
       setError("An error occurred while processing your payment. Please try again.")
       setIsLoading(false)
     }
+  }
+
+  if (!isServiceAvailable) {
+    return (
+      <div className="space-y-4">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Payment service is currently unavailable. Please contact support for assistance with deposits.
+          </AlertDescription>
+        </Alert>
+
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel} className="w-full">
+            Close
+          </Button>
+        )}
+      </div>
+    )
   }
 
   return (

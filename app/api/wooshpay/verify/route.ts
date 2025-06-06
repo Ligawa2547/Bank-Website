@@ -1,12 +1,23 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { wooshPayClient } from "@/lib/wooshpay/client"
+import { wooshPayClient, isWooshPayConfigured } from "@/lib/wooshpay/client"
 
 export async function GET(request: Request) {
   console.log("WooshPay verify endpoint called")
 
   try {
+    // Check if WooshPay is configured
+    if (!isWooshPayConfigured()) {
+      return NextResponse.json(
+        {
+          message: "Payment service is not configured",
+          error: "WOOSHPAY_NOT_CONFIGURED",
+        },
+        { status: 503 },
+      )
+    }
+
     // Get reference from URL
     const url = new URL(request.url)
     const reference = url.searchParams.get("reference")
@@ -15,6 +26,17 @@ export async function GET(request: Request) {
 
     if (!reference) {
       return NextResponse.json({ message: "Reference is required" }, { status: 400 })
+    }
+
+    // Check if WooshPay client is ready
+    if (!wooshPayClient.isReady()) {
+      return NextResponse.json(
+        {
+          message: "Payment service is temporarily unavailable",
+          error: "SERVICE_UNAVAILABLE",
+        },
+        { status: 503 },
+      )
     }
 
     // Verify WooshPay transaction
@@ -75,16 +97,16 @@ export async function GET(request: Request) {
       console.log("Found user:", userData.account_no)
 
       // Update user's balance
-      const newBalance = userData.balance + transactionData.amount
+      const newBalance = (userData.account_balance || 0) + transactionData.amount
       await supabase
         .from("users")
         .update({
-          balance: newBalance,
+          account_balance: newBalance,
           updated_at: new Date().toISOString(),
         })
         .eq("account_no", transactionData.account_no)
 
-      console.log(`Updated balance from ${userData.balance} to ${newBalance}`)
+      console.log(`Updated balance from ${userData.account_balance || 0} to ${newBalance}`)
 
       // Create notification
       await supabase.from("notifications").insert({
@@ -108,7 +130,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         message: error.message || "Internal server error",
-        details: error.toString(),
+        details: process.env.NODE_ENV === "development" ? error.toString() : "Payment verification error",
       },
       { status: 500 },
     )

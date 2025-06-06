@@ -13,17 +13,25 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-// Inactivity timeout in milliseconds (2 minutes)
-const INACTIVITY_TIMEOUT = 2 * 60 * 1000
+// Inactivity timeout in milliseconds (15 minutes)
+const INACTIVITY_TIMEOUT = 15 * 60 * 1000
 // Warning before timeout (30 seconds before logout)
 const WARNING_BEFORE_TIMEOUT = 30 * 1000
 
-export function InactivityMonitor() {
-  const { signOut, user } = useAuth()
+interface InactivityMonitorProps {
+  timeout?: number // timeout in minutes
+}
+
+export function InactivityMonitor({ timeout = 15 }: InactivityMonitorProps) {
   const router = useRouter()
   const [showWarning, setShowWarning] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const auth = useAuth()
+  const user = auth.user
+  const signOut = auth.signOut
+
+  const actualTimeout = timeout * 60 * 1000 // Convert minutes to milliseconds
 
   const resetTimer = () => {
     // Clear existing timeouts
@@ -34,28 +42,31 @@ export function InactivityMonitor() {
     setShowWarning(false)
 
     // Only set new timeouts if user is logged in
-    if (user) {
+    if (user && signOut) {
       // Set warning timeout
       warningTimeoutRef.current = setTimeout(() => {
         setShowWarning(true)
-      }, INACTIVITY_TIMEOUT - WARNING_BEFORE_TIMEOUT)
+      }, actualTimeout - WARNING_BEFORE_TIMEOUT)
 
       // Set logout timeout
       timeoutRef.current = setTimeout(() => {
         handleLogout()
-      }, INACTIVITY_TIMEOUT)
+      }, actualTimeout)
     }
   }
 
   const handleLogout = async () => {
     setShowWarning(false)
-    await signOut()
-    router.push("/login")
+    if (signOut) {
+      await signOut()
+    } else {
+      router.push("/login")
+    }
   }
 
   useEffect(() => {
-    // Only monitor activity if user is logged in
-    if (!user) return
+    // Only monitor activity if user is logged in and signOut is available
+    if (!user || !signOut) return
 
     // Set initial timer
     resetTimer()
@@ -80,7 +91,12 @@ export function InactivityMonitor() {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current)
     }
-  }, [user])
+  }, [user, signOut, actualTimeout])
+
+  // Don't render anything if auth is not available
+  if (!user || !signOut) {
+    return null
+  }
 
   return (
     <AlertDialog open={showWarning} onOpenChange={setShowWarning}>

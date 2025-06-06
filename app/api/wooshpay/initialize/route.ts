@@ -1,10 +1,21 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { wooshPayClient } from "@/lib/wooshpay/client"
+import { wooshPayClient, isWooshPayConfigured } from "@/lib/wooshpay/client"
 
 export async function POST(request: Request) {
   try {
+    // Check if WooshPay is configured
+    if (!isWooshPayConfigured()) {
+      return NextResponse.json(
+        {
+          message: "Payment service is not configured. Please contact support.",
+          error: "WOOSHPAY_NOT_CONFIGURED",
+        },
+        { status: 503 },
+      )
+    }
+
     // Verify authentication
     const supabase = createRouteHandlerClient({ cookies })
     const {
@@ -59,12 +70,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Failed to create transaction record" }, { status: 500 })
     }
 
+    // Check if WooshPay client is ready
+    if (!wooshPayClient.isReady()) {
+      // Update transaction status to failed
+      await supabase
+        .from("transactions")
+        .update({ status: "failed", narration: "Payment service unavailable" })
+        .eq("reference", reference)
+
+      return NextResponse.json(
+        {
+          message: "Payment service is temporarily unavailable. Please try again later.",
+          error: "SERVICE_UNAVAILABLE",
+        },
+        { status: 503 },
+      )
+    }
+
     // Initialize WooshPay transaction
     const wooshPayData = {
       email,
       amount: Number(amount),
       reference,
-      callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?verify=${reference}`,
+      callback_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard/transfers?verify=${reference}`,
       metadata: {
         user_id: session.user.id,
         account_no: userProfile.account_no,
@@ -72,7 +100,7 @@ export async function POST(request: Request) {
       },
       customer: {
         name: `${userProfile.first_name} ${userProfile.last_name}`,
-        phone: userProfile.phone_number,
+        phone: userProfile.phone_number || "",
         email: email,
       },
     }
@@ -113,7 +141,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         message: "Internal server error",
-        details: process.env.NODE_ENV === "development" ? error.message : undefined,
+        details: process.env.NODE_ENV === "development" ? error.message : "Payment service error",
       },
       { status: 500 },
     )
