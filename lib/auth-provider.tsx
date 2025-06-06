@@ -316,29 +316,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    console.log("Signing out user...")
+    console.log("Starting signout process...")
+
     try {
-      // Clear local state first
+      // Clear local state immediately
       setUser(null)
       setProfile(null)
       setSession(null)
+      setIsLoading(false)
+
+      console.log("Local state cleared, calling Supabase signOut...")
 
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut()
 
       if (error) {
-        console.error("Error during sign out:", error)
-        throw error
+        console.error("Supabase signout error:", error)
+        // Don't throw error, continue with redirect
+      } else {
+        console.log("Supabase signout successful")
       }
 
-      console.log("Sign out successful, redirecting to login")
+      // Clear any cached data
+      if (typeof window !== "undefined") {
+        // Clear localStorage if needed
+        localStorage.removeItem("supabase.auth.token")
+        // Clear sessionStorage if needed
+        sessionStorage.clear()
+      }
 
-      // Force redirect to login page
-      window.location.href = "/login"
+      console.log("Redirecting to login page...")
+
+      // Use router.push first, then fallback to window.location
+      router.push("/login")
+
+      // Fallback redirect after a short delay
+      setTimeout(() => {
+        if (typeof window !== "undefined") {
+          window.location.href = "/login"
+        }
+      }, 100)
     } catch (error) {
-      console.error("Error during sign out:", error)
+      console.error("Error during signout:", error)
+
       // Force redirect even if there's an error
-      window.location.href = "/login"
+      if (typeof window !== "undefined") {
+        window.location.href = "/login"
+      }
     }
   }
 

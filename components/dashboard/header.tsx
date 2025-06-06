@@ -31,12 +31,14 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   const handleSignOut = async () => {
     setIsLoading(true)
+    console.log("Header: Starting signout process...")
+
     try {
       await signOut()
-      // The signOut function in auth provider already handles the redirect
+      console.log("Header: Signout completed successfully")
     } catch (error) {
-      console.error("Error signing out:", error)
-      // Fallback redirect if auth provider doesn't handle it
+      console.error("Header: Error during signout:", error)
+      // Force redirect as fallback
       router.push("/login")
     } finally {
       setIsLoading(false)

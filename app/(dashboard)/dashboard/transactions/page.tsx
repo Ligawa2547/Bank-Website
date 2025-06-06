@@ -23,40 +23,49 @@ export default function TransactionsPage() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    if (!user || !profile?.account_number) return
+    if (!user || !profile?.account_number) {
+      setIsLoading(false)
+      return
+    }
 
     const fetchTransactions = async () => {
       setIsLoading(true)
       try {
-        console.log("Fetching transactions for account:", profile.account_number)
+        console.log("Fetching transactions for user:", user.id, "account:", profile.account_number)
 
-        // Fetch transactions where the user is either sender or recipient
+        // Fetch transactions where the logged-in user is involved
+        // This includes transactions where they are the sender OR recipient
         const { data, error } = await supabase
           .from("transactions")
           .select("*")
           .or(
-            `account_no.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number},sender_account_number.eq.${profile.account_number}`,
+            `user_id.eq.${user.id},account_no.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number},sender_account_number.eq.${profile.account_number}`,
           )
           .order("created_at", { ascending: false })
 
         if (error) {
           console.error("Error fetching transactions:", error)
+          setTransactions([])
+          setFilteredTransactions([])
           setIsLoading(false)
           return
         }
 
-        console.log(`Found ${data?.length || 0} transactions`)
+        console.log(`Found ${data?.length || 0} transactions for user`)
 
         if (data && data.length > 0) {
-          // Process transactions to ensure correct transaction_type
+          // Process transactions to ensure correct transaction_type for the logged-in user
           const processedData = data.map((transaction) => {
-            // If transaction doesn't have a type, determine it based on account numbers
-            if (!transaction.transaction_type) {
-              if (transaction.sender_account_number === profile.account_number) {
-                return { ...transaction, transaction_type: "transfer_out" }
-              } else if (transaction.recipient_account_number === profile.account_number) {
-                return { ...transaction, transaction_type: "transfer_in" }
-              }
+            // Determine transaction type from the perspective of the logged-in user
+            if (transaction.user_id === user.id) {
+              // This is a direct transaction by the user (deposit, withdrawal, loan, etc.)
+              return transaction
+            } else if (transaction.recipient_account_number === profile.account_number) {
+              // User is receiving money
+              return { ...transaction, transaction_type: "transfer_in" }
+            } else if (transaction.sender_account_number === profile.account_number) {
+              // User is sending money
+              return { ...transaction, transaction_type: "transfer_out" }
             }
             return transaction
           })
@@ -69,6 +78,8 @@ export default function TransactionsPage() {
         }
       } catch (err) {
         console.error("Unexpected error fetching transactions:", err)
+        setTransactions([])
+        setFilteredTransactions([])
       } finally {
         setIsLoading(false)
       }
@@ -136,6 +147,8 @@ export default function TransactionsPage() {
         return "Transfer Out"
       case "loan_disbursement":
         return "Loan Disbursement"
+      case "loan_repayment":
+        return "Loan Repayment"
       default:
         return type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ")
     }
@@ -147,6 +160,11 @@ export default function TransactionsPage() {
 
   // Handle export transactions
   const handleExportTransactions = () => {
+    if (filteredTransactions.length === 0) {
+      alert("No transactions to export")
+      return
+    }
+
     // Create CSV content
     let csvContent = "Date,Description,Reference,Status,Amount\n"
 
@@ -164,6 +182,8 @@ export default function TransactionsPage() {
         description = `To ${transaction.recipient_name || transaction.recipient_account_number || "Unknown"}`
       } else if (transaction.transaction_type === "loan_disbursement") {
         description = "Loan Disbursement"
+      } else if (transaction.transaction_type === "loan_repayment") {
+        description = "Loan Repayment"
       }
 
       if (transaction.narration) {
@@ -187,15 +207,28 @@ export default function TransactionsPage() {
     const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent)
     const link = document.createElement("a")
     link.setAttribute("href", encodedUri)
-    link.setAttribute("download", `transactions_${new Date().toISOString().split("T")[0]}.csv`)
+    link.setAttribute("download", `my_transactions_${new Date().toISOString().split("T")[0]}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
 
+  if (!user || !profile) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <p className="text-gray-500">Please log in to view your transactions</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="max-w-5xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Transaction History</h1>
+    <div className="max-w-5xl mx-auto p-4 sm:p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">My Transaction History</h1>
+        <p className="text-gray-600">View all your account transactions and activities</p>
+      </div>
 
       <Card className="mb-6">
         <CardContent className="pt-6">
@@ -224,6 +257,7 @@ export default function TransactionsPage() {
                   <SelectItem value="transfer_in">Transfers In</SelectItem>
                   <SelectItem value="transfer_out">Transfers Out</SelectItem>
                   <SelectItem value="loan_disbursement">Loan Disbursements</SelectItem>
+                  <SelectItem value="loan_repayment">Loan Repayments</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -242,7 +276,13 @@ export default function TransactionsPage() {
                 </SelectContent>
               </Select>
 
-              <Button variant="outline" size="icon" title="Export Transactions" onClick={handleExportTransactions}>
+              <Button
+                variant="outline"
+                size="icon"
+                title="Export Transactions"
+                onClick={handleExportTransactions}
+                disabled={filteredTransactions.length === 0}
+              >
                 <Download className="h-4 w-4" />
               </Button>
             </div>
@@ -252,7 +292,7 @@ export default function TransactionsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Transactions</CardTitle>
+          <CardTitle>My Transactions</CardTitle>
           <CardDescription>
             {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? "s" : ""} found
           </CardDescription>
@@ -277,8 +317,13 @@ export default function TransactionsPage() {
                   </thead>
                   <tbody>
                     {paginatedTransactions.map((transaction) => (
-                      <tr key={transaction.id} className="border-b">
-                        <td className="py-3 px-4 text-sm">{new Date(transaction.created_at).toLocaleDateString()}</td>
+                      <tr key={transaction.id} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4 text-sm">
+                          {new Date(transaction.created_at).toLocaleDateString()}
+                          <div className="text-xs text-gray-500">
+                            {new Date(transaction.created_at).toLocaleTimeString()}
+                          </div>
+                        </td>
                         <td className="py-3 px-4">
                           <div className="font-medium">
                             {transaction.transaction_type === "deposit"
@@ -291,11 +336,13 @@ export default function TransactionsPage() {
                                     ? `To ${transaction.recipient_name || transaction.recipient_account_number || "Unknown"}`
                                     : transaction.transaction_type === "loan_disbursement"
                                       ? "Loan Disbursement"
-                                      : getTransactionTypeLabel(transaction.transaction_type)}
+                                      : transaction.transaction_type === "loan_repayment"
+                                        ? "Loan Repayment"
+                                        : getTransactionTypeLabel(transaction.transaction_type)}
                           </div>
                           <div className="text-xs text-gray-500">{transaction.narration || "-"}</div>
                         </td>
-                        <td className="py-3 px-4 text-sm">{transaction.reference}</td>
+                        <td className="py-3 px-4 text-sm font-mono">{transaction.reference}</td>
                         <td className="py-3 px-4">
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -332,7 +379,17 @@ export default function TransactionsPage() {
               </div>
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">No transactions found matching your filters</div>
+            <div className="text-center py-12 text-gray-500">
+              <div className="mb-4">
+                <Search className="h-12 w-12 mx-auto text-gray-300" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">No transactions found</h3>
+              <p className="text-sm">
+                {searchQuery || typeFilter !== "all" || dateFilter !== "all"
+                  ? "Try adjusting your search filters"
+                  : "You haven't made any transactions yet"}
+              </p>
+            </div>
           )}
 
           {/* Pagination */}
@@ -347,17 +404,29 @@ export default function TransactionsPage() {
                 >
                   Previous
                 </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <Button
-                    key={page}
-                    variant={currentPage === page ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCurrentPage(page)}
-                    className={currentPage === page ? "bg-[#0A3D62]" : ""}
-                  >
-                    {page}
-                  </Button>
-                ))}
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  let page
+                  if (totalPages <= 5) {
+                    page = i + 1
+                  } else if (currentPage <= 3) {
+                    page = i + 1
+                  } else if (currentPage >= totalPages - 2) {
+                    page = totalPages - 4 + i
+                  } else {
+                    page = currentPage - 2 + i
+                  }
+                  return (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      className={currentPage === page ? "bg-[#0A3D62]" : ""}
+                    >
+                      {page}
+                    </Button>
+                  )
+                })}
                 <Button
                   variant="outline"
                   size="sm"
