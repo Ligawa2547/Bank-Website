@@ -18,6 +18,7 @@ import {
   Users,
   TrendingUp,
   X,
+  FileCheck,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-provider"
@@ -41,6 +42,14 @@ export function Sidebar({
       icon: Home,
       href: "/dashboard",
       active: pathname === "/dashboard",
+    },
+    {
+      title: "KYC Verification",
+      icon: FileCheck,
+      href: "/dashboard/kyc",
+      active: pathname === "/dashboard/kyc",
+      badge:
+        profile?.kyc_status === "not_submitted" ? "Required" : profile?.kyc_status === "pending" ? "Pending" : null,
     },
     {
       title: "Transfers",
@@ -156,6 +165,20 @@ export function Sidebar({
                   ${typeof profile.balance === "number" ? profile.balance.toFixed(2) : "0.00"}
                 </div>
               </div>
+
+              {/* KYC Status Indicator */}
+              {profile.kyc_status !== "approved" && (
+                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <div className="flex items-center gap-2">
+                    <FileCheck className="h-3 w-3 text-yellow-600" />
+                    <span className="text-xs text-yellow-800">
+                      {profile.kyc_status === "not_submitted" && "KYC Required"}
+                      {profile.kyc_status === "pending" && "KYC Under Review"}
+                      {profile.kyc_status === "rejected" && "KYC Rejected"}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -167,12 +190,23 @@ export function Sidebar({
                   href={route.href}
                   onClick={onClose} // Close sidebar on mobile when link is clicked
                   className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors relative",
                     route.active ? "bg-[#0A3D62]/10 text-[#0A3D62]" : "text-gray-600 hover:bg-gray-100",
                   )}
                 >
                   <route.icon className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{route.title}</span>
+                  <span className="truncate flex-1">{route.title}</span>
+                  {route.badge && (
+                    <span
+                      className={cn(
+                        "text-xs px-1.5 py-0.5 rounded-full font-medium",
+                        route.badge === "Required" && "bg-red-100 text-red-700",
+                        route.badge === "Pending" && "bg-yellow-100 text-yellow-700",
+                      )}
+                    >
+                      {route.badge}
+                    </span>
+                  )}
                 </Link>
               ))}
 
