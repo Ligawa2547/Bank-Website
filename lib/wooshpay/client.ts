@@ -1,4 +1,4 @@
-import { WOOSHPAY_CONFIG, WOOSHPAY_ENDPOINTS } from "./config"
+import { WOOSHPAY_SERVER_CONFIG, WOOSHPAY_ENDPOINTS } from "./config"
 
 export interface WooshPayInitializeRequest {
   email: string
@@ -49,8 +49,8 @@ class WooshPayClient {
   private secretKey: string
 
   constructor() {
-    this.baseUrl = WOOSHPAY_CONFIG.baseUrl
-    this.secretKey = WOOSHPAY_CONFIG.secretKey
+    this.baseUrl = WOOSHPAY_SERVER_CONFIG.baseUrl
+    this.secretKey = WOOSHPAY_SERVER_CONFIG.secretKey
 
     if (!this.secretKey) {
       throw new Error("WooshPay secret key is not configured")

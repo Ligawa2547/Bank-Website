@@ -17,3 +17,9 @@ export const WOOSHPAY_ENDPOINTS = {
   refund: "/refund",
   transfer: "/transfer",
 }
+
+// Add this export for the client
+export const WOOSHPAY_CONFIG = {
+  baseUrl: WOOSHPAY_SERVER_CONFIG.baseUrl,
+  secretKey: WOOSHPAY_SERVER_CONFIG.secretKey,
+}
