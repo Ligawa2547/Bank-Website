@@ -8,6 +8,10 @@ import { useRouter, usePathname } from "next/navigation"
 import type { Session, User } from "@supabase/supabase-js"
 import type { UserProfile } from "@/types/user"
 
+// Add this near the top of the file, outside the AuthProvider component
+const userProfileCache = new Map<string, { profile: UserProfile; timestamp: number }>()
+const CACHE_TTL = 60000 // 1 minute cache TTL
+
 type AuthContextType = {
   user: User | null
   profile: UserProfile | null
@@ -31,9 +35,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const supabase = createClientComponentClient()
 
-  // Function to fetch user profile data from public.users table
+  // Replace the fetchUserProfile function with this optimized version
   const fetchUserProfile = async (userId: string) => {
     try {
+      // Check cache first
+      const cachedData = userProfileCache.get(userId)
+      if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
+        console.log("Using cached profile data for user ID:", userId)
+        return cachedData.profile
+      }
+
       console.log("Fetching user profile for user ID:", userId)
 
       // Fetch directly from public.users table using maybeSingle() to handle no rows gracefully
@@ -45,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (userData) {
-        console.log("User data found in public.users table:", userData)
+        console.log("User data found in public.users table")
 
         // Convert users table format to UserProfile format
         const userProfile: UserProfile = {
@@ -57,15 +68,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           phone_number: userData.phone_number || null,
           city: userData.city || null,
           country: userData.country || null,
-          account_number: userData.account_no || null, // Use account_no from users table
-          balance: userData.account_balance || 0, // Use account_balance column
-          status: userData.status || "pending", // Include status from users table
+          account_number: userData.account_no || null,
+          balance: userData.account_balance || 0,
+          status: userData.status || "pending",
           email_verified: userData.email_verified || false,
           phone_verified: userData.phone_verified || false,
           kyc_status: userData.kyc_status || "not_submitted",
           created_at: userData.created_at || null,
           updated_at: userData.updated_at || null,
         }
+
+        // Cache the profile data
+        userProfileCache.set(userId, {
+          profile: userProfile,
+          timestamp: Date.now(),
+        })
 
         return userProfile
       }
@@ -86,6 +103,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      // Clear the cache for this user to force a fresh fetch
+      userProfileCache.delete(user.id)
+
       console.log("Refreshing user profile for user ID:", user.id)
       const profileData = await fetchUserProfile(user.id)
       if (profileData) {

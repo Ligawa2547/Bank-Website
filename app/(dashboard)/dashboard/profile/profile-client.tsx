@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -46,7 +46,7 @@ export default function ProfileClient() {
   const supabase = createClientComponentClient()
 
   // Function to get status display information
-  const getStatusInfo = (status?: string) => {
+  const getStatusInfo = useCallback((status?: string) => {
     switch (status?.toLowerCase()) {
       case "active":
         return {
@@ -85,7 +85,7 @@ export default function ProfileClient() {
           label: "Unknown",
         }
     }
-  }
+  }, [])
 
   // Fetch user data from the public.users table
   useEffect(() => {
@@ -98,10 +98,29 @@ export default function ProfileClient() {
 
       try {
         setIsFetching(true)
-        console.log("Fetching user data from public.users for ID:", session.user.id)
 
-        // Use maybeSingle() to handle cases where no row exists
-        const { data, error } = await supabase.from("users").select("*").eq("id", session.user.id).maybeSingle()
+        // Use a more efficient query with only the fields we need
+        const { data, error } = await supabase
+          .from("users")
+          .select(`
+          id, 
+          email, 
+          first_name, 
+          last_name, 
+          phone_number, 
+          city, 
+          country, 
+          account_no, 
+          account_balance, 
+          status, 
+          created_at, 
+          updated_at, 
+          email_verified, 
+          phone_verified, 
+          kyc_status
+        `)
+          .eq("id", session.user.id)
+          .maybeSingle()
 
         if (error) {
           console.error("Error fetching user data from public.users:", error)
@@ -114,7 +133,6 @@ export default function ProfileClient() {
         }
 
         if (data) {
-          console.log("User data fetched from public.users:", data)
           setUserData(data)
           setFormData({
             first_name: data.first_name || "",
@@ -125,7 +143,6 @@ export default function ProfileClient() {
             country: data.country || "",
           })
         } else {
-          console.log("No user data found in public.users table for user ID:", session.user.id)
           // Set default data with auth user email
           setFormData({
             first_name: "",
@@ -134,11 +151,6 @@ export default function ProfileClient() {
             phone_number: "",
             city: "",
             country: "",
-          })
-          toast({
-            title: "Profile not found",
-            description: "No profile data found. You can create your profile by editing the information below.",
-            variant: "default",
           })
         }
       } catch (error) {

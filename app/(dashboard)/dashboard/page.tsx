@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { ArrowRight, ArrowUpRight, CreditCard, DollarSign, LineChart, Wallet, Eye, EyeOff } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth-provider"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Transaction } from "@/types/user"
 import { AccountDetailsCard } from "@/components/dashboard/account-details-card"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function DashboardPage() {
   const { user, profile } = useAuth()
@@ -25,30 +26,34 @@ export default function DashboardPage() {
       setIsLoading(true)
 
       try {
-        // Fetch recent transactions
-        const { data: transactionsData, error: transactionsError } = await supabase
-          .from("transactions")
-          .select("*")
-          .eq("account_no", profile.account_number) // Using account_no column
-          .order("created_at", { ascending: false })
-          .limit(5)
+        // Use Promise.all to fetch data in parallel
+        const [transactionsResponse, savingsResponse] = await Promise.all([
+          // Limit fields to only what's needed
+          supabase
+            .from("transactions")
+            .select(
+              "id, amount, created_at, transaction_type, sender_name, sender_account_number, recipient_name, recipient_account_number, reference",
+            )
+            .or(`account_no.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number}`)
+            .order("created_at", { ascending: false })
+            .limit(5),
 
-        if (!transactionsError && transactionsData) {
-          setTransactions(transactionsData)
+          supabase
+            .from("savings_accounts")
+            .select("id, name, current_amount, target_amount")
+            .eq("account_no", profile.account_number),
+        ])
+
+        if (!transactionsResponse.error && transactionsResponse.data) {
+          setTransactions(transactionsResponse.data)
         } else {
-          console.error("Error fetching transactions:", transactionsError)
+          console.error("Error fetching transactions:", transactionsResponse.error)
         }
 
-        // Fetch savings accounts
-        const { data: savingsData, error: savingsError } = await supabase
-          .from("savings_accounts")
-          .select("*")
-          .eq("account_no", profile.account_number) // Using account_no column
-
-        if (!savingsError && savingsData) {
-          setSavingsAccounts(savingsData)
+        if (!savingsResponse.error && savingsResponse.data) {
+          setSavingsAccounts(savingsResponse.data)
         } else {
-          console.error("Error fetching savings accounts:", savingsError)
+          console.error("Error fetching savings accounts:", savingsResponse.error)
         }
       } catch (error) {
         console.error("Dashboard data fetch error:", error)
@@ -60,12 +65,13 @@ export default function DashboardPage() {
     fetchDashboardData()
   }, [user, profile, supabase])
 
-  const formatCurrency = (amount: number) => {
+  // Add this memoized formatter function to avoid recreating it on every render
+  const formatCurrency = useCallback((amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
     }).format(amount)
-  }
+  }, [])
 
   const toggleBalanceVisibility = () => {
     setShowBalance(!showBalance)
@@ -262,8 +268,19 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="p-4 sm:p-6 pt-0">
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
+            <div className="space-y-3 sm:space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Skeleton className="h-8 w-8 sm:h-10 sm:w-10 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-4 w-16" />
+                </div>
+              ))}
             </div>
           ) : transactions.length > 0 ? (
             <div className="space-y-3 sm:space-y-4">
