@@ -15,13 +15,14 @@ export const metadata: Metadata = {
   description: "View and manage your account notifications",
 }
 
-async function getNotifications(userId: string) {
+async function getNotifications(userId: string, accountNo: string) {
   const supabase = createServerComponentClient({ cookies })
 
+  // Fetch notifications using account_no for better security and accuracy
   const { data, error } = await supabase
     .from("notifications")
     .select("*")
-    .eq("user_id", userId)
+    .eq("account_no", accountNo)
     .order("created_at", { ascending: false })
 
   if (error) {
@@ -30,6 +31,19 @@ async function getNotifications(userId: string) {
   }
 
   return data as Notification[]
+}
+
+async function getUserProfile(userId: string) {
+  const supabase = createServerComponentClient({ cookies })
+
+  const { data, error } = await supabase.from("users").select("account_no").eq("id", userId).single()
+
+  if (error) {
+    console.error("Error fetching user profile:", error)
+    return null
+  }
+
+  return data
 }
 
 export default async function NotificationsPage() {
@@ -42,7 +56,22 @@ export default async function NotificationsPage() {
     return notFound()
   }
 
-  const notifications = await getNotifications(session.user.id)
+  // Get user's account number first
+  const userProfile = await getUserProfile(session.user.id)
+
+  if (!userProfile?.account_no) {
+    return (
+      <div className="container mx-auto py-6">
+        <Card>
+          <CardContent className="py-10 text-center">
+            <p className="text-muted-foreground">Unable to load notifications. Please complete your profile setup.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const notifications = await getNotifications(session.user.id, userProfile.account_no)
 
   // Group notifications by read status
   const unreadNotifications = notifications.filter((n) => !n.is_read)
@@ -55,7 +84,7 @@ export default async function NotificationsPage() {
     const { error } = await supabase
       .from("notifications")
       .update({ is_read: true })
-      .eq("user_id", session.user.id)
+      .eq("account_no", userProfile.account_no)
       .eq("is_read", false)
 
     if (error) {
@@ -66,7 +95,10 @@ export default async function NotificationsPage() {
   return (
     <div className="container mx-auto py-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Notifications</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Notifications</h1>
+          <p className="text-muted-foreground">Account: {userProfile.account_no}</p>
+        </div>
         <form action={markAllAsRead}>
           <Button variant="outline" type="submit" disabled={unreadNotifications.length === 0}>
             Mark all as read
@@ -92,6 +124,9 @@ export default async function NotificationsPage() {
             <Card>
               <CardContent className="py-10 text-center">
                 <p className="text-muted-foreground">You don't have any notifications yet.</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Notifications for account {userProfile.account_no} will appear here.
+                </p>
               </CardContent>
             </Card>
           ) : (
@@ -108,6 +143,9 @@ export default async function NotificationsPage() {
             <Card>
               <CardContent className="py-10 text-center">
                 <p className="text-muted-foreground">You don't have any unread notifications.</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  New notifications for account {userProfile.account_no} will appear here.
+                </p>
               </CardContent>
             </Card>
           ) : (
@@ -131,7 +169,14 @@ function NotificationCard({ notification }: { notification: Notification }) {
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <CardTitle className="text-lg">{notification.title}</CardTitle>
-          {!notification.is_read && <Badge variant="secondary">New</Badge>}
+          <div className="flex items-center gap-2">
+            {notification.account_no && (
+              <Badge variant="outline" className="text-xs">
+                {notification.account_no}
+              </Badge>
+            )}
+            {!notification.is_read && <Badge variant="secondary">New</Badge>}
+          </div>
         </div>
         <CardDescription>{formattedDate}</CardDescription>
       </CardHeader>

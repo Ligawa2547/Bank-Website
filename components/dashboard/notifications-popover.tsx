@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useRouter } from "next/navigation"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useAuth } from "@/lib/auth-provider"
 import type { Notification } from "@/types/user"
 import { format, formatDistanceToNow } from "date-fns"
 
@@ -16,20 +17,24 @@ export function NotificationsPopover() {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClientComponentClient()
+  const { profile } = useAuth()
 
   useEffect(() => {
     async function fetchNotifications() {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
+        if (!profile?.account_number) {
+          console.log("No account number available for notifications")
+          setLoading(false)
+          return
+        }
 
-        if (!session) return
+        console.log("Fetching notifications for account:", profile.account_number)
 
+        // Fetch notifications using account_no for better security
         const { data, error } = await supabase
           .from("notifications")
           .select("*")
-          .eq("user_id", session.user.id)
+          .eq("account_no", profile.account_number)
           .order("created_at", { ascending: false })
           .limit(5)
 
@@ -38,6 +43,7 @@ export function NotificationsPopover() {
           return
         }
 
+        console.log("Fetched notifications:", data?.length || 0)
         setNotifications(data || [])
       } catch (error) {
         console.error("Error in notifications fetch:", error)
@@ -49,26 +55,44 @@ export function NotificationsPopover() {
     fetchNotifications()
 
     // Set up real-time subscription for new notifications
-    const channel = supabase
-      .channel("notifications_channel")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-        },
-        (payload) => {
-          // Add the new notification to the list
-          setNotifications((prev) => [payload.new as Notification, ...prev.slice(0, 4)])
-        },
-      )
-      .subscribe()
+    if (profile?.account_number) {
+      const channel = supabase
+        .channel("notifications_channel")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `account_no=eq.${profile.account_number}`,
+          },
+          (payload) => {
+            console.log("New notification received:", payload.new)
+            // Add the new notification to the list
+            setNotifications((prev) => [payload.new as Notification, ...prev.slice(0, 4)])
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "notifications",
+            filter: `account_no=eq.${profile.account_number}`,
+          },
+          (payload) => {
+            console.log("Notification updated:", payload.new)
+            // Update the notification in the list
+            setNotifications((prev) => prev.map((n) => (n.id === payload.new.id ? (payload.new as Notification) : n)))
+          },
+        )
+        .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
+      return () => {
+        supabase.removeChannel(channel)
+      }
     }
-  }, [supabase])
+  }, [supabase, profile?.account_number])
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
 
@@ -105,6 +129,11 @@ export function NotificationsPopover() {
     return format(date, "MMM d, yyyy")
   }
 
+  // Don't show notifications if no account number
+  if (!profile?.account_number) {
+    return null
+  }
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -127,7 +156,10 @@ export function NotificationsPopover() {
       </PopoverTrigger>
       <PopoverContent className="w-80" align="end">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-lg">Notifications</h3>
+          <div>
+            <h3 className="font-semibold text-lg">Notifications</h3>
+            <p className="text-xs text-muted-foreground">Account: {profile.account_number}</p>
+          </div>
           {unreadCount > 0 && (
             <Badge variant="secondary" className="text-xs">
               {unreadCount} new
@@ -141,7 +173,12 @@ export function NotificationsPopover() {
             </div>
           ) : notifications.length === 0 ? (
             <div className="flex items-center justify-center h-40">
-              <p className="text-sm text-gray-500">No notifications yet</p>
+              <div className="text-center">
+                <p className="text-sm text-gray-500">No notifications yet</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Notifications for account {profile.account_number} will appear here
+                </p>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
@@ -159,9 +196,16 @@ export function NotificationsPopover() {
                     <div className="flex-1">
                       <h4 className="font-medium text-sm mb-1">{notification.title}</h4>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{notification.message}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-500">
-                        {formatNotificationTime(notification.created_at)}
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-gray-500 dark:text-gray-500">
+                          {formatNotificationTime(notification.created_at)}
+                        </p>
+                        {notification.account_no && (
+                          <Badge variant="outline" className="text-xs">
+                            {notification.account_no}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     {!notification.is_read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-1 ml-2" />}
                   </div>

@@ -80,6 +80,7 @@ export type KYCDocument = {
 export type Notification = {
   id: string
   user_id: string
+  account_no?: string
   title: string
   message: string
   is_read: boolean
