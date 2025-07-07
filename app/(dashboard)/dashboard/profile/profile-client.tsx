@@ -204,8 +204,9 @@ export default function ProfileClient() {
           <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-shrink-0">
               <ProfilePictureUpload
-                currentImageUrl={profile.profile_picture_url}
-                onUploadComplete={handleProfilePictureUpdate}
+                currentUrl={profile.profile_picture_url ?? null}
+                userId={profile.id}
+                onUploaded={handleProfilePictureUpdate}
               />
             </div>
             <div className="flex-1 space-y-4">

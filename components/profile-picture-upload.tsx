@@ -76,3 +76,6 @@ export default function ProfilePictureUpload({ currentUrl, userId, onUploaded, c
     </div>
   )
 }
+
+// Allow both default **and** named import styles
+export { ProfilePictureUpload as default, ProfilePictureUpload }

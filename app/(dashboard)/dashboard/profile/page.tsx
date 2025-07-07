@@ -2,6 +2,9 @@ import { createClient } from "@supabase/supabase-js"
 import ProfileClient from "./profile-client"
 import type { Metadata } from "next"
 
+// This page must run per-request so we can read auth cookies
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "Profile – I&E Bank",
 }
