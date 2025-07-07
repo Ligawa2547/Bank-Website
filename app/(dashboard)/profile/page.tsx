@@ -1,4 +1,6 @@
-"use client"
+// Add this at the very top of the file
+export const dynamic = "force-dynamic"
+;("use client")
 
 import type React from "react"
 import { Button } from "@/components/ui/button"

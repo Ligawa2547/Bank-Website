@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useTransition } from "react"
 import { upload } from "@vercel/blob/client"
 import { toast } from "@/hooks/use-toast"
@@ -9,14 +8,13 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 
-interface Props {
-  currentUrl: string | null
-  userId: string
-  onUploaded: (url: string) => void
+interface ProfilePictureUploadProps {
+  currentImageUrl?: string | null
+  onImageUpdate: (url: string) => void
   className?: string
 }
 
-export default function ProfilePictureUpload({ currentUrl, userId, onUploaded, className }: Props) {
+export function ProfilePictureUpload({ currentImageUrl, onImageUpdate, className }: ProfilePictureUploadProps) {
   const [preview, setPreview] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -39,16 +37,12 @@ export default function ProfilePictureUpload({ currentUrl, userId, onUploaded, c
 
     startTransition(async () => {
       try {
-        const {
-          url,
-        }: {
-          url: string
-        } = await upload(`profile-pictures/${userId}-${Date.now()}`, file, {
+        const { url } = await upload(`profile-pictures/${Date.now()}`, file, {
           access: "public",
           handleUploadUrl: "/api/upload-profile-picture",
         })
 
-        onUploaded(url)
+        onImageUpdate(url)
         toast({ title: "Profile picture updated!" })
       } catch (err) {
         toast({
@@ -63,19 +57,20 @@ export default function ProfilePictureUpload({ currentUrl, userId, onUploaded, c
   return (
     <div className={cn("flex flex-col items-center gap-4", className)}>
       <Avatar className="h-32 w-32">
-        <AvatarImage src={preview ?? currentUrl ?? undefined} />
+        <AvatarImage src={preview ?? currentImageUrl ?? undefined} />
         <AvatarFallback>
-          <i data-lucide="user" className="h-12 w-12 stroke-[1.5]" />
+          <div className="h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center">
+            <span className="text-2xl font-semibold text-gray-600">{/* Simple user icon fallback */}👤</span>
+          </div>
         </AvatarFallback>
       </Avatar>
 
       <input id="profilePic" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
       <label htmlFor="profilePic">
-        <Button disabled={isPending}>Upload picture</Button>
+        <Button disabled={isPending} type="button">
+          {isPending ? "Uploading..." : "Upload picture"}
+        </Button>
       </label>
     </div>
   )
 }
-
-// Allow both default **and** named import styles
-export { ProfilePictureUpload as default, ProfilePictureUpload }
