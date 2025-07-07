@@ -14,7 +14,7 @@ interface ProfilePictureUploadProps {
   className?: string
 }
 
-export function ProfilePictureUpload({ currentImageUrl, onImageUpdate, className }: ProfilePictureUploadProps) {
+function ProfilePictureUpload({ currentImageUrl, onImageUpdate, className }: ProfilePictureUploadProps) {
   const [preview, setPreview] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -74,3 +74,7 @@ export function ProfilePictureUpload({ currentImageUrl, onImageUpdate, className
     </div>
   )
 }
+
+/* ✅ export once as default, and again as a named export */
+export default ProfilePictureUpload
+export { ProfilePictureUpload }
