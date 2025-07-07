@@ -1,36 +1,31 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { useRouter } from "next/navigation"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useAuth } from "@/lib/auth-provider"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Notification } from "@/types/user"
-import { format, formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow } from "date-fns"
+import Link from "next/link"
 
 export function NotificationsPopover() {
+  const { user, profile } = useAuth()
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
   const supabase = createClientComponentClient()
-  const { profile } = useAuth()
 
   useEffect(() => {
-    async function fetchNotifications() {
+    if (!user || !profile?.account_number) {
+      setIsLoading(false)
+      return
+    }
+
+    const fetchNotifications = async () => {
+      setIsLoading(true)
       try {
-        if (!profile?.account_number) {
-          console.log("No account number available for notifications")
-          setLoading(false)
-          return
-        }
-
-        console.log("Fetching notifications for account:", profile.account_number)
-
-        // Fetch notifications using account_no for better security
         const { data, error } = await supabase
           .from("notifications")
           .select("*")
@@ -43,181 +38,139 @@ export function NotificationsPopover() {
           return
         }
 
-        console.log("Fetched notifications:", data?.length || 0)
         setNotifications(data || [])
-      } catch (error) {
-        console.error("Error in notifications fetch:", error)
+      } catch (err) {
+        console.error("Unexpected error fetching notifications:", err)
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
 
     fetchNotifications()
 
-    // Set up real-time subscription for new notifications
-    if (profile?.account_number) {
-      const channel = supabase
-        .channel("notifications_channel")
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "notifications",
-            filter: `account_no=eq.${profile.account_number}`,
-          },
-          (payload) => {
-            console.log("New notification received:", payload.new)
-            // Add the new notification to the list
+    // Set up real-time subscription
+    const channel = supabase
+      .channel("notifications_popover")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `account_no=eq.${profile.account_number}`,
+        },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
             setNotifications((prev) => [payload.new as Notification, ...prev.slice(0, 4)])
-          },
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "notifications",
-            filter: `account_no=eq.${profile.account_number}`,
-          },
-          (payload) => {
-            console.log("Notification updated:", payload.new)
-            // Update the notification in the list
-            setNotifications((prev) => prev.map((n) => (n.id === payload.new.id ? (payload.new as Notification) : n)))
-          },
-        )
-        .subscribe()
+          } else if (payload.eventType === "UPDATE") {
+            setNotifications((prev) =>
+              prev.map((notif) => (notif.id === payload.new.id ? (payload.new as Notification) : notif)),
+            )
+          } else if (payload.eventType === "DELETE") {
+            setNotifications((prev) => prev.filter((notif) => notif.id !== payload.old.id))
+          }
+        },
+      )
+      .subscribe()
 
-      return () => {
-        supabase.removeChannel(channel)
-      }
+    return () => {
+      supabase.removeChannel(channel)
     }
-  }, [supabase, profile?.account_number])
-
-  const unreadCount = notifications.filter((n) => !n.is_read).length
+  }, [user, profile, supabase])
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", notificationId)
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", notificationId)
+        .eq("account_no", profile?.account_number)
 
       if (error) {
         console.error("Error marking notification as read:", error)
         return
       }
 
-      // Update local state
-      setNotifications(notifications.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n)))
-    } catch (error) {
-      console.error("Error marking as read:", error)
+      setNotifications((prev) =>
+        prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif)),
+      )
+    } catch (err) {
+      console.error("Unexpected error marking notification as read:", err)
     }
   }
 
-  const handleViewAll = () => {
-    router.push("/dashboard/notifications")
-  }
+  const unreadCount = notifications.filter((n) => !n.is_read).length
 
-  const formatNotificationTime = (timestamp: string) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-
-    // If it's today, show relative time (2 minutes ago)
-    if (date.toDateString() === now.toDateString()) {
-      return formatDistanceToNow(date, { addSuffix: true })
-    }
-
-    // Otherwise show the date
-    return format(date, "MMM d, yyyy")
-  }
-
-  // Don't show notifications if no account number
-  if (!profile?.account_number) {
+  if (!user || !profile) {
     return null
   }
 
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative hover:bg-gray-100 dark:hover:bg-gray-700"
-          aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ""}`}
-        >
+        <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center"
-            >
-              {unreadCount}
-            </Badge>
+            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
           )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80" align="end">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-semibold text-lg">Notifications</h3>
-            <p className="text-xs text-muted-foreground">Account: {profile.account_number}</p>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium">Notifications</h4>
+            <span className="text-sm text-gray-500">Account: {profile.account_number}</span>
           </div>
-          {unreadCount > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {unreadCount} new
-            </Badge>
-          )}
-        </div>
-        <ScrollArea className="h-80">
-          {loading ? (
-            <div className="flex items-center justify-center h-40">
-              <p className="text-sm text-gray-500">Loading notifications...</p>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
             </div>
-          ) : notifications.length === 0 ? (
-            <div className="flex items-center justify-center h-40">
-              <div className="text-center">
-                <p className="text-sm text-gray-500">No notifications yet</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Notifications for account {profile.account_number} will appear here
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
+          ) : notifications.length > 0 ? (
+            <div className="space-y-3 max-h-80 overflow-y-auto">
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-3 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
-                    !notification.is_read
-                      ? "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800"
-                      : "bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-700"
+                  className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                    notification.is_read ? "bg-gray-50 hover:bg-gray-100" : "bg-blue-50 hover:bg-blue-100"
                   }`}
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => {
+                    if (!notification.is_read) {
+                      markAsRead(notification.id)
+                    }
+                  }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h4 className="font-medium text-sm mb-1">{notification.title}</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{notification.message}</p>
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-gray-500 dark:text-gray-500">
-                          {formatNotificationTime(notification.created_at)}
-                        </p>
-                        {notification.account_no && (
-                          <Badge variant="outline" className="text-xs">
-                            {notification.account_no}
-                          </Badge>
-                        )}
+                      <div className="flex items-center gap-2 mb-1">
+                        <h5 className="font-medium text-sm">{notification.title}</h5>
+                        {!notification.is_read && <span className="w-2 h-2 bg-blue-500 rounded-full"></span>}
                       </div>
+                      <p className="text-xs text-gray-600 line-clamp-2">{notification.message}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                      </p>
                     </div>
-                    {!notification.is_read && <div className="w-2 h-2 bg-blue-500 rounded-full mt-1 ml-2" />}
                   </div>
                 </div>
               ))}
             </div>
+          ) : (
+            <div className="text-center py-6 text-gray-500">
+              <Bell className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">No notifications yet</p>
+            </div>
           )}
-        </ScrollArea>
-        <div className="mt-4 pt-3 border-t">
-          <Button variant="ghost" className="w-full text-sm" onClick={handleViewAll}>
-            View all notifications
-          </Button>
+
+          <div className="border-t pt-3">
+            <Link href="/dashboard/notifications" onClick={() => setIsOpen(false)}>
+              <Button variant="outline" className="w-full bg-transparent" size="sm">
+                View All Notifications
+              </Button>
+            </Link>
+          </div>
         </div>
       </PopoverContent>
     </Popover>

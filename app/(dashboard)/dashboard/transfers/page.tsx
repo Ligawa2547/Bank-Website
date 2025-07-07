@@ -1,411 +1,430 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth } from "@/lib/auth-provider"
+import { toast } from "@/components/ui/use-toast"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { WooshPayPayment } from "@/components/wooshpay-payment"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CheckCircle, AlertCircle } from "lucide-react"
+import { useAuth } from "@/lib/auth-provider"
+import { ArrowUpDown, Send, Clock, CheckCircle, XCircle } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
-export default function TransfersPage() {
+interface Transaction {
+  id: string
+  amount: number
+  description: string
+  transaction_type: string
+  status: string
+  created_at: string
+  recipient_name?: string
+  sender_name?: string
+}
+
+const TransfersPage = () => {
   const { user, profile, refreshUserProfile } = useAuth()
-  const [recipientAccount, setRecipientAccount] = useState("")
   const [amount, setAmount] = useState("")
-  const [narration, setNarration] = useState("")
+  const [recipientAccount, setRecipientAccount] = useState("")
+  const [description, setDescription] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [isVerifying, setIsVerifying] = useState(false)
-  const [recipientName, setRecipientName] = useState("")
-  const [recipientId, setRecipientId] = useState("")
-  const [transferSuccess, setTransferSuccess] = useState(false)
-  const [depositSuccess, setDepositSuccess] = useState(false)
-  const [error, setError] = useState("")
-  const searchParams = useSearchParams()
+  const [recentTransfers, setRecentTransfers] = useState<Transaction[]>([])
+  const [isLoadingTransfers, setIsLoadingTransfers] = useState(true)
+
   const supabase = createClientComponentClient()
 
-  // Check for WooshPay callback
   useEffect(() => {
-    const reference = searchParams.get("reference")
-    const status = searchParams.get("status")
-
-    if (reference && status === "success") {
-      setIsVerifying(true)
-
-      // Verify the payment
-      fetch(`/api/wooshpay/verify?reference=${reference}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.status === "success") {
-            setDepositSuccess(true)
-            // Refresh user profile to get updated balance
-            refreshUserProfile()
-          } else {
-            setError("Payment verification failed. Please contact support.")
-          }
-        })
-        .catch((err) => {
-          console.error("Verification error:", err)
-          setError("An error occurred while verifying your payment.")
-        })
-        .finally(() => {
-          setIsVerifying(false)
-        })
+    if (user) {
+      fetchRecentTransfers()
     }
-  }, [searchParams, refreshUserProfile])
+  }, [user])
 
-  const handleVerifyAccount = async () => {
-    if (!recipientAccount) return
+  const fetchRecentTransfers = async () => {
+    if (!user) return
 
-    setIsLoading(true)
-    setRecipientName("")
-    setRecipientId("")
-    setError("")
-
+    setIsLoadingTransfers(true)
     try {
       const { data, error } = await supabase
-        .from("users")
-        .select("id, first_name, last_name")
-        .eq("account_no", recipientAccount)
-        .single()
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("transaction_type", ["transfer_out", "transfer_in"])
+        .order("created_at", { ascending: false })
+        .limit(10)
 
-      if (error || !data) {
-        setError("Account not found. Please check the account number and try again.")
+      if (error) {
+        console.error("Error fetching transfers:", error)
         return
       }
 
-      setRecipientName(`${data.first_name} ${data.last_name}`)
-      setRecipientId(data.id)
-    } catch (err) {
-      console.error("Error verifying account:", err)
-      setError("An error occurred while verifying the account.")
+      setRecentTransfers(data || [])
+    } catch (error) {
+      console.error("Error fetching transfers:", error)
     } finally {
-      setIsLoading(false)
+      setIsLoadingTransfers(false)
     }
   }
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!recipientAccount || !amount || !recipientName) {
-      setError("Please fill in all required fields and verify the recipient account.")
-      return
-    }
-
-    if (isNaN(Number(amount)) || Number(amount) <= 0) {
-      setError("Please enter a valid amount.")
-      return
-    }
-
     if (!user || !profile) {
-      setError("You must be logged in to make a transfer.")
+      toast({
+        title: "Error",
+        description: "User not authenticated",
+        variant: "destructive",
+      })
       return
     }
 
-    if (Number(amount) > profile.balance) {
-      setError("Insufficient balance.")
+    const transferAmount = Number.parseFloat(amount)
+
+    if (isNaN(transferAmount) || transferAmount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount greater than 0",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!recipientAccount.trim()) {
+      toast({
+        title: "Missing Recipient",
+        description: "Please enter the recipient's account number",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (recipientAccount === profile.account_number) {
+      toast({
+        title: "Invalid Transfer",
+        description: "You cannot transfer money to yourself",
+        variant: "destructive",
+      })
       return
     }
 
     setIsLoading(true)
-    setError("")
 
     try {
-      // Generate a unique reference
-      const reference = `trf_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
-      const transferAmount = Number(amount)
-
-      // Get current balances
+      // Check sender's balance using account_balance column
       const { data: senderData, error: senderError } = await supabase
         .from("users")
-        .select("account_balance")
+        .select("account_balance, first_name, last_name")
         .eq("id", user.id)
         .single()
 
-      if (senderError || !senderData) {
-        setError("Failed to verify sender balance.")
+      if (senderError) {
+        console.error("Error fetching sender data:", senderError)
+        throw new Error("Failed to verify sender balance.")
+      }
+
+      if (!senderData) {
+        throw new Error("Sender account not found.")
+      }
+
+      const currentBalance = Number.parseFloat(senderData.account_balance?.toString() || "0")
+
+      if (currentBalance < transferAmount) {
+        toast({
+          title: "Insufficient Funds",
+          description: `Your current balance is $${currentBalance.toFixed(2)}. You cannot transfer $${transferAmount.toFixed(2)}.`,
+          variant: "destructive",
+        })
         return
       }
 
+      // Find recipient by account number
       const { data: recipientData, error: recipientError } = await supabase
         .from("users")
-        .select("account_balance")
-        .eq("id", recipientId)
+        .select("id, account_balance, first_name, last_name, account_number")
+        .eq("account_number", recipientAccount)
         .single()
 
       if (recipientError || !recipientData) {
-        setError("Failed to verify recipient account.")
+        toast({
+          title: "Recipient Not Found",
+          description: "The recipient account number does not exist",
+          variant: "destructive",
+        })
         return
       }
 
-      // Check balance again
-      if (transferAmount > senderData.account_balance) {
-        setError("Insufficient balance.")
-        return
-      }
+      const recipientBalance = Number.parseFloat(recipientData.account_balance?.toString() || "0")
+      const newSenderBalance = currentBalance - transferAmount
+      const newRecipientBalance = recipientBalance + transferAmount
 
-      // Update sender balance
-      const { error: updateSenderError } = await supabase
+      // Update sender's balance
+      const { error: senderUpdateError } = await supabase
         .from("users")
-        .update({ account_balance: senderData.account_balance - transferAmount })
+        .update({
+          account_balance: newSenderBalance,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", user.id)
 
-      if (updateSenderError) {
-        console.error("Error updating sender balance:", updateSenderError)
-        setError("Failed to update sender balance.")
-        return
+      if (senderUpdateError) {
+        console.error("Error updating sender balance:", senderUpdateError)
+        throw new Error("Failed to update sender balance")
       }
 
-      // Update recipient balance
-      const { error: updateRecipientError } = await supabase
+      // Update recipient's balance
+      const { error: recipientUpdateError } = await supabase
         .from("users")
-        .update({ account_balance: recipientData.account_balance + transferAmount })
-        .eq("id", recipientId)
+        .update({
+          account_balance: newRecipientBalance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", recipientData.id)
 
-      if (updateRecipientError) {
-        console.error("Error updating recipient balance:", updateRecipientError)
-        // Try to rollback sender balance
-        await supabase.from("users").update({ account_balance: senderData.account_balance }).eq("id", user.id)
-        setError("Failed to update recipient balance. Transfer cancelled.")
-        return
+      if (recipientUpdateError) {
+        console.error("Error updating recipient balance:", recipientUpdateError)
+        // Rollback sender balance
+        await supabase.from("users").update({ account_balance: currentBalance }).eq("id", user.id)
+        throw new Error("Failed to update recipient balance")
       }
 
-      // Create outgoing transaction
+      // Create outgoing transaction record for sender
       const { error: outgoingError } = await supabase.from("transactions").insert({
-        account_no: profile.account_number,
-        amount: transferAmount,
+        user_id: user.id,
+        amount: -transferAmount,
+        description: description || `Transfer to ${recipientData.first_name} ${recipientData.last_name}`,
         transaction_type: "transfer_out",
         status: "completed",
-        reference,
-        narration: narration || "Transfer",
-        recipient_account_number: recipientAccount,
-        recipient_name: recipientName,
-        sender_account_number: profile.account_number,
-        sender_name: `${profile.first_name} ${profile.last_name}`,
+        recipient_name: `${recipientData.first_name} ${recipientData.last_name}`,
+        reference: `TXN${Date.now()}OUT`,
+        created_at: new Date().toISOString(),
       })
 
       if (outgoingError) {
         console.error("Error creating outgoing transaction:", outgoingError)
       }
 
-      // Create incoming transaction for recipient
+      // Create incoming transaction record for recipient
       const { error: incomingError } = await supabase.from("transactions").insert({
-        account_no: recipientAccount,
+        user_id: recipientData.id,
         amount: transferAmount,
+        description: description || `Transfer from ${senderData.first_name} ${senderData.last_name}`,
         transaction_type: "transfer_in",
         status: "completed",
-        reference,
-        narration: narration || "Transfer",
-        recipient_account_number: recipientAccount,
-        recipient_name: recipientName,
-        sender_account_number: profile.account_number,
-        sender_name: `${profile.first_name} ${profile.last_name}`,
+        sender_name: `${senderData.first_name} ${senderData.last_name}`,
+        reference: `TXN${Date.now()}IN`,
+        created_at: new Date().toISOString(),
       })
 
       if (incomingError) {
         console.error("Error creating incoming transaction:", incomingError)
       }
 
-      // Create notification for sender
-      await supabase.from("notifications").insert({
-        account_no: profile.account_number,
-        title: "Transfer Successful",
-        message: `You have successfully transferred USD ${transferAmount.toFixed(2)} to ${recipientName}`,
-        is_read: false,
-      })
-
-      // Create notification for recipient
-      await supabase.from("notifications").insert({
-        account_no: recipientAccount,
-        title: "Transfer Received",
-        message: `You have received USD ${transferAmount.toFixed(2)} from ${profile.first_name} ${profile.last_name}`,
-        is_read: false,
-      })
-
-      // Refresh user profile to get updated balance
+      // Refresh user profile to update balance
       await refreshUserProfile()
 
-      setTransferSuccess(true)
-      setRecipientAccount("")
+      // Refresh recent transfers
+      await fetchRecentTransfers()
+
+      toast({
+        title: "Transfer Successful",
+        description: `Successfully transferred $${transferAmount.toFixed(2)} to ${recipientData.first_name} ${recipientData.last_name}`,
+      })
+
+      // Reset form
       setAmount("")
-      setNarration("")
-      setRecipientName("")
-      setRecipientId("")
-    } catch (err: any) {
-      console.error("Transfer error:", err)
-      setError(err.message || "An error occurred while processing your transfer. Please try again.")
+      setRecipientAccount("")
+      setDescription("")
+    } catch (error: any) {
+      console.error("Transfer error:", error)
+      toast({
+        title: "Transfer Failed",
+        description: error.message || "An error occurred during the transfer",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
   }
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(Math.abs(amount))
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle className="h-4 w-4 text-green-600" />
+      case "pending":
+        return <Clock className="h-4 w-4 text-yellow-600" />
+      case "failed":
+        return <XCircle className="h-4 w-4 text-red-600" />
+      default:
+        return <Clock className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge className="bg-green-100 text-green-800">Completed</Badge>
+      case "pending":
+        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+      case "failed":
+        return <Badge className="bg-red-100 text-red-800">Failed</Badge>
+      default:
+        return <Badge className="bg-gray-100 text-gray-800">Unknown</Badge>
+    }
+  }
+
   return (
-    <div className="max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Transfers & Payments</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Transfers</h1>
+        <p className="text-gray-600 mt-1">Send money to other accounts instantly</p>
+      </div>
 
-      <Tabs defaultValue="transfer">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
-          <TabsTrigger value="transfer">Transfer Money</TabsTrigger>
-          <TabsTrigger value="deposit">Fund Account</TabsTrigger>
-        </TabsList>
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Transfer Form */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Send className="h-5 w-5" />
+              <span>Send Money</span>
+            </CardTitle>
+            <CardDescription>Transfer funds to another account</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleTransfer} className="space-y-4">
+              <div>
+                <Label htmlFor="amount">Amount ($)</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  disabled={isLoading}
+                  className="mt-1"
+                />
+              </div>
 
-        <TabsContent value="transfer">
-          <Card>
-            <CardHeader>
-              <CardTitle>Transfer Money</CardTitle>
-              <CardDescription>Send money to other accounts within the bank.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {transferSuccess ? (
-                <Alert className="bg-green-50 border-green-200">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <AlertTitle className="text-green-800">Transfer Successful</AlertTitle>
-                  <AlertDescription className="text-green-700">
-                    Your transfer has been processed successfully.
-                  </AlertDescription>
-                  <Button
-                    className="mt-4 bg-[#0A3D62] text-white hover:bg-[#0F5585]"
-                    onClick={() => setTransferSuccess(false)}
-                  >
-                    Make Another Transfer
-                  </Button>
-                </Alert>
-              ) : (
-                <form onSubmit={handleTransfer} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="recipient">Recipient Account Number</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="recipient"
-                        placeholder="Enter account number"
-                        value={recipientAccount}
-                        onChange={(e) => setRecipientAccount(e.target.value)}
-                        required
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleVerifyAccount}
-                        disabled={isLoading || !recipientAccount}
-                        className="border-2 border-[#0A3D62] text-[#0A3D62] hover:bg-[#0A3D62]/10"
-                      >
-                        {isLoading ? "Verifying..." : "Verify"}
-                      </Button>
-                    </div>
-                  </div>
+              <div>
+                <Label htmlFor="recipient">Recipient Account Number</Label>
+                <Input
+                  id="recipient"
+                  type="text"
+                  placeholder="Enter account number"
+                  value={recipientAccount}
+                  onChange={(e) => setRecipientAccount(e.target.value)}
+                  disabled={isLoading}
+                  className="mt-1"
+                />
+              </div>
 
-                  {recipientName && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                      <p className="text-sm text-green-800">
-                        <span className="font-medium">Recipient:</span> {recipientName}
+              <div>
+                <Label htmlFor="description">Description (Optional)</Label>
+                <Input
+                  id="description"
+                  type="text"
+                  placeholder="What's this for?"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={isLoading}
+                  className="mt-1"
+                />
+              </div>
+
+              <Button type="submit" disabled={isLoading} className="w-full bg-[#0A3D62] hover:bg-[#0F5585]">
+                {isLoading ? "Processing..." : "Send Money"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Account Balance */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Available Balance</CardTitle>
+            <CardDescription>Your current account balance</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-6">
+              <div className="text-3xl font-bold text-[#0A3D62] mb-2">
+                {profile ? formatCurrency(profile.balance || 0) : "Loading..."}
+              </div>
+              <p className="text-gray-600">Available for transfer</p>
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Your Account:</strong> {profile?.account_number || "Loading..."}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Transfers */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <ArrowUpDown className="h-5 w-5" />
+            <span>Recent Transfers</span>
+          </CardTitle>
+          <CardDescription>Your latest transfer activity</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingTransfers ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
+              <span className="ml-2">Loading transfers...</span>
+            </div>
+          ) : recentTransfers.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <ArrowUpDown className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No transfers yet</p>
+              <p className="text-sm">Your transfer history will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {recentTransfers.map((transfer) => (
+                <div
+                  key={transfer.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                >
+                  <div className="flex items-center space-x-3">
+                    {getStatusIcon(transfer.status)}
+                    <div>
+                      <p className="font-medium">{transfer.description}</p>
+                      <p className="text-sm text-gray-600">
+                        {new Date(transfer.created_at).toLocaleDateString()} at{" "}
+                        {new Date(transfer.created_at).toLocaleTimeString()}
                       </p>
+                      {transfer.recipient_name && (
+                        <p className="text-sm text-gray-500">To: {transfer.recipient_name}</p>
+                      )}
+                      {transfer.sender_name && <p className="text-sm text-gray-500">From: {transfer.sender_name}</p>}
                     </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">Amount (USD)</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      placeholder="Enter amount"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      min="1"
-                      step="0.01"
-                      required
-                    />
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="narration">Description (Optional)</Label>
-                    <Input
-                      id="narration"
-                      placeholder="What's this transfer for?"
-                      value={narration}
-                      onChange={(e) => setNarration(e.target.value)}
-                    />
+                  <div className="text-right">
+                    <p className={`font-semibold ${transfer.amount > 0 ? "text-green-600" : "text-red-600"}`}>
+                      {transfer.amount > 0 ? "+" : ""}
+                      {formatCurrency(transfer.amount)}
+                    </p>
+                    {getStatusBadge(transfer.status)}
                   </div>
-
-                  {error && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Error</AlertTitle>
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  <div className="pt-2">
-                    <Button
-                      type="submit"
-                      className="w-full bg-[#0A3D62] text-white hover:bg-[#0F5585]"
-                      disabled={isLoading || !recipientName || !amount}
-                    >
-                      {isLoading ? "Processing..." : "Transfer Money"}
-                    </Button>
-                  </div>
-                </form>
-              )}
-            </CardContent>
-            <CardFooter className="flex justify-between border-t p-4 text-sm text-gray-500">
-              <p className="text-sm text-gray-500">
-                Available Balance: USD {typeof profile?.balance === "number" ? profile.balance.toFixed(2) : "0.00"}
-              </p>
-              <p>Daily Limit: USD 1,000,000.00</p>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="deposit">
-          <Card>
-            <CardHeader>
-              <CardTitle>Fund Your Account</CardTitle>
-              <CardDescription>Add money to your account using WooshPay.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isVerifying ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
-                  <p className="mt-4 text-center">Verifying your payment...</p>
                 </div>
-              ) : depositSuccess ? (
-                <Alert className="bg-green-50 border-green-200">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <AlertTitle className="text-green-800">Deposit Successful</AlertTitle>
-                  <AlertDescription className="text-green-700">
-                    Your account has been credited successfully.
-                  </AlertDescription>
-                  <Button
-                    className="mt-4 bg-[#0A3D62] text-white hover:bg-[#0F5585]"
-                    onClick={() => setDepositSuccess(false)}
-                  >
-                    Make Another Deposit
-                  </Button>
-                </Alert>
-              ) : (
-                <>
-                  {error && (
-                    <Alert variant="destructive" className="mb-4">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Error</AlertTitle>
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-                  <WooshPayPayment />
-                </>
-              )}
-            </CardContent>
-            <CardFooter className="border-t p-4 text-sm text-gray-500">
-              <p>Deposits are processed instantly via WooshPay.</p>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
+
+export default TransfersPage

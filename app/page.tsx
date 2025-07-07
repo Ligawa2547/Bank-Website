@@ -1,143 +1,84 @@
-"use client"
-
+/**
+ * Public landing page – `/`
+ * Pure Server Component (no `"use client"` needed).
+ */
 import Link from "next/link"
-import {
-  Shield,
-  CreditCard,
-  PiggyBank,
-  BarChart3,
-  ArrowRight,
-  Menu,
-  CheckCircle,
-  Globe,
-  Lock,
-  Clock,
-  X,
-} from "lucide-react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { Shield, CreditCard, PiggyBank, BarChart3, ArrowRight, CheckCircle, Globe, Lock, Clock } from "lucide-react"
+import { HomepageHeader } from "@/components/homepage/header"
+import { HomepageFooter } from "@/components/homepage/footer"
 
-function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && <div className="fixed inset-0 z-50 bg-black/50 md:hidden" onClick={onClose} aria-hidden="true" />}
-
-      {/* Mobile menu */}
-      <div
-        className={`fixed top-0 right-0 z-50 h-full w-64 transform bg-white shadow-lg transition-transform duration-300 ease-in-out md:hidden ${
-          isOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between border-b p-4">
-            <span className="font-bold text-lg text-[#0A3D62]">Menu</span>
-            <button
-              onClick={onClose}
-              className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-              aria-label="Close menu"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-          <nav className="flex-1 space-y-1 p-4">
-            <Link
-              href="#features"
-              className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-[#0A3D62]"
-              onClick={onClose}
-            >
-              Features
-            </Link>
-            <Link
-              href="#savings"
-              className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-[#0A3D62]"
-              onClick={onClose}
-            >
-              Savings
-            </Link>
-            <Link
-              href="#security"
-              className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-[#0A3D62]"
-              onClick={onClose}
-            >
-              Security
-            </Link>
-            <Link
-              href="#support"
-              className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-[#0A3D62]"
-              onClick={onClose}
-            >
-              Support
-            </Link>
-          </nav>
-          <div className="border-t p-4 space-y-3">
-            <Button variant="outline" className="w-full" asChild>
-              <Link href="/login" onClick={onClose}>
-                Sign In
-              </Link>
-            </Button>
-            <Button className="w-full bg-[#8CC63F] hover:bg-[#7AB62F] text-white" asChild>
-              <Link href="/signup" onClick={onClose}>
-                Open Account
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
-
-export default function Home() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-
+export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-40 w-full border-b bg-white">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4 lg:gap-6">
-            <Link href="/" className="flex items-center gap-2">
-              <img src="/images/iae-logo.png" alt="I&E National Bank" className="h-8 w-auto sm:h-10" />
-              <span className="font-bold text-lg sm:text-xl lg:text-2xl text-[#0A3D62]">I&E National Bank</span>
-            </Link>
-            <nav className="hidden md:flex gap-6">
-              <Link href="#features" className="text-sm font-medium hover:text-[#0A3D62] transition-colors">
-                Features
-              </Link>
-              <Link href="#savings" className="text-sm font-medium hover:text-[#0A3D62] transition-colors">
-                Savings
-              </Link>
-              <Link href="#security" className="text-sm font-medium hover:text-[#0A3D62] transition-colors">
-                Security
-              </Link>
-              <Link href="#support" className="text-sm font-medium hover:text-[#0A3D62] transition-colors">
-                Support
-              </Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Button variant="outline" className="hidden sm:inline-flex" asChild>
-              <Link href="/login">Sign In</Link>
-            </Button>
-            <Button className="hidden sm:inline-flex bg-[#8CC63F] hover:bg-[#7AB62F] text-white" asChild>
-              <Link href="/signup">Open Account</Link>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              onClick={() => setMobileMenuOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu className="h-6 w-6" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <MobileMenu isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
-
+      <HomepageHeader />
       <main className="flex-1">
+        {/* Hero */}
+        <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 pb-24 pt-32 text-center md:pt-40">
+          <h1 className="text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">
+            Banking that works <span className="text-green-600">for&nbsp;you</span>
+          </h1>
+          <p className="mx-auto max-w-2xl text-muted-foreground md:text-lg">
+            Open an account, send money instantly, and manage your finances with I&#38;E Bank&#8217;s modern web
+            experience.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <Button asChild size="lg">
+              <Link href="/signup">Create account</Link>
+            </Button>
+            <Button variant="outline" size="lg" asChild>
+              <Link href="/login">Log&nbsp;in</Link>
+            </Button>
+          </div>
+        </section>
+
+        {/* Keep all the existing sections from the original file */}
+        {/* Features */}
+        <section className="w-full bg-gray-50 py-16">
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-4 md:grid-cols-3">
+            {[
+              {
+                title: "Instant transfers",
+                desc: "Move money in seconds using our real-time payment rails.",
+                icon: "arrows-up-down",
+              },
+              {
+                title: "Dark-mode ready",
+                desc: "Keep your eyes fresh with a beautiful light & dark UI.",
+                icon: "moon",
+              },
+              {
+                title: "Secure by design",
+                desc: "All data encrypted in transit and at rest, 2-factor ready.",
+                icon: "shield-check",
+              },
+            ].map(({ title, desc, icon }) => (
+              <div key={title} className="flex flex-col items-center text-center md:items-start md:text-left">
+                <div className="mb-4 rounded-md bg-green-100 p-3 text-green-700">
+                  <i data-lucide={icon} className="h-6 w-6"></i>
+                </div>
+                <h3 className="mb-2 text-xl font-semibold">{title}</h3>
+                <p className="text-muted-foreground">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Illustration */}
+        <section className="relative w-full">
+          <Image
+            src="/images/mobile-banking.jpeg"
+            alt="Mobile banking illustration"
+            className="h-[400px] w-full object-cover"
+            width={1920}
+            height={400}
+            priority
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-900/70 to-gray-900/0" />
+        </section>
+
+        {/* Additional sections from the original code */}
         <section className="bg-gradient-to-r from-[#0A5483] to-[#0F7AB3] text-white py-12 sm:py-16 md:py-24">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid gap-8 md:grid-cols-2 md:gap-12 items-center">
@@ -159,7 +100,12 @@ export default function Home() {
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
-                  <Button size="lg" variant="outline" className="border-white text-white hover:bg-blue-800" asChild>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="border-white text-white hover:bg-blue-800 bg-transparent"
+                    asChild
+                  >
                     <Link href="#features">Learn More</Link>
                   </Button>
                 </div>
@@ -457,7 +403,12 @@ export default function Home() {
                 <Button size="lg" className="bg-[#8CC63F] hover:bg-[#7AB62F] text-white" asChild>
                   <Link href="/signup">Open an Account</Link>
                 </Button>
-                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10" asChild>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="border-white text-white hover:bg-white/10 bg-transparent"
+                  asChild
+                >
                   <Link href="/login">Sign In</Link>
                 </Button>
               </div>
@@ -465,99 +416,7 @@ export default function Home() {
           </div>
         </section>
       </main>
-      <footer className="bg-gray-900 text-white py-8 sm:py-12">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-6 sm:gap-8 md:grid-cols-4">
-            <div>
-              <div className="flex items-center gap-2 font-bold text-lg sm:text-xl mb-4">
-                <img src="/images/iae-logo.png" alt="I&E National Bank" className="h-6 sm:h-8 w-auto" />
-                <span>I&E National Bank</span>
-              </div>
-              <p className="text-gray-400 text-xs sm:text-sm">Banking Anywhere since 2024. FDIC Insured.</p>
-            </div>
-            <div>
-              <h3 className="font-bold mb-4 text-sm sm:text-base">Services</h3>
-              <ul className="space-y-2 text-xs sm:text-sm text-gray-400">
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Banking
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Transfers
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Savings
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Support
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-bold mb-4 text-sm sm:text-base">Company</h3>
-              <ul className="space-y-2 text-xs sm:text-sm text-gray-400">
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    About Us
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Careers
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Press
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Contact
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-bold mb-4 text-sm sm:text-base">Legal</h3>
-              <ul className="space-y-2 text-xs sm:text-sm text-gray-400">
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Privacy Policy
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Terms of Service
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Cookies
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition-colors">
-                    Security
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-gray-800 mt-6 sm:mt-8 pt-6 sm:pt-8 text-xs sm:text-sm text-gray-400">
-            <div className="flex flex-col md:flex-row justify-between gap-4">
-              <p>© 2024 I&E National Bank. All rights reserved.</p>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <HomepageFooter />
     </div>
   )
 }

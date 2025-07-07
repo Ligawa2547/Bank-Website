@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
@@ -14,6 +13,9 @@ import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { useProfile } from "@/hooks/use-profile"
 import { useSupabase } from "@/providers/supabase-provider"
+import { ProfilePictureUpload } from "@/components/profile-picture-upload"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
 
 const formSchema = z.object({
   phoneNumber: z.string().optional(),
@@ -112,90 +114,170 @@ const ProfilePage = () => {
     }
   }
 
+  const handleProfilePictureUpdate = (newUrl: string) => {
+    console.log("Profile picture updated:", newUrl)
+    // The profile will be refreshed automatically by the upload component
+  }
+
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-5">Profile</h1>
-      {profile ? (
-        <Form {...form}>
-          <form onSubmit={handleUpdateProfile} className="space-y-8 w-full max-w-md">
-            <FormField
-              control={form.control}
-              name="phoneNumber"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone Number</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Phone Number"
-                      {...field}
-                      value={formData.phoneNumber}
-                      onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                      disabled={!isEditing}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+    <div className="container mx-auto py-10 max-w-4xl">
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Profile Settings</h1>
+          <p className="text-gray-600">Manage your account information and preferences</p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Profile Picture Section */}
+          <Card className="md:col-span-1">
+            <CardHeader>
+              <CardTitle>Profile Picture</CardTitle>
+              <CardDescription>Upload a profile picture to personalize your account</CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center">
+              <ProfilePictureUpload currentImageUrl={profile?.profile_pic} onImageUpdate={handleProfilePictureUpdate} />
+            </CardContent>
+          </Card>
+
+          {/* Profile Information Section */}
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle>Personal Information</CardTitle>
+              <CardDescription>Update your personal details and contact information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {profile ? (
+                <div className="space-y-6">
+                  {/* Read-only fields */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">First Name</label>
+                      <div className="mt-1 p-3 bg-gray-50 rounded-md text-gray-900">
+                        {profile.first_name || "Not provided"}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Last Name</label>
+                      <div className="mt-1 p-3 bg-gray-50 rounded-md text-gray-900">
+                        {profile.last_name || "Not provided"}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Email</label>
+                      <div className="mt-1 p-3 bg-gray-50 rounded-md text-gray-900">
+                        {profile.email || "Not provided"}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Account Number</label>
+                      <div className="mt-1 p-3 bg-gray-50 rounded-md text-gray-900 font-mono">
+                        {profile.account_number || "Not assigned"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Editable fields */}
+                  <Form {...form}>
+                    <form onSubmit={handleUpdateProfile} className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="phoneNumber"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Phone Number</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Enter phone number"
+                                  {...field}
+                                  value={formData.phoneNumber}
+                                  onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                                  disabled={!isEditing}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="city"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>City</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Enter city"
+                                  {...field}
+                                  value={formData.city}
+                                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                  disabled={!isEditing}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="country"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Country</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Enter country"
+                                  {...field}
+                                  value={formData.country}
+                                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                                  disabled={!isEditing}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="flex gap-2 pt-4">
+                        {!isEditing ? (
+                          <Button
+                            type="button"
+                            onClick={() => setIsEditing(true)}
+                            className="bg-[#0A3D62] text-white hover:bg-[#0F5585]"
+                          >
+                            Edit Profile
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              type="submit"
+                              disabled={isLoading}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              {isLoading ? "Updating..." : "Save Changes"}
+                            </Button>
+                            <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+                              Cancel
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </form>
+                  </Form>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center py-8">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
+                  <span className="ml-2">Loading profile...</span>
+                </div>
               )}
-            />
-            <FormField
-              control={form.control}
-              name="city"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>City</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="City"
-                      {...field}
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      disabled={!isEditing}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="country"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Country</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Country"
-                      {...field}
-                      value={formData.country}
-                      onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                      disabled={!isEditing}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {!isEditing ? (
-              <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
-            ) : (
-              <div className="flex gap-2">
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-                >
-                  {isLoading ? "Updating..." : "Update"}
-                </Button>
-                <Button variant="secondary" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </Button>
-              </div>
-            )}
-          </form>
-        </Form>
-      ) : (
-        <div>Loading profile...</div>
-      )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

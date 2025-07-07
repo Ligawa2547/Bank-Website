@@ -1,403 +1,488 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import Link from "next/link"
-import { ArrowRight, ArrowUpRight, CreditCard, DollarSign, LineChart, Wallet, Eye, EyeOff } from "lucide-react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-provider"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Transaction } from "@/types/user"
-import { AccountDetailsCard } from "@/components/dashboard/account-details-card"
-import { Skeleton } from "@/components/ui/skeleton"
+import {
+  ArrowUpRight,
+  ArrowDownLeft,
+  CreditCard,
+  DollarSign,
+  TrendingUp,
+  Eye,
+  EyeOff,
+  Plus,
+  Send,
+  Building2,
+  Bell,
+  RefreshCw,
+} from "lucide-react"
+import Link from "next/link"
+import type { Transaction, Notification } from "@/types/user"
 
 export default function DashboardPage() {
-  const { user, profile } = useAuth()
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [savingsAccounts, setSavingsAccounts] = useState<any[]>([])
+  const { user, profile, refreshUserProfile } = useAuth()
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([])
+  const [recentNotifications, setRecentNotifications] = useState<Notification[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [showBalance, setShowBalance] = useState(true)
+  const [monthlyStats, setMonthlyStats] = useState({
+    totalIncome: 0,
+    totalExpenses: 0,
+    transactionCount: 0,
+  })
   const supabase = createClientComponentClient()
 
-  useEffect(() => {
-    if (!user || !profile?.account_number) return
+  // Function to refresh balance and data
+  const handleRefreshData = async () => {
+    setIsRefreshing(true)
+    try {
+      await refreshUserProfile()
+      await fetchDashboardData()
+    } catch (error) {
+      console.error("Error refreshing data:", error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
-    const fetchDashboardData = async () => {
-      setIsLoading(true)
-
-      try {
-        // Use Promise.all to fetch data in parallel
-        const [transactionsResponse, savingsResponse] = await Promise.all([
-          // Limit fields to only what's needed
-          supabase
-            .from("transactions")
-            .select(
-              "id, amount, created_at, transaction_type, sender_name, sender_account_number, recipient_name, recipient_account_number, reference",
-            )
-            .or(`account_no.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number}`)
-            .order("created_at", { ascending: false })
-            .limit(5),
-
-          supabase
-            .from("savings_accounts")
-            .select("id, name, current_amount, target_amount")
-            .eq("account_no", profile.account_number),
-        ])
-
-        if (!transactionsResponse.error && transactionsResponse.data) {
-          setTransactions(transactionsResponse.data)
-        } else {
-          console.error("Error fetching transactions:", transactionsResponse.error)
-        }
-
-        if (!savingsResponse.error && savingsResponse.data) {
-          setSavingsAccounts(savingsResponse.data)
-        } else {
-          console.error("Error fetching savings accounts:", savingsResponse.error)
-        }
-      } catch (error) {
-        console.error("Dashboard data fetch error:", error)
-      } finally {
-        setIsLoading(false)
-      }
+  const fetchDashboardData = async () => {
+    if (!user || !profile?.account_number) {
+      setIsLoading(false)
+      return
     }
 
-    fetchDashboardData()
+    try {
+      console.log("Fetching dashboard data for account:", profile.account_number)
+
+      // Fetch recent transactions
+      const { data: transactions, error: transactionsError } = await supabase
+        .from("transactions")
+        .select("*")
+        .or(`sender_account_number.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number}`)
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      if (transactionsError) {
+        console.error("Error fetching transactions:", transactionsError)
+      } else if (transactions) {
+        console.log("Fetched transactions:", transactions.length)
+        // Process transactions to show correct perspective
+        const processedTransactions = transactions.map((transaction) => {
+          const processed = { ...transaction }
+          if (transaction.sender_account_number === profile.account_number) {
+            processed.transaction_type = "transfer_out"
+          } else if (transaction.recipient_account_number === profile.account_number) {
+            processed.transaction_type = "transfer_in"
+          }
+          return processed
+        })
+        setRecentTransactions(processedTransactions)
+      }
+
+      // Fetch recent notifications
+      const { data: notifications, error: notificationsError } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("account_no", profile.account_number)
+        .order("created_at", { ascending: false })
+        .limit(3)
+
+      if (notificationsError) {
+        console.error("Error fetching notifications:", notificationsError)
+      } else if (notifications) {
+        setRecentNotifications(notifications)
+      }
+
+      // Calculate monthly statistics
+      const currentMonth = new Date()
+      const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
+
+      const { data: monthlyTransactions, error: monthlyError } = await supabase
+        .from("transactions")
+        .select("*")
+        .or(`sender_account_number.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number}`)
+        .gte("created_at", firstDayOfMonth.toISOString())
+        .eq("status", "completed")
+
+      if (monthlyError) {
+        console.error("Error fetching monthly stats:", monthlyError)
+      } else if (monthlyTransactions) {
+        let totalIncome = 0
+        let totalExpenses = 0
+
+        monthlyTransactions.forEach((transaction) => {
+          if (
+            transaction.transaction_type === "deposit" ||
+            (transaction.transaction_type === "transfer_in" &&
+              transaction.recipient_account_number === profile.account_number) ||
+            transaction.transaction_type === "loan_disbursement"
+          ) {
+            totalIncome += transaction.amount
+          } else if (
+            transaction.transaction_type === "withdrawal" ||
+            (transaction.transaction_type === "transfer_out" &&
+              transaction.sender_account_number === profile.account_number) ||
+            transaction.transaction_type === "loan_repayment"
+          ) {
+            totalExpenses += transaction.amount
+          }
+        })
+
+        setMonthlyStats({
+          totalIncome,
+          totalExpenses,
+          transactionCount: monthlyTransactions.length,
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error)
+    }
+  }
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true)
+      await fetchDashboardData()
+      setIsLoading(false)
+    }
+
+    if (profile?.account_number) {
+      loadData()
+    }
   }, [user, profile, supabase])
 
-  // Add this memoized formatter function to avoid recreating it on every render
-  const formatCurrency = useCallback((amount: number) => {
+  const formatCurrency = (amount: number) => {
+    // Ensure amount is a valid number
+    const numAmount = typeof amount === "number" ? amount : Number.parseFloat(amount) || 0
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-    }).format(amount)
-  }, [])
-
-  const toggleBalanceVisibility = () => {
-    setShowBalance(!showBalance)
+      minimumFractionDigits: 2,
+    }).format(numAmount)
   }
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+
+    if (diffInHours < 24) {
+      return date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    } else if (diffInHours < 168) {
+      return date.toLocaleDateString("en-US", {
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    } else {
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+    }
+  }
+
+  const getTransactionIcon = (type: string) => {
+    switch (type) {
+      case "deposit":
+        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
+      case "withdrawal":
+        return <ArrowUpRight className="h-4 w-4 text-red-600" />
+      case "transfer_in":
+        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
+      case "transfer_out":
+        return <ArrowUpRight className="h-4 w-4 text-red-600" />
+      case "loan_disbursement":
+        return <Building2 className="h-4 w-4 text-blue-600" />
+      case "loan_repayment":
+        return <CreditCard className="h-4 w-4 text-orange-600" />
+      default:
+        return <DollarSign className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  const getTransactionDescription = (transaction: Transaction) => {
+    if (transaction.transaction_type === "deposit") {
+      return transaction.narration || "Account deposit"
+    } else if (transaction.transaction_type === "withdrawal") {
+      return transaction.narration || "Account withdrawal"
+    } else if (transaction.transaction_type === "transfer_in") {
+      return `From ${transaction.sender_name || "Unknown"}`
+    } else if (transaction.transaction_type === "transfer_out") {
+      return `To ${transaction.recipient_name || "Unknown"}`
+    } else if (transaction.transaction_type === "loan_disbursement") {
+      return "Loan disbursement"
+    } else if (transaction.transaction_type === "loan_repayment") {
+      return "Loan payment"
+    }
+    return transaction.narration || "Transaction"
+  }
+
+  if (!user || !profile) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <p className="text-gray-500">Please log in to view your dashboard</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Log the current balance for debugging
+  console.log("Dashboard rendering with profile balance:", profile.balance, "type:", typeof profile.balance)
+
   return (
-    <div className="space-y-4 sm:space-y-6 p-2 sm:p-0">
-      {/* Mobile-optimized header */}
-      <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+    <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+      {/* Welcome Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-600 mt-1">Welcome back, {profile?.first_name}!</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Welcome back, {profile.first_name || "User"}!</h1>
+          <p className="text-gray-600 mt-1">Here's what's happening with your account today.</p>
         </div>
-
-        {/* Mobile account info card */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-[#0A3D62] to-[#0F5585] p-3 sm:p-4 rounded-lg text-white">
-          <div className="flex items-center space-x-2">
-            <DollarSign className="h-5 w-5" />
-            <div>
-              <p className="text-xs sm:text-sm font-medium">Account #{profile?.account_number}</p>
-              <p className="text-xs opacity-90">USD Currency</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="flex items-center space-x-2">
-              <span className="text-lg sm:text-xl font-bold">
-                {showBalance ? formatCurrency(profile?.balance || 0) : "••••••"}
-              </span>
-              <button
-                onClick={toggleBalanceVisibility}
-                className="p-1 hover:bg-white/20 rounded"
-                aria-label={showBalance ? "Hide balance" : "Show balance"}
-              >
-                {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <p className="text-xs opacity-90">Available Balance</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Account Details Card - Mobile Optimized */}
-      {profile && (
-        <div className="block sm:hidden">
-          <Card className="overflow-hidden">
-            <div className="bg-gradient-to-r from-[#0A3D62] to-[#0F5585] p-4">
-              <div className="text-white">
-                <h3 className="text-base font-medium">Account Details</h3>
-                <div className="mt-3 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm opacity-90">Name:</span>
-                    <span className="text-sm font-medium">
-                      {profile.first_name} {profile.last_name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm opacity-90">Account:</span>
-                    <span className="text-sm font-mono">{profile.account_number}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm opacity-90">Balance:</span>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg font-bold">
-                        {showBalance ? formatCurrency(profile.balance || 0) : "••••••"}
-                      </span>
-                      <button onClick={toggleBalanceVisibility} className="p-1 hover:bg-white/20 rounded">
-                        {showBalance ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Desktop Account Details Card */}
-      {profile && (
-        <div className="hidden sm:block">
-          <AccountDetailsCard
-            accountNumber={profile.account_number}
-            accountName={`${profile.first_name} ${profile.last_name}`}
-            balance={profile.balance}
-          />
-        </div>
-      )}
-
-      {/* Account Summary - Mobile Optimized Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
-        <Card className="p-3 sm:p-4">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-0">
-            <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">Current Balance</CardTitle>
-            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-[#0A3D62]" />
-          </CardHeader>
-          <CardContent className="p-0 pt-2">
-            <div className="text-lg sm:text-2xl font-bold text-gray-900">
-              {showBalance ? formatCurrency(profile?.balance || 0) : "••••••"}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Available now</p>
-          </CardContent>
-        </Card>
-
-        <Card className="p-3 sm:p-4">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-0">
-            <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">Savings</CardTitle>
-            <Wallet className="h-3 w-3 sm:h-4 sm:w-4 text-[#0A3D62]" />
-          </CardHeader>
-          <CardContent className="p-0 pt-2">
-            <div className="text-lg sm:text-2xl font-bold text-gray-900">
-              {formatCurrency(savingsAccounts.reduce((total, account) => total + account.current_amount, 0))}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">{savingsAccounts.length} goal(s)</p>
-          </CardContent>
-        </Card>
-
-        <Card className="p-3 sm:p-4">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-0">
-            <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">Monthly Spending</CardTitle>
-            <CreditCard className="h-3 w-3 sm:h-4 sm:w-4 text-[#0A3D62]" />
-          </CardHeader>
-          <CardContent className="p-0 pt-2">
-            <div className="text-lg sm:text-2xl font-bold text-gray-900">
-              {formatCurrency(
-                transactions
-                  .filter(
-                    (t) =>
-                      t.transaction_type === "withdrawal" ||
-                      t.transaction_type === "transfer_out" ||
-                      t.transaction_type === "payment",
-                  )
-                  .reduce((total, t) => total + t.amount, 0),
-              )}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Last 30 days</p>
-          </CardContent>
-        </Card>
-
-        <Card className="p-3 sm:p-4">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-0">
-            <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">Account Growth</CardTitle>
-            <LineChart className="h-3 w-3 sm:h-4 sm:w-4 text-[#0A3D62]" />
-          </CardHeader>
-          <CardContent className="p-0 pt-2">
-            <div className="text-lg sm:text-2xl font-bold text-green-600">+12.5%</div>
-            <p className="text-xs text-gray-500 mt-1">From last month</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions - Mobile Optimized */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <Button asChild className="bg-[#0A3D62] hover:bg-[#0F5585] h-12 sm:h-auto">
-          <Link href="/dashboard/transfers" className="flex flex-col items-center space-y-1 p-3">
-            <CreditCard className="h-5 w-5" />
-            <span className="text-xs sm:text-sm">Transfer</span>
-          </Link>
-        </Button>
-
-        <Button asChild variant="outline" className="border-[#0A3D62] text-[#0A3D62] h-12 sm:h-auto">
-          <Link href="/dashboard/loans" className="flex flex-col items-center space-y-1 p-3">
-            <DollarSign className="h-5 w-5" />
-            <span className="text-xs sm:text-sm">Loans</span>
-          </Link>
-        </Button>
-
-        <Button asChild variant="outline" className="border-[#0A3D62] text-[#0A3D62] h-12 sm:h-auto">
-          <Link href="/dashboard/savings" className="flex flex-col items-center space-y-1 p-3">
-            <Wallet className="h-5 w-5" />
-            <span className="text-xs sm:text-sm">Savings</span>
-          </Link>
-        </Button>
-
-        <Button asChild variant="outline" className="border-[#0A3D62] text-[#0A3D62] h-12 sm:h-auto">
-          <Link href="/dashboard/transactions" className="flex flex-col items-center space-y-1 p-3">
-            <LineChart className="h-5 w-5" />
-            <span className="text-xs sm:text-sm">History</span>
-          </Link>
-        </Button>
-      </div>
-
-      {/* Recent Transactions - Mobile Optimized */}
-      <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0 p-4 sm:p-6">
-          <div>
-            <CardTitle className="text-lg sm:text-xl">Recent Transactions</CardTitle>
-            <CardDescription className="text-sm">Your recent account activity</CardDescription>
-          </div>
-          <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
-            <Link href="/dashboard/transactions" className="flex items-center justify-center">
-              View All <ArrowRight className="ml-2 h-4 w-4" />
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshData}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 bg-transparent"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          <Button asChild>
+            <Link href="/dashboard/transfers" className="flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              Send Money
             </Link>
           </Button>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6 pt-0">
-          {isLoading ? (
-            <div className="space-y-3 sm:space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Skeleton className="h-8 w-8 sm:h-10 sm:w-10 rounded-full" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-32" />
-                      <Skeleton className="h-3 w-24" />
-                    </div>
-                  </div>
-                  <Skeleton className="h-4 w-16" />
-                </div>
-              ))}
+          <Button variant="outline" asChild>
+            <Link href="/dashboard/transfers?tab=deposit" className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Add Money
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      {/* Account Balance Card */}
+      <Card className="bg-gradient-to-r from-[#0A3D62] to-[#0F5585] text-white">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Current Balance</p>
+              <div className="flex items-center gap-3 mt-2">
+                {showBalance ? (
+                  <p className="text-3xl font-bold">{formatCurrency(profile.balance || 0)}</p>
+                ) : (
+                  <p className="text-3xl font-bold">••••••</p>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowBalance(!showBalance)}
+                  className="text-white hover:bg-white/20 p-1"
+                >
+                  {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-blue-100 text-sm mt-1">Account: {profile.account_number}</p>
             </div>
-          ) : transactions.length > 0 ? (
-            <div className="space-y-3 sm:space-y-4">
-              {transactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div
-                      className={`flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full ${
-                        transaction.transaction_type === "deposit" || transaction.transaction_type === "transfer_in"
-                          ? "bg-green-100"
-                          : "bg-red-100"
-                      }`}
-                    >
-                      <ArrowUpRight
-                        className={`h-4 w-4 sm:h-5 sm:w-5 ${
-                          transaction.transaction_type === "deposit" || transaction.transaction_type === "transfer_in"
-                            ? "text-green-600 rotate-180"
-                            : "text-red-600"
-                        }`}
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">
-                        {transaction.transaction_type === "deposit"
-                          ? "Deposit"
-                          : transaction.transaction_type === "withdrawal"
-                            ? "Withdrawal"
-                            : transaction.transaction_type === "transfer_in"
-                              ? `From ${transaction.sender_name || transaction.sender_account_number || "Unknown"}`
-                              : `To ${transaction.recipient_name || transaction.recipient_account_number || "Unknown"}`}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {new Date(transaction.created_at).toLocaleDateString()} • {transaction.reference}
-                      </p>
-                    </div>
-                  </div>
-                  <div
-                    className={`text-sm font-medium ${
-                      transaction.transaction_type === "deposit" || transaction.transaction_type === "transfer_in"
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {transaction.transaction_type === "deposit" || transaction.transaction_type === "transfer_in"
-                      ? "+"
-                      : "-"}
-                    {formatCurrency(transaction.amount)}
-                  </div>
-                </div>
-              ))}
+            <div className="text-right">
+              <p className="text-blue-100 text-sm">This Month</p>
+              <p className="text-lg font-semibold text-green-300">
+                +{formatCurrency(monthlyStats.totalIncome - monthlyStats.totalExpenses)}
+              </p>
             </div>
-          ) : (
-            <div className="py-8 text-center text-gray-500">
-              <p className="text-sm">No recent transactions</p>
-              <Button asChild className="mt-4 bg-[#0A3D62]" size="sm">
-                <Link href="/dashboard/transfers">Make Your First Transfer</Link>
-              </Button>
-            </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Savings Goals - Mobile Optimized */}
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Money In (This Month)</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(monthlyStats.totalIncome)}</p>
+              </div>
+              <ArrowDownLeft className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Money Out (This Month)</p>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(monthlyStats.totalExpenses)}</p>
+              </div>
+              <ArrowUpRight className="h-8 w-8 text-red-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Transactions</p>
+                <p className="text-2xl font-bold text-blue-600">{monthlyStats.transactionCount}</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Transactions */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Recent Transactions</CardTitle>
+              <CardDescription>Your latest financial activities</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/transactions">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="h-8 w-8 bg-gray-200 rounded animate-pulse" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded animate-pulse mb-1" />
+                      <div className="h-3 bg-gray-200 rounded animate-pulse w-2/3" />
+                    </div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
+                  </div>
+                ))}
+              </div>
+            ) : recentTransactions.length > 0 ? (
+              <div className="space-y-3">
+                {recentTransactions.map((transaction) => (
+                  <div key={transaction.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+                    <div className="flex-shrink-0">{getTransactionIcon(transaction.transaction_type)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{getTransactionDescription(transaction)}</p>
+                      <p className="text-xs text-gray-500">{formatDate(transaction.created_at)}</p>
+                    </div>
+                    <p
+                      className={`font-semibold text-sm ${
+                        transaction.transaction_type === "deposit" ||
+                        transaction.transaction_type === "transfer_in" ||
+                        transaction.transaction_type === "loan_disbursement"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {transaction.transaction_type === "deposit" ||
+                      transaction.transaction_type === "transfer_in" ||
+                      transaction.transaction_type === "loan_disbursement"
+                        ? "+"
+                        : "-"}
+                      {formatCurrency(transaction.amount)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">No recent transactions</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Notifications */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Recent Notifications</CardTitle>
+              <CardDescription>Important updates and alerts</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/notifications">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className="h-6 w-6 bg-gray-200 rounded animate-pulse mt-1" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded animate-pulse mb-1" />
+                      <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : recentNotifications.length > 0 ? (
+              <div className="space-y-3">
+                {recentNotifications.map((notification) => (
+                  <div key={notification.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50">
+                    <Bell className="h-4 w-4 text-blue-600 mt-1 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{notification.title}</p>
+                      <p className="text-xs text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
+                      <p className="text-xs text-gray-500 mt-1">{formatDate(notification.created_at)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">No recent notifications</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0 p-4 sm:p-6">
-          <div>
-            <CardTitle className="text-lg sm:text-xl">Savings Goals</CardTitle>
-            <CardDescription className="text-sm">Track your savings progress</CardDescription>
-          </div>
-          <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
-            <Link href="/dashboard/savings" className="flex items-center justify-center">
-              Manage Savings <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Common tasks and services</CardDescription>
         </CardHeader>
-        <CardContent className="p-4 sm:p-6 pt-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
-            </div>
-          ) : savingsAccounts.length > 0 ? (
-            <div className="space-y-4">
-              {savingsAccounts.map((account) => (
-                <div key={account.id} className="space-y-2 p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm sm:text-base">{account.name}</p>
-                    <p className="text-sm font-medium">{formatCurrency(account.current_amount)}</p>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-                    <div
-                      className="h-full bg-[#0A3D62]"
-                      style={{
-                        width: `${Math.min(100, (account.current_amount / account.target_amount) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <p>Target: {formatCurrency(account.target_amount)}</p>
-                    <p>{Math.round((account.current_amount / account.target_amount) * 100)}% complete</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-8 text-center text-gray-500">
-              <p className="text-sm">No savings goals yet</p>
-              <Button asChild className="mt-4 bg-[#0A3D62]" size="sm">
-                <Link href="/dashboard/savings?action=create">Create Your First Goal</Link>
-              </Button>
-            </div>
-          )}
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent" asChild>
+              <Link href="/dashboard/transfers">
+                <Send className="h-6 w-6" />
+                <span className="text-sm">Send Money</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent" asChild>
+              <Link href="/dashboard/transfers?tab=deposit">
+                <Plus className="h-6 w-6" />
+                <span className="text-sm">Add Money</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent" asChild>
+              <Link href="/dashboard/loans">
+                <Building2 className="h-6 w-6" />
+                <span className="text-sm">Apply for Loan</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent" asChild>
+              <Link href="/dashboard/transactions">
+                <TrendingUp className="h-6 w-6" />
+                <span className="text-sm">View Statements</span>
+              </Link>
+            </Button>
+          </div>
         </CardContent>
-        <CardFooter className="p-4 sm:p-6 pt-0">
-          <Button className="w-full bg-[#0A3D62] hover:bg-[#0F5585]" asChild>
-            <Link href="/dashboard/savings?action=create">Create New Savings Goal</Link>
-          </Button>
-        </CardFooter>
       </Card>
     </div>
   )

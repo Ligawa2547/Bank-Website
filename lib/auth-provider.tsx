@@ -1,24 +1,35 @@
 "use client"
 
 import type React from "react"
-
-import { createContext, useContext, useEffect, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import type { Session, User } from "@supabase/supabase-js"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Database } from "@/types/supabase"
 import type { UserProfile } from "@/types/user"
 
-// Add this near the top of the file, outside the AuthProvider component
-const userProfileCache = new Map<string, { profile: UserProfile; timestamp: number }>()
-const CACHE_TTL = 60000 // 1 minute cache TTL
+/* -----------------------------------------------------------------------------
+ * Supabase (client-side, singleton)
+ * -------------------------------------------------------------------------- */
+export const supabase = createClientComponentClient<Database>()
 
+/* -----------------------------------------------------------------------------
+ * Small in-memory cache for user profiles (avoids redundant XHR in RSC)
+ * -------------------------------------------------------------------------- */
+const PROFILE_CACHE_TTL = 30_000 // 30 s
+const profileCache = new Map<string, { profile: UserProfile; timestamp: number }>()
+
+/* -----------------------------------------------------------------------------
+ * AuthContext 🚀
+ * -------------------------------------------------------------------------- */
 type AuthContextType = {
   user: User | null
   profile: UserProfile | null
   session: Session | null
   isLoading: boolean
   refreshUserProfile: () => Promise<void>
-  signUp: (email: string, password: string) => Promise<{ data?: any; error: any }>
+  /* auth helpers */
+  signUp: (email: string, password: string) => Promise<{ error: any }>
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signInWithMagicLink: (email: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
@@ -26,389 +37,199 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+/* -----------------------------------------------------------------------------
+ * Provider 🧩
+ * -------------------------------------------------------------------------- */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClientComponentClient()
 
-  // Replace the fetchUserProfile function with this optimized version
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      // Check cache first
-      const cachedData = userProfileCache.get(userId)
-      if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
-        console.log("Using cached profile data for user ID:", userId)
-        return cachedData.profile
-      }
+  const [session, setSession] = useState<Session | null>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-      console.log("Fetching user profile for user ID:", userId)
+  /* --------------------- fetch profile helper --------------------- */
+  const fetchUserProfile = useCallback(async (userId: string) => {
+    /* hit cache first */
+    const cached = profileCache.get(userId)
+    if (cached && Date.now() - cached.timestamp < PROFILE_CACHE_TTL) {
+      return cached.profile
+    }
 
-      // Fetch directly from public.users table using maybeSingle() to handle no rows gracefully
-      const { data: userData, error } = await supabase.from("users").select("*").eq("id", userId).maybeSingle()
+    const { data, error } = await supabase
+      .from("users")
+      .select(
+        `
+          id,
+          email,
+          first_name,
+          last_name,
+          phone_number,
+          city,
+          country,
+          account_no,
+          account_balance,
+          profile_pic,
+          status,
+          created_at,
+          updated_at,
+          email_verified,
+          phone_verified,
+          kyc_status
+        `,
+      )
+      .eq("id", userId)
+      .maybeSingle()
 
-      if (error) {
-        console.error("Error fetching user data:", error)
-        return null
-      }
-
-      if (userData) {
-        console.log("User data found in public.users table")
-
-        // Convert users table format to UserProfile format
-        const userProfile: UserProfile = {
-          id: userData.id,
-          user_id: userData.id,
-          first_name: userData.first_name || null,
-          last_name: userData.last_name || null,
-          email: userData.email || null,
-          phone_number: userData.phone_number || null,
-          city: userData.city || null,
-          country: userData.country || null,
-          account_number: userData.account_no || null,
-          balance: userData.account_balance || 0,
-          status: userData.status || "pending",
-          email_verified: userData.email_verified || false,
-          phone_verified: userData.phone_verified || false,
-          kyc_status: userData.kyc_status || "not_submitted",
-          created_at: userData.created_at || null,
-          updated_at: userData.updated_at || null,
-        }
-
-        // Cache the profile data
-        userProfileCache.set(userId, {
-          profile: userProfile,
-          timestamp: Date.now(),
-        })
-
-        return userProfile
-      }
-
-      console.log("No user profile found in public.users table for user ID:", userId)
-      return null
-    } catch (error) {
-      console.error("Error in fetchUserProfile:", error)
+    if (error) {
+      console.error("Error fetching profile:", error)
       return null
     }
-  }
 
-  // Function to refresh user profile data
-  const refreshUserProfile = async () => {
-    if (!user) {
-      console.log("Cannot refresh profile: No user is logged in")
-      return
+    if (!data) {
+      /* brand-new account (e.g. fresh admin) – no row yet */
+      return null
     }
 
-    try {
-      // Clear the cache for this user to force a fresh fetch
-      userProfileCache.delete(user.id)
+    /* normalise balance */
+    const balance =
+      typeof data.account_balance === "number"
+        ? data.account_balance
+        : Number.parseFloat(data.account_balance ?? "0") || 0
 
-      console.log("Refreshing user profile for user ID:", user.id)
-      const profileData = await fetchUserProfile(user.id)
-      if (profileData) {
-        setProfile(profileData)
-        console.log("User profile refreshed successfully")
-      } else {
-        console.log("No profile data found during refresh")
-        setProfile(null)
-      }
-    } catch (error) {
-      console.error("Error refreshing user profile:", error)
+    const processed: UserProfile = {
+      id: data.id,
+      user_id: data.id,
+      email: data.email ?? "",
+      first_name: data.first_name ?? "",
+      last_name: data.last_name ?? "",
+      phone_number: data.phone_number ?? "",
+      city: data.city ?? "",
+      country: data.country ?? "",
+      account_number: data.account_no ?? "",
+      balance,
+      profile_pic: data.profile_pic ?? "",
+      status: data.status ?? "pending",
+      email_verified: !!data.email_verified,
+      phone_verified: !!data.phone_verified,
+      kyc_status: data.kyc_status ?? "not_submitted",
+      created_at: data.created_at ?? "",
+      updated_at: data.updated_at ?? "",
     }
-  }
 
+    profileCache.set(userId, { profile: processed, timestamp: Date.now() })
+    return processed
+  }, [])
+
+  /* --------------------- expose manual refresh ------------------- */
+  const refreshUserProfile = useCallback(async () => {
+    if (!user) return
+    profileCache.delete(user.id)
+    const fresh = await fetchUserProfile(user.id)
+    setProfile(fresh)
+  }, [user, fetchUserProfile])
+
+  /* --------------------- initialise session ---------------------- */
   useEffect(() => {
-    const fetchSession = async () => {
+    let isMounted = true
+
+    const init = async () => {
       setIsLoading(true)
-      console.log("Fetching session...")
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession()
+      if (error) console.error(error)
 
-      try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession()
-
-        if (error) {
-          console.error("Error fetching session:", error)
-        }
-
-        console.log("Session fetched:", session ? "Session exists" : "No session")
-        setSession(session)
-        setUser(session?.user || null)
-
-        if (session?.user) {
-          console.log("User is logged in, fetching profile from public.users table")
-          // Fetch user profile from public.users table
-          const profileData = await fetchUserProfile(session.user.id)
-          if (profileData) {
-            setProfile(profileData)
-            console.log("Profile set successfully")
-          } else {
-            console.log("No profile data found in public.users table")
-            setProfile(null)
-          }
-        } else {
-          setProfile(null)
-        }
-      } catch (error) {
-        console.error("Error in fetchSession:", error)
-      } finally {
-        setIsLoading(false)
-        console.log("Session fetch completed")
-      }
-    }
-
-    fetchSession()
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session ? "Session exists" : "No session")
+      if (!isMounted) return
 
       setSession(session)
-      setUser(session?.user || null)
+      setUser(session?.user ?? null)
 
       if (session?.user) {
-        console.log("User logged in, fetching profile from public.users table on auth state change")
-        // Fetch user profile when auth state changes
-        const profileData = await fetchUserProfile(session.user.id)
-        if (profileData) {
-          setProfile(profileData)
-          console.log("Profile set on auth state change")
-        } else {
-          console.log("No profile found in public.users table on auth state change")
-          setProfile(null)
-        }
+        const prof = await fetchUserProfile(session.user.id)
+        if (isMounted) setProfile(prof)
       } else {
         setProfile(null)
-        console.log("No user, profile set to null")
       }
+      setIsLoading(false)
+    }
 
-      // Handle redirects based on auth state
-      const isAuthRoute = ["/login", "/signup", "/forgot-password", "/reset-password"].includes(pathname)
-      console.log("Current path:", pathname, "Is auth route:", isAuthRoute)
+    init()
 
-      if (!session && !isAuthRoute && pathname !== "/" && !pathname.includes("/auth/callback")) {
-        console.log("No session, redirecting to login")
-        router.push("/login")
-      } else if (session && isAuthRoute) {
-        console.log("Session exists on auth route, redirecting to dashboard")
-        router.push("/dashboard")
-      }
+    /* auth listener */
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, sess) => {
+      setSession(sess)
+      setUser(sess?.user ?? null)
+      if (sess?.user) fetchUserProfile(sess.user.id).then(setProfile)
+      else setProfile(null)
     })
 
     return () => {
-      console.log("Cleaning up auth subscription")
+      isMounted = false
       subscription.unsubscribe()
     }
-  }, [supabase, router, pathname])
+  }, [fetchUserProfile])
 
+  /* --------------------- auth helpers ---------------------------- */
   const signUp = async (email: string, password: string) => {
-    console.log("Signing up with email:", email)
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
-
-      if (error) {
-        console.error("Signup error:", error)
-      } else {
-        console.log("Signup successful:", data ? "Data exists" : "No data")
-      }
-
-      return { data, error }
-    } catch (e: any) {
-      console.error("Unexpected error during signup:", e)
-      // Improve error message for network issues
-      if (e.message?.includes("fetch") || !navigator.onLine) {
-        return { error: { message: "Network connection issue. Please check your internet connection and try again." } }
-      }
-      return { error: { message: "An unexpected error occurred" } }
-    }
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    })
+    return { error }
   }
 
   const signIn = async (email: string, password: string) => {
-    console.log("Signing in with email:", email)
-    let attempts = 0
-    const maxAttempts = 3
-
-    while (attempts <= maxAttempts) {
-      try {
-        if (attempts > 0) {
-          console.log(`Auth provider retry attempt ${attempts}...`)
-          // Add exponential backoff
-          await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * Math.pow(2, attempts - 1), 8000)))
-        }
-
-        // Check network connectivity
-        if (!navigator.onLine) {
-          throw new Error("You appear to be offline. Please check your internet connection.")
-        }
-
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-
-        if (error) {
-          console.error("Sign in error:", error)
-
-          // Don't retry for invalid credentials
-          if (error.message?.includes("Invalid login credentials") || error.message?.includes("Email not confirmed")) {
-            return { error }
-          }
-
-          // For other errors, retry if we haven't reached max attempts
-          if (attempts < maxAttempts) {
-            attempts++
-            continue
-          }
-        } else {
-          console.log("Sign in successful:", data ? "Data exists" : "No data")
-        }
-
-        return { error }
-      } catch (e: any) {
-        console.error("Unexpected error during sign in:", e)
-
-        // Improve error message for network issues
-        if (e.message?.includes("fetch") || e.message?.includes("network") || !navigator.onLine) {
-          if (attempts < maxAttempts) {
-            attempts++
-            continue
-          }
-          return {
-            error: { message: "Network connection issue. Please check your internet connection and try again." },
-          }
-        }
-
-        // Retry if we haven't reached max attempts
-        if (attempts < maxAttempts) {
-          attempts++
-          continue
-        }
-
-        return { error: { message: e.message || "An unexpected error occurred" } }
-      }
-    }
-
-    // If we've exhausted all attempts
-    return { error: { message: "Failed to sign in after multiple attempts. Please try again later." } }
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    return { error }
   }
 
   const signInWithMagicLink = async (email: string) => {
-    console.log("Sending magic link to:", email)
-    try {
-      // Check network connectivity
-      if (!navigator.onLine) {
-        return { error: { message: "You appear to be offline. Please check your internet connection." } }
-      }
-
-      const { data, error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
-
-      if (error) {
-        console.error("Magic link error:", error)
-      } else {
-        console.log("Magic link sent successfully:", data ? "Data exists" : "No data")
-      }
-
-      return { error }
-    } catch (e: any) {
-      console.error("Unexpected error during magic link:", e)
-      // Improve error message for network issues
-      if (e.message?.includes("fetch") || !navigator.onLine) {
-        return { error: { message: "Network connection issue. Please check your internet connection and try again." } }
-      }
-      return { error: { message: "An unexpected error occurred" } }
-    }
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    })
+    return { error }
   }
 
   const signOut = async () => {
-    console.log("Starting signout process...")
-
-    try {
-      // Clear local state immediately
-      setUser(null)
-      setProfile(null)
-      setSession(null)
-      setIsLoading(false)
-
-      console.log("Local state cleared, calling Supabase signOut...")
-
-      // Sign out from Supabase
-      const { error } = await supabase.auth.signOut()
-
-      if (error) {
-        console.error("Supabase signout error:", error)
-        // Don't throw error, continue with redirect
-      } else {
-        console.log("Supabase signout successful")
-      }
-
-      // Clear any cached data
-      if (typeof window !== "undefined") {
-        // Clear localStorage if needed
-        localStorage.removeItem("supabase.auth.token")
-        // Clear sessionStorage if needed
-        sessionStorage.clear()
-      }
-
-      console.log("Redirecting to login page...")
-
-      // Use router.push first, then fallback to window.location
-      router.push("/login")
-
-      // Fallback redirect after a short delay
-      setTimeout(() => {
-        if (typeof window !== "undefined") {
-          window.location.href = "/login"
-        }
-      }, 100)
-    } catch (error) {
-      console.error("Error during signout:", error)
-
-      // Force redirect even if there's an error
-      if (typeof window !== "undefined") {
-        window.location.href = "/login"
-      }
-    }
+    await supabase.auth.signOut()
+    profileCache.clear()
+    /* redirect to generic login preserving current path for potential return */
+    router.push(`/login?next=${encodeURIComponent(pathname)}`)
   }
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        profile,
-        session,
-        isLoading,
-        refreshUserProfile,
-        signUp,
-        signIn,
-        signInWithMagicLink,
-        signOut,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  )
+  /* --------------------- context value --------------------------- */
+  const value: AuthContextType = {
+    user,
+    profile,
+    session,
+    isLoading,
+    refreshUserProfile,
+    signUp,
+    signIn,
+    signInWithMagicLink,
+    signOut,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-export const useAuth = () => {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
+/* -----------------------------------------------------------------------------
+ * Hook
+ * -------------------------------------------------------------------------- */
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) {
     throw new Error("useAuth must be used within an AuthProvider")
   }
-  return context
+  return ctx
 }

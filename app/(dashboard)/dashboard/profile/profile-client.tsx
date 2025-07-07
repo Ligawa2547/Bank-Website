@@ -1,248 +1,91 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
+import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { useSession } from "@/providers/session-provider"
+import { User, Mail, Phone, MapPin, Calendar, Shield, CheckCircle, Clock } from "lucide-react"
 
-interface UserData {
+interface UserProfile {
   id: string
   email: string
-  first_name?: string
-  last_name?: string
-  phone_number?: string
-  city?: string
-  country?: string
-  account_no?: string
-  account_balance?: number
-  status?: string
-  created_at?: string
-  updated_at?: string
-  email_verified?: boolean
-  phone_verified?: boolean
-  kyc_status?: string
+  full_name: string
+  phone: string
+  address: string
+  date_of_birth: string
+  account_no: string
+  account_balance: number
+  kyc_verified: boolean
+  email_verified: boolean
+  phone_verified: boolean
+  profile_picture_url?: string
+  created_at: string
 }
 
 export default function ProfileClient() {
-  const { session } = useSession()
-  const [userData, setUserData] = useState<UserData | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [isEditing, setIsEditing] = useState(false)
-  const [formData, setFormData] = useState({
-    first_name: "",
-    last_name: "",
-    email: "",
-    phone_number: "",
-    city: "",
-    country: "",
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setSaving] = useState(false)
+  const [editForm, setEditForm] = useState({
+    full_name: "",
+    phone: "",
+    address: "",
+    date_of_birth: "",
   })
-  const [isLoading, setIsLoading] = useState(false)
-  const [isFetching, setIsFetching] = useState(true)
+
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
-  // Function to get status display information
-  const getStatusInfo = useCallback((status?: string) => {
-    switch (status?.toLowerCase()) {
-      case "active":
-        return {
-          color: "text-green-600",
-          bgColor: "bg-green-500",
-          label: "Active",
-        }
-      case "inactive":
-        return {
-          color: "text-red-600",
-          bgColor: "bg-red-500",
-          label: "Inactive",
-        }
-      case "suspended":
-        return {
-          color: "text-orange-600",
-          bgColor: "bg-orange-500",
-          label: "Suspended",
-        }
-      case "pending":
-        return {
-          color: "text-yellow-600",
-          bgColor: "bg-yellow-500",
-          label: "Pending",
-        }
-      case "closed":
-        return {
-          color: "text-gray-600",
-          bgColor: "bg-gray-500",
-          label: "Closed",
-        }
-      default:
-        return {
-          color: "text-gray-600",
-          bgColor: "bg-gray-500",
-          label: "Unknown",
-        }
-    }
+  useEffect(() => {
+    fetchProfile()
   }, [])
 
-  // Fetch user data from the public.users table
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (!session?.user?.id) {
-        console.log("No session or user ID available")
-        setIsFetching(false)
+  const fetchProfile = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session?.user) {
+        toast({
+          title: "Error",
+          description: "Please log in to view your profile.",
+          variant: "destructive",
+        })
         return
       }
 
-      try {
-        setIsFetching(true)
+      const { data, error } = await supabase.from("users").select("*").eq("id", session.user.id).single()
 
-        // Use a more efficient query with only the fields we need
-        const { data, error } = await supabase
-          .from("users")
-          .select(`
-          id, 
-          email, 
-          first_name, 
-          last_name, 
-          phone_number, 
-          city, 
-          country, 
-          account_no, 
-          account_balance, 
-          status, 
-          created_at, 
-          updated_at, 
-          email_verified, 
-          phone_verified, 
-          kyc_status
-        `)
-          .eq("id", session.user.id)
-          .maybeSingle()
-
-        if (error) {
-          console.error("Error fetching user data from public.users:", error)
-          toast({
-            title: "Error",
-            description: "Failed to load profile data. Please try again.",
-            variant: "destructive",
-          })
-          return
-        }
-
-        if (data) {
-          setUserData(data)
-          setFormData({
-            first_name: data.first_name || "",
-            last_name: data.last_name || "",
-            email: data.email || session.user.email || "",
-            phone_number: data.phone_number || "",
-            city: data.city || "",
-            country: data.country || "",
-          })
-        } else {
-          // Set default data with auth user email
-          setFormData({
-            first_name: "",
-            last_name: "",
-            email: session.user.email || "",
-            phone_number: "",
-            city: "",
-            country: "",
-          })
-        }
-      } catch (error) {
-        console.error("Error fetching user data:", error)
+      if (error) {
+        console.error("Error fetching profile:", error)
         toast({
           title: "Error",
-          description: "An unexpected error occurred while loading your profile.",
+          description: "Failed to load profile data.",
           variant: "destructive",
         })
-      } finally {
-        setIsFetching(false)
-      }
-    }
-
-    fetchUserData()
-  }, [session?.user?.id, supabase, toast])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!session?.user?.id) return
-
-    setIsLoading(true)
-    try {
-      console.log("Updating user data in public.users for ID:", session.user.id)
-
-      // Check if user exists in public.users table
-      const { data: existingUser } = await supabase.from("users").select("id").eq("id", session.user.id).maybeSingle()
-
-      let result
-      if (existingUser) {
-        // Update existing user
-        result = await supabase
-          .from("users")
-          .update({
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            phone_number: formData.phone_number,
-            city: formData.city,
-            country: formData.country,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", session.user.id)
-          .select()
-          .single()
-      } else {
-        // Insert new user record
-        result = await supabase
-          .from("users")
-          .insert({
-            id: session.user.id,
-            email: session.user.email,
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            phone_number: formData.phone_number,
-            city: formData.city,
-            country: formData.country,
-            status: "pending", // Default status for new users
-            account_balance: 0, // Default balance
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .select()
-          .single()
+        return
       }
 
-      if (result.error) {
-        console.error("Error updating/inserting user data:", result.error)
-        throw result.error
-      }
-
-      // Update local state with the returned data
-      if (result.data) {
-        setUserData(result.data)
-        console.log("Profile updated successfully in public.users")
-      }
-
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been updated successfully.",
+      setProfile(data)
+      setEditForm({
+        full_name: data.full_name || "",
+        phone: data.phone || "",
+        address: data.address || "",
+        date_of_birth: data.date_of_birth || "",
       })
-
-      setIsEditing(false)
-    } catch (error: any) {
-      console.error("Error updating profile:", error)
+    } catch (error) {
+      console.error("Error:", error)
       toast({
         title: "Error",
-        description: error.message || "There was an error updating your profile. Please try again.",
+        description: "An unexpected error occurred.",
         variant: "destructive",
       })
     } finally {
@@ -250,220 +93,279 @@ export default function ProfileClient() {
     }
   }
 
-  if (isFetching) {
+  const handleSave = async () => {
+    if (!profile) return
+
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          full_name: editForm.full_name,
+          phone: editForm.phone,
+          address: editForm.address,
+          date_of_birth: editForm.date_of_birth,
+        })
+        .eq("id", profile.id)
+
+      if (error) {
+        console.error("Error updating profile:", error)
+        toast({
+          title: "Error",
+          description: "Failed to update profile.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setProfile({
+        ...profile,
+        ...editForm,
+      })
+      setIsEditing(false)
+      toast({
+        title: "Success",
+        description: "Profile updated successfully.",
+      })
+    } catch (error) {
+      console.error("Error:", error)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancel = () => {
+    if (profile) {
+      setEditForm({
+        full_name: profile.full_name || "",
+        phone: profile.phone || "",
+        address: profile.address || "",
+        date_of_birth: profile.date_of_birth || "",
+      })
+    }
+    setIsEditing(false)
+  }
+
+  const getVerificationStatus = (verified: boolean) => {
+    if (verified) {
+      return (
+        <Badge variant="default" className="bg-green-100 text-green-800">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Verified
+        </Badge>
+      )
+    }
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent mx-auto mb-4"></div>
-          <h2 className="text-lg font-medium">Loading profile...</h2>
-          <p className="text-sm text-gray-500">Please wait while we load your profile information.</p>
-        </div>
+      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+        <Clock className="w-3 h-3 mr-1" />
+        Pending
+      </Badge>
+    )
+  }
+
+  const handleProfilePictureUpdate = (url: string) => {
+    if (profile) {
+      setProfile({ ...profile, profile_picture_url: url })
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
 
-  const statusInfo = getStatusInfo(userData?.status)
+  if (!profile) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500">Profile not found.</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="container mx-auto max-w-4xl p-4">
-      <h1 className="mb-6 text-2xl font-bold">My Profile</h1>
-
-      {/* Personal Information Card */}
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950 mb-6">
-        <div className="p-6">
-          <div className="mb-6">
-            <h2 className="text-lg font-medium">Personal Information</h2>
-            <p className="text-sm text-gray-500">Update your personal details here.</p>
-          </div>
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="first_name">First Name</Label>
-                <Input
-                  id="first_name"
-                  name="first_name"
-                  value={formData.first_name}
-                  onChange={handleChange}
-                  disabled={!isEditing}
-                  placeholder="Enter your first name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="last_name">Last Name</Label>
-                <Input
-                  id="last_name"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleChange}
-                  disabled={!isEditing}
-                  placeholder="Enter your last name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  disabled={true}
-                  className="bg-gray-50 dark:bg-gray-900"
-                />
-                <p className="text-xs text-gray-500">Email cannot be changed from this page</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone_number">Phone Number</Label>
-                <Input
-                  id="phone_number"
-                  name="phone_number"
-                  value={formData.phone_number}
-                  onChange={handleChange}
-                  disabled={!isEditing}
-                  placeholder="Enter your phone number"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
-                <Input
-                  id="city"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleChange}
-                  disabled={!isEditing}
-                  placeholder="Enter your city"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="country">Country</Label>
-                <Input
-                  id="country"
-                  name="country"
-                  value={formData.country}
-                  onChange={handleChange}
-                  disabled={!isEditing}
-                  placeholder="Enter your country"
-                />
+    <div className="space-y-6">
+      {/* Profile Header */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Profile Information
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex-shrink-0">
+              <ProfilePictureUpload
+                currentImageUrl={profile.profile_picture_url}
+                onUploadComplete={handleProfilePictureUpdate}
+              />
+            </div>
+            <div className="flex-1 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-gray-500">Account Number</Label>
+                  <p className="text-lg font-mono">{profile.account_no}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-gray-500">Account Balance</Label>
+                  <p className="text-lg font-semibold text-green-600">
+                    ₦{profile.account_balance?.toLocaleString() || "0.00"}
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="mt-6 flex items-center justify-end space-x-4 border-t border-gray-200 pt-4 dark:border-gray-800">
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Personal Information */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Personal Information</CardTitle>
+          {!isEditing ? (
+            <Button onClick={() => setIsEditing(true)} variant="outline">
+              Edit Profile
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+              <Button onClick={handleCancel} variant="outline">
+                Cancel
+              </Button>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="full_name">Full Name</Label>
               {isEditing ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsEditing(false)
-                      // Reset form data to original values
-                      setFormData({
-                        first_name: userData?.first_name || "",
-                        last_name: userData?.last_name || "",
-                        email: userData?.email || session?.user?.email || "",
-                        phone_number: userData?.phone_number || "",
-                        city: userData?.city || "",
-                        country: userData?.country || "",
-                      })
-                    }}
-                    disabled={isLoading}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? "Saving..." : "Save Changes"}
-                  </Button>
-                </>
+                <Input
+                  id="full_name"
+                  value={editForm.full_name}
+                  onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                />
               ) : (
-                <Button type="button" onClick={() => setIsEditing(true)}>
-                  Edit Profile
-                </Button>
+                <p className="mt-1 text-sm">{profile.full_name || "Not provided"}</p>
               )}
             </div>
-          </form>
-        </div>
-      </div>
-
-      {/* Account Information Card */}
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-medium">Account Information</h3>
-              <p className="text-sm text-gray-500">View your banking account details from public.users table.</p>
+              <Label>Email Address</Label>
+              <div className="flex items-center gap-2 mt-1">
+                <Mail className="h-4 w-4 text-gray-400" />
+                <span className="text-sm">{profile.email}</span>
+                {getVerificationStatus(profile.email_verified || false)}
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="phone">Phone Number</Label>
+              {isEditing ? (
+                <Input
+                  id="phone"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                />
+              ) : (
+                <div className="flex items-center gap-2 mt-1">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm">{profile.phone || "Not provided"}</span>
+                  {profile.phone && getVerificationStatus(profile.phone_verified || false)}
+                </div>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="date_of_birth">Date of Birth</Label>
+              {isEditing ? (
+                <Input
+                  id="date_of_birth"
+                  type="date"
+                  value={editForm.date_of_birth}
+                  onChange={(e) => setEditForm({ ...editForm, date_of_birth: e.target.value })}
+                />
+              ) : (
+                <div className="flex items-center gap-2 mt-1">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm">
+                    {profile.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString() : "Not provided"}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-500">Account Number</p>
-              <div className="flex items-center space-x-2">
-                <p className="font-mono text-lg font-semibold text-blue-600">
-                  {userData?.account_no || "Not assigned"}
-                </p>
-                {userData?.account_no && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard.writeText(userData.account_no || "")
-                      toast({
-                        title: "Copied!",
-                        description: "Account number copied to clipboard.",
-                      })
-                    }}
-                  >
-                    Copy
-                  </Button>
-                )}
+          <div>
+            <Label htmlFor="address">Address</Label>
+            {isEditing ? (
+              <Input
+                id="address"
+                value={editForm.address}
+                onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+              />
+            ) : (
+              <div className="flex items-center gap-2 mt-1">
+                <MapPin className="h-4 w-4 text-gray-400" />
+                <span className="text-sm">{profile.address || "Not provided"}</span>
               </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Verification Status */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Verification Status
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">KYC Verification</span>
+              {getVerificationStatus(profile.kyc_verified || false)}
             </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-500">Account Balance</p>
-              <p className="text-lg font-semibold text-green-600">
-                ${typeof userData?.account_balance === "number" ? userData.account_balance.toFixed(2) : "0.00"}
-              </p>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Email Verification</span>
+              {getVerificationStatus(profile.email_verified || false)}
             </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-500">Account Status</p>
-              <div className="flex items-center">
-                <div className={`mr-2 h-2 w-2 rounded-full ${statusInfo.bgColor}`}></div>
-                <p className={`font-medium ${statusInfo.color}`}>{statusInfo.label}</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-500">Member Since</p>
-              <p className="text-sm">
-                {userData?.created_at
-                  ? new Date(userData.created_at).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })
-                  : "Not available"}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-500">Email Verification</p>
-              <div className="flex items-center">
-                <div
-                  className={`mr-2 h-2 w-2 rounded-full ${userData?.email_verified ? "bg-green-500" : "bg-yellow-500"}`}
-                ></div>
-                <p className={`font-medium ${userData?.email_verified ? "text-green-600" : "text-yellow-600"}`}>
-                  {userData?.email_verified ? "Verified" : "Pending"}
-                </p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-500">Phone Verification</p>
-              <div className="flex items-center">
-                <div
-                  className={`mr-2 h-2 w-2 rounded-full ${userData?.phone_verified ? "bg-green-500" : "bg-yellow-500"}`}
-                ></div>
-                <p className={`font-medium ${userData?.phone_verified ? "text-green-600" : "text-yellow-600"}`}>
-                  {userData?.phone_verified ? "Verified" : "Pending"}
-                </p>
-              </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Phone Verification</span>
+              {getVerificationStatus(profile.phone_verified || false)}
             </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
+
+      {/* Account Details */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Account Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <Label className="text-gray-500">Account Created</Label>
+              <p>{new Date(profile.created_at).toLocaleDateString()}</p>
+            </div>
+            <div>
+              <Label className="text-gray-500">Account Type</Label>
+              <p>Savings Account</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

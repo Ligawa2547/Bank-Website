@@ -19,6 +19,8 @@ import {
   TrendingUp,
   X,
   FileCheck,
+  Eye,
+  EyeOff,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-provider"
@@ -33,6 +35,7 @@ export function Sidebar({
   const pathname = usePathname()
   const { user, profile } = useAuth()
   const [logoError, setLogoError] = useState(false)
+  const [showBalance, setShowBalance] = useState(true)
 
   const isAdmin = user?.email?.endsWith("@trustbank.com")
 
@@ -112,6 +115,17 @@ export function Sidebar({
       ]
     : []
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount)
+  }
+
+  const toggleBalanceVisibility = () => {
+    setShowBalance(!showBalance)
+  }
+
   return (
     <>
       {/* Mobile overlay */}
@@ -153,32 +167,83 @@ export function Sidebar({
 
           {profile && (
             <div className="border-b p-3 sm:p-4">
-              <div className="mb-1 text-xs sm:text-sm font-medium">Account</div>
-              <div className="flex justify-between items-center">
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-sm sm:text-base truncate">
-                    {profile.first_name} {profile.last_name}
+              <div className="mb-1 text-xs sm:text-sm font-medium text-gray-600">Account</div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-start">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-sm sm:text-base truncate text-gray-900">
+                      {profile.first_name && profile.last_name
+                        ? `${profile.first_name} ${profile.last_name}`
+                        : profile.email || "User"}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate font-mono">
+                      {profile.account_number || "No account number"}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 truncate">{profile.account_number}</div>
                 </div>
-                <div className="text-sm sm:text-lg font-semibold text-[#0A3D62] ml-2">
-                  ${typeof profile.balance === "number" ? profile.balance.toFixed(2) : "0.00"}
+
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-gray-500">Available Balance</div>
+                  <button
+                    onClick={toggleBalanceVisibility}
+                    className="p-1 hover:bg-gray-100 rounded text-gray-500"
+                    aria-label={showBalance ? "Hide balance" : "Show balance"}
+                  >
+                    {showBalance ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </button>
+                </div>
+
+                <div className="text-lg sm:text-xl font-bold text-[#0A3D62]">
+                  {showBalance ? formatCurrency(profile.balance || 0) : "••••••"}
                 </div>
               </div>
 
-              {/* KYC Status Indicator */}
-              {profile.kyc_status !== "approved" && (
-                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <div className="flex items-center gap-2">
-                    <FileCheck className="h-3 w-3 text-yellow-600" />
-                    <span className="text-xs text-yellow-800">
-                      {profile.kyc_status === "not_submitted" && "KYC Required"}
-                      {profile.kyc_status === "pending" && "KYC Under Review"}
-                      {profile.kyc_status === "rejected" && "KYC Rejected"}
-                    </span>
+              {/* Account Status Indicators */}
+              <div className="mt-3 space-y-2">
+                {/* Account Status */}
+                {profile.status && profile.status !== "active" && (
+                  <div className="p-2 bg-orange-50 border border-orange-200 rounded-md">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-3 w-3 text-orange-600" />
+                      <span className="text-xs text-orange-800 capitalize">Account {profile.status}</span>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* KYC Status */}
+                {profile.kyc_status && profile.kyc_status !== "approved" && (
+                  <div className="p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <div className="flex items-center gap-2">
+                      <FileCheck className="h-3 w-3 text-yellow-600" />
+                      <span className="text-xs text-yellow-800">
+                        {profile.kyc_status === "not_submitted" && "KYC Required"}
+                        {profile.kyc_status === "pending" && "KYC Under Review"}
+                        {profile.kyc_status === "rejected" && "KYC Rejected"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Email Verification */}
+                {!profile.email_verified && (
+                  <div className="p-2 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-3 w-3 text-blue-600" />
+                      <span className="text-xs text-blue-800">Email Verification Pending</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Phone Verification */}
+                {!profile.phone_verified && profile.phone_number && (
+                  <div className="p-2 bg-purple-50 border border-purple-200 rounded-md">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-3 w-3 text-purple-600" />
+                      <span className="text-xs text-purple-800">Phone Verification Pending</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

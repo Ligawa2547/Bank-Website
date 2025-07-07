@@ -1,4 +1,4 @@
-export type UserProfile = {
+export interface UserProfile {
   id: string
   user_id: string
   first_name: string
@@ -15,6 +15,8 @@ export type UserProfile = {
   kyc_id_expiry?: string
   account_number: string
   balance: number
+  profile_pic?: string
+  status: "active" | "pending" | "suspended" | "closed"
   created_at: string
   updated_at: string
 }
@@ -168,4 +170,14 @@ export type LoanEligibility = {
   reasons: string[]
   credit_score_required?: number
   income_requirement?: number
+}
+
+export interface User {
+  id: string
+  email: string
+  name: string | null
+  account_balance: number
+  account_no: string
+  profile_pic: string | null
+  phone: string | null
 }

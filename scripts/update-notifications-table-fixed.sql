@@ -1,264 +1,254 @@
--- Add account_no column to notifications table if it doesn't exist
-ALTER TABLE public.notifications 
-ADD COLUMN IF NOT EXISTS account_no VARCHAR(20);
-
--- Update existing notifications to include account_no from users table
--- Fix the type casting issue by converting UUID to text
-UPDATE public.notifications 
-SET account_no = users.account_number
-FROM public.users 
-WHERE notifications.user_id::text = users.id::text 
-AND notifications.account_no IS NULL;
-
--- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Users can view their own notifications" ON public.notifications;
-DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
-DROP POLICY IF EXISTS "Users can view notifications for their account" ON public.notifications;
-DROP POLICY IF EXISTS "Users can update notifications for their account" ON public.notifications;
-
--- Policy for users to view notifications for their account number
-CREATE POLICY "Users can view notifications for their account" 
-  ON public.notifications 
-  FOR SELECT 
-  USING (
-    account_no IN (
-      SELECT account_number FROM public.users WHERE id::text = auth.uid()::text
-    )
-  );
-
--- Policy for users to update notifications for their account number
-CREATE POLICY "Users can update notifications for their account" 
-  ON public.notifications 
-  FOR UPDATE 
-  USING (
-    account_no IN (
-      SELECT account_number FROM public.users WHERE id::text = auth.uid()::text
-    )
-  );
-
--- Update the transaction notification function to include account_no
-CREATE OR REPLACE FUNCTION create_transaction_notification()
-RETURNS TRIGGER AS $$
-DECLARE
-  notification_title TEXT;
-  notification_message TEXT;
-  user_account_no TEXT;
+-- First, add the account_no column if it doesn't exist
+DO $$ 
 BEGIN
-  -- Get the user's account number with proper type casting
-  SELECT account_number INTO user_account_no 
-  FROM public.users 
-  WHERE id::text = NEW.user_id::text;
-
-  -- Set notification title and message based on transaction type
-  CASE NEW.transaction_type
-    WHEN 'deposit' THEN
-      notification_title := 'Deposit Received';
-      notification_message := 'You received a deposit of $' || NEW.amount::TEXT || ' to your account ' || user_account_no || '.';
-    WHEN 'withdrawal' THEN
-      notification_title := 'Withdrawal Completed';
-      notification_message := 'Your withdrawal of $' || NEW.amount::TEXT || ' from account ' || user_account_no || ' has been processed.';
-    WHEN 'transfer_in' THEN
-      notification_title := 'Transfer Received';
-      notification_message := 'You received $' || NEW.amount::TEXT || ' from ' || COALESCE(NEW.sender_name, 'another user') || ' to account ' || user_account_no || '.';
-    WHEN 'transfer_out' THEN
-      notification_title := 'Transfer Sent';
-      notification_message := 'Your transfer of $' || NEW.amount::TEXT || ' to ' || COALESCE(NEW.recipient_name, 'another user') || ' from account ' || user_account_no || ' was successful.';
-    WHEN 'loan_disbursement' THEN
-      notification_title := 'Loan Disbursed';
-      notification_message := 'Your loan of $' || NEW.amount::TEXT || ' has been disbursed to account ' || user_account_no || '.';
-    WHEN 'loan_repayment' THEN
-      notification_title := 'Loan Payment';
-      notification_message := 'Your loan payment of $' || NEW.amount::TEXT || ' has been processed for account ' || user_account_no || '.';
-    ELSE
-      notification_title := 'Transaction Update';
-      notification_message := 'A transaction of $' || NEW.amount::TEXT || ' has been processed on account ' || user_account_no || '.';
-  END CASE;
-  
-  -- Only create notification for completed transactions
-  IF NEW.status = 'completed' AND user_account_no IS NOT NULL THEN
-    INSERT INTO public.notifications (user_id, account_no, title, message)
-    VALUES (NEW.user_id, user_account_no, notification_title, notification_message);
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create or replace the trigger for transaction notifications
-DROP TRIGGER IF EXISTS transaction_notification_trigger ON public.transactions;
-CREATE TRIGGER transaction_notification_trigger
-  AFTER INSERT OR UPDATE ON public.transactions
-  FOR EACH ROW
-  EXECUTE FUNCTION create_transaction_notification();
-
--- Update the loan notification function to include account_no
-CREATE OR REPLACE FUNCTION create_loan_notification()
-RETURNS TRIGGER AS $$
-DECLARE
-  notification_title TEXT;
-  notification_message TEXT;
-  user_account_no TEXT;
-BEGIN
-  -- Get the user's account number with proper type casting
-  SELECT account_number INTO user_account_no 
-  FROM public.users 
-  WHERE id::text = NEW.user_id::text;
-
-  -- Set notification title and message based on loan status
-  CASE NEW.status
-    WHEN 'approved' THEN
-      notification_title := 'Loan Approved';
-      notification_message := 'Your loan application for $' || NEW.requested_amount::TEXT || ' has been approved for account ' || user_account_no || '.';
-    WHEN 'rejected' THEN
-      notification_title := 'Loan Application Update';
-      notification_message := 'Your loan application for $' || NEW.requested_amount::TEXT || ' was not approved for account ' || user_account_no || '. Please contact support for more information.';
-    WHEN 'disbursed' THEN
-      notification_title := 'Loan Disbursed';
-      notification_message := 'Your approved loan of $' || COALESCE(NEW.approved_amount, NEW.requested_amount)::TEXT || ' has been disbursed to account ' || user_account_no || '.';
-    ELSE
-      -- Don't create notifications for other statuses
-      RETURN NEW;
-  END CASE;
-  
-  -- Create the notification if account number exists
-  IF user_account_no IS NOT NULL THEN
-    INSERT INTO public.notifications (user_id, account_no, title, message)
-    VALUES (NEW.user_id, user_account_no, notification_title, notification_message);
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create or replace the trigger for loan notifications
-DROP TRIGGER IF EXISTS loan_notification_trigger ON public.loan_applications;
-CREATE TRIGGER loan_notification_trigger
-  AFTER UPDATE ON public.loan_applications
-  FOR EACH ROW
-  WHEN (OLD.status IS DISTINCT FROM NEW.status)
-  EXECUTE FUNCTION create_loan_notification();
-
--- Create function for transfer notifications (for both sender and recipient)
-CREATE OR REPLACE FUNCTION create_transfer_notification()
-RETURNS TRIGGER AS $$
-DECLARE
-  sender_account_no TEXT;
-  recipient_account_no TEXT;
-  sender_user_id UUID;
-  recipient_user_id UUID;
-BEGIN
-  -- Only process completed transfers
-  IF NEW.status = 'completed' AND NEW.transaction_type IN ('transfer_in', 'transfer_out') THEN
-    
-    -- For transfer_out (sender notification)
-    IF NEW.transaction_type = 'transfer_out' THEN
-      -- Get sender's account info
-      SELECT account_number, id INTO sender_account_no, sender_user_id
-      FROM public.users 
-      WHERE id::text = NEW.user_id::text;
-      
-      IF sender_account_no IS NOT NULL THEN
-        INSERT INTO public.notifications (user_id, account_no, title, message)
-        VALUES (
-          sender_user_id, 
-          sender_account_no, 
-          'Transfer Sent',
-          'Your transfer of $' || NEW.amount::TEXT || ' to ' || COALESCE(NEW.recipient_name, NEW.recipient_account_number) || ' was successful.'
-        );
-      END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'notifications' AND column_name = 'account_no') THEN
+        ALTER TABLE notifications ADD COLUMN account_no TEXT;
     END IF;
-    
-    -- For transfer_in (recipient notification)
-    IF NEW.transaction_type = 'transfer_in' AND NEW.recipient_account_number IS NOT NULL THEN
-      -- Get recipient's account info
-      SELECT account_number, id INTO recipient_account_no, recipient_user_id
-      FROM public.users 
-      WHERE account_number = NEW.recipient_account_number;
-      
-      IF recipient_account_no IS NOT NULL AND recipient_user_id IS NOT NULL THEN
-        INSERT INTO public.notifications (user_id, account_no, title, message)
-        VALUES (
-          recipient_user_id, 
-          recipient_account_no, 
-          'Transfer Received',
-          'You received $' || NEW.amount::TEXT || ' from ' || COALESCE(NEW.sender_name, NEW.sender_account_number) || '.'
-        );
-      END IF;
-    END IF;
-    
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+END $$;
 
--- Create or replace the trigger for transfer notifications
-DROP TRIGGER IF EXISTS transfer_notification_trigger ON public.transactions;
-CREATE TRIGGER transfer_notification_trigger
-  AFTER INSERT OR UPDATE ON public.transactions
-  FOR EACH ROW
-  WHEN (NEW.transaction_type IN ('transfer_in', 'transfer_out'))
-  EXECUTE FUNCTION create_transfer_notification();
+-- Update existing notifications to include account numbers
+-- This will set account_no based on the user_id by looking up their account number
+UPDATE notifications 
+SET account_no = (
+    SELECT account_number 
+    FROM users 
+    WHERE users.user_id::text = notifications.user_id::text
+    LIMIT 1
+)
+WHERE account_no IS NULL;
 
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_notifications_account_no ON public.notifications(account_no);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_account ON public.notifications(user_id, account_no);
-CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON public.notifications(is_read);
+-- Create index for better performance
+CREATE INDEX IF NOT EXISTS idx_notifications_account_no ON notifications(account_no);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_account ON notifications(user_id, account_no);
 
--- Create a function to manually create a welcome notification for existing users
-CREATE OR REPLACE FUNCTION create_welcome_notifications()
+-- Update RLS policies to use account_no
+DROP POLICY IF EXISTS "Users can view their own notifications" ON notifications;
+DROP POLICY IF EXISTS "Users can update their own notifications" ON notifications;
+
+-- Create new RLS policies that filter by account number
+CREATE POLICY "Users can view notifications for their account" ON notifications
+    FOR SELECT USING (
+        account_no IN (
+            SELECT account_number 
+            FROM users 
+            WHERE users.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can update notifications for their account" ON notifications
+    FOR UPDATE USING (
+        account_no IN (
+            SELECT account_number 
+            FROM users 
+            WHERE users.user_id = auth.uid()
+        )
+    );
+
+-- Function to create transaction notifications
+CREATE OR REPLACE FUNCTION create_transaction_notification(
+    p_account_no TEXT,
+    p_transaction_type TEXT,
+    p_amount DECIMAL,
+    p_reference TEXT,
+    p_counterparty TEXT DEFAULT NULL
+)
 RETURNS void AS $$
 DECLARE
-  user_record RECORD;
+    v_user_id UUID;
+    v_title TEXT;
+    v_message TEXT;
 BEGIN
-  -- Create welcome notifications for users who don't have any notifications yet
-  FOR user_record IN 
-    SELECT u.id, u.account_number, u.first_name
-    FROM public.users u
-    LEFT JOIN public.notifications n ON n.user_id = u.id
-    WHERE n.id IS NULL AND u.account_number IS NOT NULL
-  LOOP
-    INSERT INTO public.notifications (user_id, account_no, title, message)
-    VALUES (
-      user_record.id,
-      user_record.account_number,
-      'Welcome to IAE Banking!',
-      'Welcome ' || user_record.first_name || '! Your account ' || user_record.account_number || ' is now active. You can start making transactions and managing your finances.'
-    );
-  END LOOP;
+    -- Get user_id from account number
+    SELECT user_id INTO v_user_id
+    FROM users
+    WHERE account_number = p_account_no
+    LIMIT 1;
+
+    IF v_user_id IS NULL THEN
+        RETURN;
+    END IF;
+
+    -- Create appropriate notification based on transaction type
+    CASE p_transaction_type
+        WHEN 'deposit' THEN
+            v_title := 'Deposit Received';
+            v_message := 'You received a deposit of $' || p_amount || '. Reference: ' || p_reference;
+        WHEN 'withdrawal' THEN
+            v_title := 'Withdrawal Processed';
+            v_message := 'You withdrew $' || p_amount || '. Reference: ' || p_reference;
+        WHEN 'transfer_in' THEN
+            v_title := 'Transfer Received';
+            v_message := 'You received $' || p_amount || ' from ' || COALESCE(p_counterparty, 'Unknown') || '. Reference: ' || p_reference;
+        WHEN 'transfer_out' THEN
+            v_title := 'Transfer Sent';
+            v_message := 'You sent $' || p_amount || ' to ' || COALESCE(p_counterparty, 'Unknown') || '. Reference: ' || p_reference;
+        WHEN 'loan_disbursement' THEN
+            v_title := 'Loan Disbursed';
+            v_message := 'Your loan of $' || p_amount || ' has been disbursed. Reference: ' || p_reference;
+        WHEN 'loan_repayment' THEN
+            v_title := 'Loan Payment';
+            v_message := 'Loan payment of $' || p_amount || ' processed. Reference: ' || p_reference;
+        ELSE
+            v_title := 'Transaction Processed';
+            v_message := 'Transaction of $' || p_amount || ' processed. Reference: ' || p_reference;
+    END CASE;
+
+    -- Insert notification
+    INSERT INTO notifications (user_id, account_no, title, message, is_read, created_at)
+    VALUES (v_user_id, p_account_no, v_title, v_message, false, NOW());
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Log error but don't fail the transaction
+        RAISE WARNING 'Failed to create notification: %', SQLERRM;
 END;
 $$ LANGUAGE plpgsql;
 
--- Execute the welcome notification function
-SELECT create_welcome_notifications();
-
--- Drop the temporary function
-DROP FUNCTION create_welcome_notifications();
-
--- Add some sample notifications for testing (optional)
--- Uncomment the following lines if you want to add test notifications
-
-/*
-INSERT INTO public.notifications (user_id, account_no, title, message)
-SELECT 
-  u.id,
-  u.account_number,
-  'Account Security Update',
-  'Your account ' || u.account_number || ' security settings have been updated. If this wasn''t you, please contact support immediately.'
-FROM public.users u
-WHERE u.account_number IS NOT NULL
-LIMIT 5;
-*/
-
--- Verify the setup
-DO $$
+-- Function to create loan notifications
+CREATE OR REPLACE FUNCTION create_loan_notification(
+    p_account_no TEXT,
+    p_loan_status TEXT,
+    p_amount DECIMAL,
+    p_loan_type TEXT DEFAULT 'Personal Loan'
+)
+RETURNS void AS $$
 DECLARE
-  notification_count INTEGER;
-  user_count INTEGER;
+    v_user_id UUID;
+    v_title TEXT;
+    v_message TEXT;
 BEGIN
-  SELECT COUNT(*) INTO notification_count FROM public.notifications;
-  SELECT COUNT(*) INTO user_count FROM public.users WHERE account_number IS NOT NULL;
-  
-  RAISE NOTICE 'Setup complete! Created % notifications for % users with account numbers.', notification_count, user_count;
-END $$;
+    -- Get user_id from account number
+    SELECT user_id INTO v_user_id
+    FROM users
+    WHERE account_number = p_account_no
+    LIMIT 1;
+
+    IF v_user_id IS NULL THEN
+        RETURN;
+    END IF;
+
+    -- Create appropriate notification based on loan status
+    CASE p_loan_status
+        WHEN 'approved' THEN
+            v_title := 'Loan Approved';
+            v_message := 'Your ' || p_loan_type || ' application for $' || p_amount || ' has been approved!';
+        WHEN 'rejected' THEN
+            v_title := 'Loan Application Update';
+            v_message := 'Your ' || p_loan_type || ' application for $' || p_amount || ' requires additional review.';
+        WHEN 'disbursed' THEN
+            v_title := 'Loan Disbursed';
+            v_message := 'Your ' || p_loan_type || ' of $' || p_amount || ' has been disbursed to your account.';
+        WHEN 'completed' THEN
+            v_title := 'Loan Completed';
+            v_message := 'Congratulations! Your ' || p_loan_type || ' has been fully repaid.';
+        ELSE
+            v_title := 'Loan Update';
+            v_message := 'Your ' || p_loan_type || ' status has been updated.';
+    END CASE;
+
+    -- Insert notification
+    INSERT INTO notifications (user_id, account_no, title, message, is_read, created_at)
+    VALUES (v_user_id, p_account_no, v_title, v_message, false, NOW());
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Log error but don't fail the transaction
+        RAISE WARNING 'Failed to create loan notification: %', SQLERRM;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create welcome notifications for existing users who don't have any
+INSERT INTO notifications (user_id, account_no, title, message, is_read, created_at)
+SELECT 
+    u.user_id,
+    u.account_number,
+    'Welcome to IAE Bank',
+    'Welcome to your digital banking experience! Your account ' || u.account_number || ' is ready to use.',
+    false,
+    NOW()
+FROM users u
+WHERE NOT EXISTS (
+    SELECT 1 FROM notifications n 
+    WHERE n.user_id = u.user_id
+);
+
+-- Create triggers for automatic transaction notifications
+CREATE OR REPLACE FUNCTION notify_transaction_trigger()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Notify sender for outgoing transfers
+    IF NEW.sender_account_number IS NOT NULL THEN
+        PERFORM create_transaction_notification(
+            NEW.sender_account_number,
+            'transfer_out',
+            NEW.amount,
+            NEW.reference,
+            COALESCE(NEW.recipient_name, NEW.recipient_account_number)
+        );
+    END IF;
+
+    -- Notify recipient for incoming transfers
+    IF NEW.recipient_account_number IS NOT NULL THEN
+        PERFORM create_transaction_notification(
+            NEW.recipient_account_number,
+            'transfer_in',
+            NEW.amount,
+            NEW.reference,
+            COALESCE(NEW.sender_name, NEW.sender_account_number)
+        );
+    END IF;
+
+    -- Notify for other transaction types
+    IF NEW.account_no IS NOT NULL AND NEW.sender_account_number IS NULL AND NEW.recipient_account_number IS NULL THEN
+        PERFORM create_transaction_notification(
+            NEW.account_no,
+            NEW.transaction_type,
+            NEW.amount,
+            NEW.reference
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger if it doesn't exist
+DROP TRIGGER IF EXISTS transaction_notification_trigger ON transactions;
+CREATE TRIGGER transaction_notification_trigger
+    AFTER INSERT ON transactions
+    FOR EACH ROW
+    EXECUTE FUNCTION notify_transaction_trigger();
+
+-- Create trigger for loan notifications
+CREATE OR REPLACE FUNCTION notify_loan_trigger()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_account_no TEXT;
+BEGIN
+    -- Get account number from user_id
+    SELECT account_number INTO v_account_no
+    FROM users
+    WHERE user_id::text = NEW.user_id::text
+    LIMIT 1;
+
+    IF v_account_no IS NOT NULL THEN
+        PERFORM create_loan_notification(
+            v_account_no,
+            NEW.status,
+            COALESCE(NEW.approved_amount, NEW.requested_amount),
+            COALESCE((SELECT name FROM loan_types WHERE id = NEW.loan_type_id), 'Personal Loan')
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create loan trigger if it doesn't exist
+DROP TRIGGER IF EXISTS loan_notification_trigger ON loan_applications;
+CREATE TRIGGER loan_notification_trigger
+    AFTER UPDATE ON loan_applications
+    FOR EACH ROW
+    WHEN (OLD.status IS DISTINCT FROM NEW.status)
+    EXECUTE FUNCTION notify_loan_trigger();
