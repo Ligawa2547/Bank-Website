@@ -9,8 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "@auth/core": "latest",
-    "@hookform/resolvers": "latest",
+    "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
     "@radix-ui/react-aspect-ratio": "1.1.1",
@@ -43,7 +42,6 @@
     "@supabase/supabase-js": "latest",
     "@sveltejs/kit": "latest",
     "@vercel/analytics": "latest",
-    "@vercel/blob": "latest",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -53,13 +51,11 @@
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
-    "next-auth": "latest",
     "next-themes": "^0.4.4",
-    "nodemailer": "latest",
     "react": "^19",
     "react-day-picker": "8.10.1",
     "react-dom": "^19",
-    "react-hook-form": "latest",
+    "react-hook-form": "^7.54.1",
     "react-resizable-panels": "^2.1.7",
     "recharts": "2.15.0",
     "sonner": "^1.7.1",
@@ -69,7 +65,7 @@
     "vaul": "^0.9.6",
     "vue": "latest",
     "vue-router": "latest",
-    "zod": "latest"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22",
