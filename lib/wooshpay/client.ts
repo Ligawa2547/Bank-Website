@@ -144,3 +144,6 @@ class WooshPayClient {
 }
 
 export const wooshPayClient = new WooshPayClient()
+
+// Re-export helper so callers can import from "@/lib/wooshpay/client"
+export { isWooshPayConfigured } from "./config"

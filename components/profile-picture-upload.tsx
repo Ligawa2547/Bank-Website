@@ -16,7 +16,7 @@ interface Props {
   className?: string
 }
 
-export default function ProfilePictureUpload({ currentUrl, userId, onUploaded, className }: Props) {
+export function ProfilePictureUpload({ currentUrl, userId, onUploaded, className }: Props) {
   const [preview, setPreview] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -76,3 +76,6 @@ export default function ProfilePictureUpload({ currentUrl, userId, onUploaded, c
     </div>
   )
 }
+
+// Allow both default and named imports
+export default ProfilePictureUpload

@@ -1,6 +1,10 @@
 import { createClient } from "@supabase/supabase-js"
 import ProfileClient from "./profile-client"
 import type { Metadata } from "next"
+import { redirect } from "next/navigation"
+
+// Disable static prerendering; we need per-request auth
+export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
   title: "Profile – I&E Bank",
@@ -14,7 +18,7 @@ export default async function ProfilePage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) throw new Error("Not authenticated")
+  if (!user) redirect("/login")
 
   const { data, error } = await supabase.from("users").select("name,email,phone,profile_pic").eq("id", user.id).single()
 
