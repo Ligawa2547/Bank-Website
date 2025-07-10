@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createClient } from "@/lib/supabase/client"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Search, UserX, UserCheck, Mail, Phone, Calendar } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -33,30 +33,74 @@ export default function UserManagement() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [processing, setProcessing] = useState<string | null>(null)
   const { toast } = useToast()
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
     fetchUsers()
   }, [])
 
   const fetchUsers = async () => {
-    const supabase = createClient()
-
     try {
-      const { data, error } = await supabase
+      setLoading(true)
+      console.log("Fetching users from database...")
+
+      // First, let's check what tables exist
+      const { data: tablesData, error: tablesError } = await supabase
+        .from("information_schema.tables")
+        .select("table_name")
+        .eq("table_schema", "public")
+
+      if (tablesError) {
+        console.error("Error checking tables:", tablesError)
+      } else {
+        console.log("Available tables:", tablesData)
+      }
+
+      // Try to fetch from users table with all columns
+      const { data, error, count } = await supabase
         .from("users")
-        .select(
-          "id, email, first_name, last_name, phone_number, account_no, account_balance, status, kyc_status, email_verified, phone_verified, created_at, last_login",
-        )
+        .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
 
-      if (error) throw error
+      console.log("Query result:", { data, error, count })
 
-      setUsers(data || [])
+      if (error) {
+        console.error("Error fetching users:", error)
+        throw error
+      }
+
+      if (!data) {
+        console.log("No data returned from users table")
+        setUsers([])
+        return
+      }
+
+      console.log(`Found ${data.length} users:`, data)
+
+      // Map the data to ensure all fields are properly handled
+      const mappedUsers = data.map((user: any) => ({
+        id: user.id || "",
+        email: user.email || "",
+        first_name: user.first_name || "",
+        last_name: user.last_name || "",
+        phone_number: user.phone_number || "",
+        account_no: user.account_no || "",
+        account_balance: Number.parseFloat(user.account_balance) || 0,
+        status: user.status || "pending",
+        kyc_status: user.kyc_status || "not_submitted",
+        email_verified: user.email_verified || false,
+        phone_verified: user.phone_verified || false,
+        created_at: user.created_at || new Date().toISOString(),
+        last_login: user.last_login || "",
+      }))
+
+      setUsers(mappedUsers)
+      console.log("Mapped users:", mappedUsers)
     } catch (error) {
-      console.error("Error fetching users:", error)
+      console.error("Error in fetchUsers:", error)
       toast({
         title: "Error",
-        description: "Failed to fetch users",
+        description: `Failed to fetch users: ${error.message}`,
         variant: "destructive",
       })
     } finally {
@@ -66,7 +110,6 @@ export default function UserManagement() {
 
   const updateUserStatus = async (userId: string, newStatus: string) => {
     setProcessing(userId)
-    const supabase = createClient()
 
     try {
       // Get user's account_no for notification
@@ -96,6 +139,7 @@ export default function UserManagement() {
         title: `Account ${newStatus === "active" ? "Activated" : "Status Updated"}`,
         message: notificationMessage,
         type: newStatus === "suspended" ? "warning" : "info",
+        is_read: false,
         created_at: new Date().toISOString(),
       })
 
@@ -121,8 +165,6 @@ export default function UserManagement() {
     const message = prompt("Enter notification message:")
     if (!message) return
 
-    const supabase = createClient()
-
     try {
       // Get user's account_no for notification
       const user = users.find((u) => u.id === userId)
@@ -133,6 +175,7 @@ export default function UserManagement() {
         title: "Message from Admin",
         message: message,
         type: "info",
+        is_read: false,
         created_at: new Date().toISOString(),
       })
 
@@ -173,6 +216,7 @@ export default function UserManagement() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+        <p className="ml-4 text-gray-600">Loading users...</p>
       </div>
     )
   }
@@ -183,6 +227,25 @@ export default function UserManagement() {
         <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
         <p className="text-gray-600">Manage user accounts and permissions</p>
       </div>
+
+      {/* Debug Info */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="pt-6">
+          <p className="text-sm text-blue-800">
+            <strong>Debug Info:</strong> Found {users.length} users in database
+          </p>
+          {users.length === 0 && (
+            <div className="mt-2">
+              <p className="text-sm text-blue-700">If you don't see any users, check:</p>
+              <ul className="text-xs text-blue-600 mt-1 ml-4 list-disc">
+                <li>Users have been created through the signup process</li>
+                <li>The users table exists in your Supabase database</li>
+                <li>Row Level Security policies allow reading user data</li>
+              </ul>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -309,7 +372,14 @@ export default function UserManagement() {
           <Card>
             <CardContent className="text-center py-8">
               <h3 className="text-lg font-medium text-gray-900 mb-2">No Users Found</h3>
-              <p className="text-gray-500">No users match your current filters.</p>
+              <p className="text-gray-500 mb-4">
+                {users.length === 0
+                  ? "No users exist in the database yet. Users will appear here after they sign up."
+                  : "No users match your current filters."}
+              </p>
+              <Button onClick={fetchUsers} variant="outline">
+                Refresh Users
+              </Button>
             </CardContent>
           </Card>
         )}

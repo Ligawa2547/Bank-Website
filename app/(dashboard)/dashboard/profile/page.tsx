@@ -1,27 +1,24 @@
-import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
-import { ProfileClient } from "./profile-client"
+import { createClient } from "@supabase/supabase-js"
+import ProfileClient from "./profile-client"
+import type { Metadata } from "next"
 
-export const dynamic = "force-dynamic"
+export const metadata: Metadata = {
+  title: "Profile – I&E Bank",
+}
+
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: { persistSession: false },
+})
 
 export default async function ProfilePage() {
-  const supabase = createClient()
-
   const {
     data: { user },
-    error: userError,
   } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
 
-  if (userError || !user) {
-    redirect("/login")
-  }
+  const { data, error } = await supabase.from("users").select("name,email,phone,profile_pic").eq("id", user.id).single()
 
-  // Fetch user profile data
-  const { data: profile, error: profileError } = await supabase.from("users").select("*").eq("id", user.id).single()
+  if (error) throw error
 
-  if (profileError) {
-    console.error("Error fetching profile:", profileError)
-  }
-
-  return <ProfileClient user={user} profile={profile} />
+  return <ProfileClient initialData={data} />
 }

@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { createClient } from "@/lib/supabase/client"
-import { Send, Users, AlertTriangle, Info, CheckCircle } from "lucide-react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Send, Users, Bell, Search } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface User {
@@ -19,96 +19,63 @@ interface User {
   last_name: string
   account_no: string
   status: string
-  kyc_status: string
 }
 
-interface NotificationTemplate {
+interface Notification {
   id: string
+  account_no: string
   title: string
   message: string
   type: string
+  is_read: boolean
+  created_at: string
 }
 
 export default function NotificationManagement() {
   const [users, setUsers] = useState<User[]>([])
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [notificationTitle, setNotificationTitle] = useState("")
   const [notificationMessage, setNotificationMessage] = useState("")
   const [notificationType, setNotificationType] = useState("info")
+  const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const supabase = createClient()
   const { toast } = useToast()
-
-  const templates: NotificationTemplate[] = [
-    {
-      id: "maintenance",
-      title: "Scheduled System Maintenance",
-      message:
-        "We will be performing scheduled maintenance on our systems from 2:00 AM to 4:00 AM EST. During this time, some services may be temporarily unavailable. We apologize for any inconvenience.",
-      type: "warning",
-    },
-    {
-      id: "security",
-      title: "Important Security Update",
-      message:
-        "We have implemented new security measures to better protect your account. Please review your security settings and ensure your contact information is up to date.",
-      type: "info",
-    },
-    {
-      id: "feature",
-      title: "New Feature Available",
-      message:
-        "We're excited to announce new features in your banking dashboard! Log in to explore enhanced transaction tracking, improved mobile experience, and more.",
-      type: "success",
-    },
-    {
-      id: "verification",
-      title: "Account Verification Reminder",
-      message:
-        "Complete your account verification to unlock all banking features. Upload your required documents in the KYC section of your dashboard.",
-      type: "warning",
-    },
-    {
-      id: "welcome",
-      title: "Welcome to I&E Bank",
-      message:
-        "Welcome to I&E Bank! We're thrilled to have you as a customer. Explore your dashboard to discover all the banking services available to you.",
-      type: "success",
-    },
-  ]
-
-  const [selectedTemplate, setSelectedTemplate] = useState<NotificationTemplate | null>(null)
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
-    fetchUsers()
-  }, [statusFilter])
+    fetchData()
+  }, [])
 
-  const fetchUsers = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true)
 
-      let query = supabase
+      // Fetch users
+      const { data: usersData, error: usersError } = await supabase
         .from("users")
-        .select("id, email, first_name, last_name, account_no, status, kyc_status")
+        .select("id, email, first_name, last_name, account_no, status")
         .order("created_at", { ascending: false })
 
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter)
-      }
+      if (usersError) throw usersError
 
-      const { data, error } = await query
+      // Fetch recent notifications
+      const { data: notificationsData, error: notificationsError } = await supabase
+        .from("notifications")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50)
 
-      if (error) throw error
+      if (notificationsError) throw notificationsError
 
-      setUsers(data || [])
+      setUsers(usersData || [])
+      setNotifications(notificationsData || [])
     } catch (error) {
-      console.error("Error fetching users:", error)
+      console.error("Error fetching data:", error)
       toast({
         title: "Error",
-        description: "Failed to fetch users",
+        description: "Failed to fetch data",
         variant: "destructive",
       })
     } finally {
@@ -125,14 +92,15 @@ export default function NotificationManagement() {
   }
 
   const selectAllUsers = () => {
-    if (selectedUsers.length === filteredUsers.length) {
-      setSelectedUsers([])
-    } else {
-      setSelectedUsers(filteredUsers.map((user) => user.id))
-    }
+    const filteredUserIds = filteredUsers.map((user) => user.id)
+    setSelectedUsers(filteredUserIds)
   }
 
-  const sendNotifications = async () => {
+  const clearSelection = () => {
+    setSelectedUsers([])
+  }
+
+  const sendNotification = async () => {
     if (!notificationTitle.trim() || !notificationMessage.trim()) {
       toast({
         title: "Error",
@@ -154,36 +122,40 @@ export default function NotificationManagement() {
     setSending(true)
 
     try {
-      // Get account_no for selected users
+      // Get account numbers for selected users
       const selectedUserData = users.filter((user) => selectedUsers.includes(user.id))
 
-      const notifications = selectedUserData.map((user) => ({
+      // Create notifications for each selected user
+      const notificationsToInsert = selectedUserData.map((user) => ({
         account_no: user.account_no,
         title: notificationTitle,
         message: notificationMessage,
         type: notificationType,
+        is_read: false,
         created_at: new Date().toISOString(),
       }))
 
-      const { error } = await supabase.from("notifications").insert(notifications)
+      const { error } = await supabase.from("notifications").insert(notificationsToInsert)
 
       if (error) throw error
 
       toast({
         title: "Success",
-        description: `Notifications sent to ${selectedUsers.length} users`,
+        description: `Notification sent to ${selectedUsers.length} users`,
       })
 
       // Reset form
       setNotificationTitle("")
       setNotificationMessage("")
-      setNotificationType("info")
       setSelectedUsers([])
+
+      // Refresh notifications
+      fetchData()
     } catch (error) {
-      console.error("Error sending notifications:", error)
+      console.error("Error sending notification:", error)
       toast({
         title: "Error",
-        description: "Failed to send notifications",
+        description: "Failed to send notification",
         variant: "destructive",
       })
     } finally {
@@ -191,40 +163,32 @@ export default function NotificationManagement() {
     }
   }
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
+  const filteredUsers = users.filter(
+    (user) =>
       user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.account_no?.toLowerCase().includes(searchTerm.toLowerCase())
+      user.account_no?.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
 
-    return matchesSearch
-  })
-
-  const getTypeIcon = (type: string) => {
+  const getNotificationTypeColor = (type: string) => {
     switch (type) {
       case "success":
-        return <CheckCircle className="h-4 w-4 text-green-600" />
+        return "bg-green-100 text-green-800"
       case "warning":
-        return <AlertTriangle className="h-4 w-4 text-yellow-600" />
+        return "bg-yellow-100 text-yellow-800"
       case "error":
-        return <AlertTriangle className="h-4 w-4 text-red-600" />
+        return "bg-red-100 text-red-800"
       default:
-        return <Info className="h-4 w-4 text-blue-600" />
+        return "bg-blue-100 text-blue-800"
     }
-  }
-
-  const useTemplate = (template: NotificationTemplate) => {
-    setSelectedTemplate(template)
-    setNotificationTitle(template.title)
-    setNotificationMessage(template.message)
-    setNotificationType(template.type)
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+        <p className="ml-4 text-gray-600">Loading notifications...</p>
       </div>
     )
   }
@@ -233,30 +197,33 @@ export default function NotificationManagement() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Notification Management</h1>
-        <p className="text-gray-600">Send notifications to users and manage communication</p>
+        <p className="text-gray-600">Send notifications to users and view notification history</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Compose Notification */}
+        {/* Send Notification */}
         <Card>
           <CardHeader>
-            <CardTitle>Compose Notification</CardTitle>
-            <CardDescription>Create and send notifications to selected users</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Send Notification
+            </CardTitle>
+            <CardDescription>Send notifications to selected users</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Title</label>
+              <label className="text-sm font-medium">Title</label>
               <Input
-                placeholder="Enter notification title..."
+                placeholder="Notification title"
                 value={notificationTitle}
                 onChange={(e) => setNotificationTitle(e.target.value)}
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Message</label>
+              <label className="text-sm font-medium">Message</label>
               <Textarea
-                placeholder="Enter notification message..."
+                placeholder="Notification message"
                 value={notificationMessage}
                 onChange={(e) => setNotificationMessage(e.target.value)}
                 rows={4}
@@ -264,137 +231,117 @@ export default function NotificationManagement() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Type</label>
+              <label className="text-sm font-medium">Type</label>
               <Select value={notificationType} onValueChange={setNotificationType}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="info">
-                    <div className="flex items-center space-x-2">
-                      <Info className="h-4 w-4 text-blue-600" />
-                      <span>Information</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="success">
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span>Success</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="warning">
-                    <div className="flex items-center space-x-2">
-                      <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                      <span>Warning</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="error">
-                    <div className="flex items-center space-x-2">
-                      <AlertTriangle className="h-4 w-4 text-red-600" />
-                      <span>Error</span>
-                    </div>
-                  </SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                  <SelectItem value="success">Success</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="error">Error</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="flex items-center justify-between pt-4">
-              <Badge variant="secondary">{selectedUsers.length} users selected</Badge>
-              <Button onClick={sendNotifications} disabled={sending || selectedUsers.length === 0}>
-                <Send className="h-4 w-4 mr-2" />
-                {sending ? "Sending..." : "Send Notifications"}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">{selectedUsers.length} users selected</span>
+              <Button
+                onClick={sendNotification}
+                disabled={sending || selectedUsers.length === 0}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {sending ? "Sending..." : "Send Notification"}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Templates */}
+        {/* User Selection */}
         <Card>
           <CardHeader>
-            <CardTitle>Message Templates</CardTitle>
-            <CardDescription>Use pre-built templates for common notifications</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Select Recipients
+            </CardTitle>
+            <CardDescription>Choose users to receive the notification</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {templates.map((template) => (
-                <div key={template.id} className="border rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      {getTypeIcon(template.type)}
-                      <span className="font-medium text-sm">{template.title}</span>
-                    </div>
-                    <Button size="sm" variant="outline" onClick={() => useTemplate(template)}>
-                      Use Template
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-600 line-clamp-2">{template.message}</p>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search users..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
                 </div>
-              ))}
+                <Button variant="outline" size="sm" onClick={selectAllUsers}>
+                  Select All
+                </Button>
+                <Button variant="outline" size="sm" onClick={clearSelection}>
+                  Clear
+                </Button>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto space-y-2">
+                {filteredUsers.map((user) => (
+                  <div key={user.id} className="flex items-center space-x-2 p-2 border rounded">
+                    <Checkbox
+                      checked={selectedUsers.includes(user.id)}
+                      onCheckedChange={(checked) => handleUserSelection(user.id, checked as boolean)}
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        {user.first_name} {user.last_name}
+                      </p>
+                      <p className="text-xs text-gray-500">{user.email}</p>
+                      <p className="text-xs text-gray-400">Account: {user.account_no}</p>
+                    </div>
+                    <Badge variant={user.status === "active" ? "default" : "secondary"}>{user.status}</Badge>
+                  </div>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* User Selection */}
+      {/* Recent Notifications */}
       <Card>
         <CardHeader>
-          <CardTitle>Select Recipients</CardTitle>
-          <CardDescription>Choose which users will receive the notification</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Recent Notifications
+          </CardTitle>
+          <CardDescription>Recently sent notifications</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-4">
-            <Input
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-md"
-            />
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Users</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" onClick={selectAllUsers}>
-              <Users className="h-4 w-4 mr-2" />
-              {selectedUsers.length === filteredUsers.length ? "Deselect All" : "Select All"}
-            </Button>
-          </div>
-
-          {/* Users List */}
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {filteredUsers.map((user) => (
-              <div key={user.id} className="flex items-center space-x-3 p-3 border rounded-lg">
-                <Checkbox
-                  checked={selectedUsers.includes(user.id)}
-                  onCheckedChange={(checked) => handleUserSelection(user.id, checked as boolean)}
-                />
-                <div className="flex-1">
-                  <p className="font-medium">
-                    {user.first_name} {user.last_name}
-                  </p>
-                  <p className="text-sm text-gray-600">{user.email}</p>
-                  <p className="text-xs text-gray-500">Account: {user.account_no}</p>
+          <div className="space-y-4">
+            {notifications.length === 0 ? (
+              <p className="text-center text-gray-500 py-4">No notifications sent yet</p>
+            ) : (
+              notifications.map((notification) => (
+                <div key={notification.id} className="flex items-start justify-between p-4 border rounded-lg">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-medium">{notification.title}</h4>
+                      <Badge className={getNotificationTypeColor(notification.type)}>{notification.type}</Badge>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-2">{notification.message}</p>
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <span>Account: {notification.account_no}</span>
+                      <span>{new Date(notification.created_at).toLocaleString()}</span>
+                      <span>{notification.is_read ? "Read" : "Unread"}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex space-x-2">
-                  <Badge variant={user.status === "active" ? "default" : "secondary"}>{user.status}</Badge>
-                  <Badge variant="outline">KYC: {user.kyc_status}</Badge>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
-
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-gray-500">No users found matching your criteria.</p>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

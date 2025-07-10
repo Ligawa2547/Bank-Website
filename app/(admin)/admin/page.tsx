@@ -21,11 +21,12 @@ interface DashboardStats {
 interface RecentTransaction {
   id: string
   amount: number
-  type: string
+  transaction_type: string
   status: string
   created_at: string
-  sender_account: string
-  receiver_account: string
+  account_no: string
+  recipient_account_number: string
+  narration: string
 }
 
 export default function AdminDashboard() {
@@ -49,32 +50,62 @@ export default function AdminDashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
+      console.log("Fetching dashboard data...")
 
-      // Fetch dashboard statistics (the function now returns a single JSON object)
-      const { data: statsData, error: statsError } = await supabase.rpc("get_admin_dashboard_stats")
+      // Fetch dashboard statistics manually since the function might not exist
+      const [usersResult, transactionsResult] = await Promise.all([
+        supabase.from("users").select("*"),
+        supabase.from("transactions").select("*").order("created_at", { ascending: false }).limit(10),
+      ])
 
-      if (statsError) throw statsError
+      console.log("Users result:", usersResult)
+      console.log("Transactions result:", transactionsResult)
 
-      if (statsData) {
-        // statsData is a plain object with the correct fields
-        setStats(statsData as unknown as DashboardStats)
+      if (usersResult.error) {
+        console.error("Error fetching users:", usersResult.error)
+        throw usersResult.error
       }
 
-      // Fetch recent transactions
-      const { data: transactionsData, error: transactionsError } = await supabase
-        .from("transactions")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(10)
+      if (transactionsResult.error) {
+        console.error("Error fetching transactions:", transactionsResult.error)
+        throw transactionsResult.error
+      }
 
-      if (transactionsError) throw transactionsError
+      const users = usersResult.data || []
+      const transactions = transactionsResult.data || []
 
-      setRecentTransactions(transactionsData || [])
+      // Calculate stats manually
+      const today = new Date().toISOString().split("T")[0]
+      const todayTransactions = transactions.filter(
+        (t) => t.created_at?.startsWith(today) && t.status === "completed",
+      ).length
+
+      const failedTransactions = transactions.filter(
+        (t) => t.created_at?.startsWith(today) && t.status === "failed",
+      ).length
+
+      const totalBalance = users.reduce((sum, user) => {
+        const balance = Number.parseFloat(user.account_balance) || 0
+        return sum + balance
+      }, 0)
+
+      const calculatedStats: DashboardStats = {
+        totalUsers: users.length,
+        pendingKyc: users.filter((u) => u.kyc_status === "pending").length,
+        suspendedAccounts: users.filter((u) => u.status === "suspended").length,
+        totalBalance: totalBalance,
+        todayTransactions: todayTransactions,
+        failedTransactions: failedTransactions,
+      }
+
+      console.log("Calculated stats:", calculatedStats)
+      setStats(calculatedStats)
+      setRecentTransactions(transactions)
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
       toast({
         title: "Error",
-        description: "Failed to load dashboard data",
+        description: `Failed to load dashboard data: ${error.message}`,
         variant: "destructive",
       })
     } finally {
@@ -86,7 +117,7 @@ export default function AdminDashboard() {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-    }).format(amount)
+    }).format(amount || 0)
   }
 
   const getStatusBadge = (status: string) => {
@@ -106,6 +137,7 @@ export default function AdminDashboard() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+        <p className="ml-4 text-gray-600">Loading dashboard...</p>
       </div>
     )
   }
@@ -116,6 +148,16 @@ export default function AdminDashboard() {
         <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
         <p className="text-gray-600">Overview of your banking system</p>
       </div>
+
+      {/* Debug Info */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="pt-6">
+          <p className="text-sm text-blue-800">
+            <strong>System Status:</strong> Found {stats.totalUsers} users and {recentTransactions.length} recent
+            transactions
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -244,7 +286,7 @@ export default function AdminDashboard() {
                     <div>
                       <p className="font-medium">{formatCurrency(transaction.amount)}</p>
                       <p className="text-sm text-gray-500">
-                        {transaction.sender_account} → {transaction.receiver_account}
+                        {transaction.account_no} → {transaction.recipient_account_number || "N/A"}
                       </p>
                       <p className="text-xs text-gray-400">{new Date(transaction.created_at).toLocaleString()}</p>
                     </div>
@@ -252,7 +294,7 @@ export default function AdminDashboard() {
                   <div className="flex items-center space-x-2">
                     {getStatusBadge(transaction.status)}
                     <Badge variant="outline" className="text-xs">
-                      {transaction.type}
+                      {transaction.transaction_type}
                     </Badge>
                   </div>
                 </div>
