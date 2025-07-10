@@ -1,29 +1,27 @@
 import { redirect } from "next/navigation"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import type { Database } from "@/types/supabase" // adjust if your generated types live elsewhere
-import { ProfileClient } from "./profile-client" // client-side editor UI
+import { createClient } from "@/lib/supabase/server"
+import { ProfileClient } from "./profile-client"
 
-/* This page must run per-request so we can read auth cookies */
 export const dynamic = "force-dynamic"
 
-export default async function DashboardProfilePage() {
-  // 1️⃣  Get Supabase server client (works only in a Server Component)
-  const supabase = createServerComponentClient<Database>({ cookies })
+export default async function ProfilePage() {
+  const supabase = createClient()
 
-  // 2️⃣  Ensure the visitor is authenticated
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) redirect("/login")
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
 
-  // 3️⃣  Load the user’s profile row
-  const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", session.user.id).single()
-  if (error || !profile) {
-    // Handle missing profile gracefully
-    redirect("/dashboard") // or show an error component if you prefer
+  if (userError || !user) {
+    redirect("/login")
   }
 
-  // 4️⃣  Pass the data down to the client component for interactivity
-  return <ProfileClient profile={profile} />
+  // Fetch user profile data
+  const { data: profile, error: profileError } = await supabase.from("users").select("*").eq("id", user.id).single()
+
+  if (profileError) {
+    console.error("Error fetching profile:", profileError)
+  }
+
+  return <ProfileClient user={user} profile={profile} />
 }

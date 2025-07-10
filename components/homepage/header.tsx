@@ -23,39 +23,39 @@ export function HomepageHeader() {
             ) : (
               <Image
                 src="/images/iae-logo.png"
-                alt="I&E National Bank"
+                alt="I&E International Enterprise Bank Logo"
                 width={32}
                 height={32}
                 className="h-8 w-auto"
                 onError={() => setLogoError(true)}
               />
             )}
-            <span className="font-bold text-xl text-[#0A3D62]">I&E National Bank</span>
+            <span className="font-bold text-xl text-[#0A3D62]">I&E International Enterprise Bank</span>
           </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
             <Link href="#features" className="text-gray-600 hover:text-[#0A3D62] transition-colors">
-              Features
+              Banking Services
             </Link>
             <Link href="#savings" className="text-gray-600 hover:text-[#0A3D62] transition-colors">
-              Savings
+              Savings & Loans
             </Link>
             <Link href="#security" className="text-gray-600 hover:text-[#0A3D62] transition-colors">
               Security
             </Link>
             <Link href="#support" className="text-gray-600 hover:text-[#0A3D62] transition-colors">
-              Support
+              Customer Support
             </Link>
           </nav>
 
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center space-x-4">
             <Button variant="ghost" asChild>
-              <Link href="/login">Sign In</Link>
+              <Link href="/login">Online Banking Login</Link>
             </Button>
             <Button asChild className="bg-[#0A3D62] hover:bg-[#0F7AB3]">
-              <Link href="/signup">Get Started</Link>
+              <Link href="/signup">Open Account</Link>
             </Button>
           </div>
 
@@ -74,14 +74,14 @@ export function HomepageHeader() {
                 className="text-gray-600 hover:text-[#0A3D62] transition-colors px-2 py-1"
                 onClick={() => setIsMenuOpen(false)}
               >
-                Features
+                Banking Services
               </Link>
               <Link
                 href="#savings"
                 className="text-gray-600 hover:text-[#0A3D62] transition-colors px-2 py-1"
                 onClick={() => setIsMenuOpen(false)}
               >
-                Savings
+                Savings & Loans
               </Link>
               <Link
                 href="#security"
@@ -95,14 +95,14 @@ export function HomepageHeader() {
                 className="text-gray-600 hover:text-[#0A3D62] transition-colors px-2 py-1"
                 onClick={() => setIsMenuOpen(false)}
               >
-                Support
+                Customer Support
               </Link>
               <div className="flex flex-col space-y-2 pt-4 border-t">
                 <Button variant="ghost" asChild>
-                  <Link href="/login">Sign In</Link>
+                  <Link href="/login">Online Banking Login</Link>
                 </Button>
                 <Button asChild className="bg-[#0A3D62] hover:bg-[#0F7AB3]">
-                  <Link href="/signup">Get Started</Link>
+                  <Link href="/signup">Open Account</Link>
                 </Button>
               </div>
             </nav>

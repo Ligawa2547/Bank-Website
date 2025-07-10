@@ -22,70 +22,86 @@ export function HomepageFooter() {
               ) : (
                 <Image
                   src="/images/iae-logo.png"
-                  alt="I&E National Bank"
+                  alt="I&E International Enterprise Bank Logo"
                   width={32}
                   height={32}
                   className="h-8 w-auto"
                   onError={() => setLogoError(true)}
                 />
               )}
-              <span className="font-bold text-xl">I&E National Bank</span>
+              <span className="font-bold text-xl">I&E International Enterprise Bank</span>
             </Link>
             <p className="text-blue-200 text-sm">
-              Your trusted banking partner for modern financial solutions. Experience seamless banking with cutting-edge
-              technology and personalized service.
+              Your trusted banking partner for modern financial solutions. I&E International Enterprise Bank provides
+              cutting-edge digital banking technology with personalized customer service for all your financial needs.
             </p>
             <div className="flex space-x-4">
-              <a href="#" className="text-blue-200 hover:text-white transition-colors">
+              <a
+                href="https://facebook.com/iebank"
+                className="text-blue-200 hover:text-white transition-colors"
+                aria-label="Follow I&E Bank on Facebook"
+              >
                 <Facebook className="h-5 w-5" />
               </a>
-              <a href="#" className="text-blue-200 hover:text-white transition-colors">
+              <a
+                href="https://twitter.com/iebank"
+                className="text-blue-200 hover:text-white transition-colors"
+                aria-label="Follow I&E Bank on Twitter"
+              >
                 <Twitter className="h-5 w-5" />
               </a>
-              <a href="#" className="text-blue-200 hover:text-white transition-colors">
+              <a
+                href="https://linkedin.com/company/iebank"
+                className="text-blue-200 hover:text-white transition-colors"
+                aria-label="Follow I&E Bank on LinkedIn"
+              >
                 <Linkedin className="h-5 w-5" />
               </a>
-              <a href="#" className="text-blue-200 hover:text-white transition-colors">
+              <a
+                href="https://instagram.com/iebank"
+                className="text-blue-200 hover:text-white transition-colors"
+                aria-label="Follow I&E Bank on Instagram"
+              >
                 <Instagram className="h-5 w-5" />
               </a>
             </div>
           </div>
 
-          {/* Quick Links */}
+          {/* Banking Services */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-lg">Quick Links</h3>
+            <h3 className="font-semibold text-lg">Banking Services</h3>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/signup" className="text-blue-200 hover:text-white transition-colors">
-                  Open Account
+                  Open Savings Account
                 </Link>
               </li>
               <li>
                 <Link href="/login" className="text-blue-200 hover:text-white transition-colors">
-                  Online Banking
+                  Online Banking Login
                 </Link>
               </li>
               <li>
                 <Link href="#features" className="text-blue-200 hover:text-white transition-colors">
-                  Features
+                  Money Transfer Services
                 </Link>
               </li>
               <li>
                 <Link href="#savings" className="text-blue-200 hover:text-white transition-colors">
-                  Savings
+                  High-Yield Savings
                 </Link>
               </li>
               <li>
                 <Link href="#security" className="text-blue-200 hover:text-white transition-colors">
-                  Security
+                  Secure Banking
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Services */}
+          {/* Financial Services */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-lg">Services</h3>
+            <h3 className="font-semibold text-lg">Financial Services</h3>
             <ul className="space-y-2 text-sm">
               <li>
                 <span className="text-blue-200">Personal Banking</span>
@@ -100,18 +116,18 @@ export function HomepageFooter() {
                 <span className="text-blue-200">Investment Services</span>
               </li>
               <li>
-                <span className="text-blue-200">Mobile Banking</span>
+                <span className="text-blue-200">Mobile Banking App</span>
               </li>
             </ul>
           </div>
 
-          {/* Contact Info */}
+          {/* Contact I&E Bank */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-lg">Contact Us</h3>
+            <h3 className="font-semibold text-lg">Contact I&E Bank</h3>
             <div className="space-y-3 text-sm">
               <div className="flex items-center space-x-2">
                 <Phone className="h-4 w-4 text-blue-200" />
-                <span className="text-blue-200">1-800-IEBANK</span>
+                <span className="text-blue-200">1-800-IEBANK (1-800-432-2265)</span>
               </div>
               <div className="flex items-center space-x-2">
                 <Mail className="h-4 w-4 text-blue-200" />
@@ -120,6 +136,8 @@ export function HomepageFooter() {
               <div className="flex items-start space-x-2">
                 <MapPin className="h-4 w-4 text-blue-200 mt-0.5" />
                 <span className="text-blue-200">
+                  I&E International Enterprise Bank
+                  <br />
                   123 Banking Street
                   <br />
                   Financial District
@@ -134,7 +152,9 @@ export function HomepageFooter() {
         {/* Bottom Section */}
         <div className="border-t border-blue-800 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="text-sm text-blue-200">© 2024 I&E National Bank. All rights reserved.</div>
+            <div className="text-sm text-blue-200">
+              © 2024 I&E International Enterprise Bank. All rights reserved. Member FDIC.
+            </div>
             <div className="flex space-x-6 text-sm">
               <Link href="/privacy" className="text-blue-200 hover:text-white transition-colors">
                 Privacy Policy
@@ -144,6 +164,9 @@ export function HomepageFooter() {
               </Link>
               <Link href="/accessibility" className="text-blue-200 hover:text-white transition-colors">
                 Accessibility
+              </Link>
+              <Link href="/sitemap" className="text-blue-200 hover:text-white transition-colors">
+                Sitemap
               </Link>
             </div>
           </div>
