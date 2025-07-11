@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { PiggyBank, Plus, Trash2, Lock, Unlock, AlertCircle } from "lucide-react"
+import { PiggyBank, Plus, Trash2, Lock, Unlock, AlertCircle, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -51,7 +51,10 @@ export default function SavingsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   useEffect(() => {
-    if (!user || !profile) return
+    if (!user || !profile) {
+      setIsLoading(false)
+      return
+    }
 
     const fetchSavingsAccounts = async () => {
       setIsLoading(true)
@@ -432,15 +435,40 @@ export default function SavingsPage() {
     }).format(amount)
   }
 
+  if (!user || !profile) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0A3D62] border-t-transparent"></div>
+          <span className="text-lg text-gray-600">Loading savings...</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Savings Goals</h1>
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Savings Goals</h1>
+          <p className="text-gray-600 mt-1">Build your future with smart savings goals</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-green-600" />
+          <span className="text-sm text-gray-600">
+            Total Saved:{" "}
+            <span className="font-semibold text-green-600">
+              {formatCurrency(savingsAccounts.reduce((sum, account) => sum + account.current_amount, 0))}
+            </span>
+          </span>
+        </div>
+      </div>
 
       {profile && profile.kyc_status !== "approved" && (
-        <div className="mb-6 rounded-md border border-yellow-200 bg-yellow-50 p-4">
+        <div className="mb-6 rounded-xl border border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <AlertCircle className="h-5 w-5 text-yellow-400" />
+              <AlertCircle className="h-5 w-5 text-yellow-600" />
             </div>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-yellow-800">Limited Savings Features</h3>
@@ -461,21 +489,24 @@ export default function SavingsPage() {
         {/* Create New Savings Goal Card */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Card className="border-dashed cursor-pointer hover:bg-gray-50 transition-colors">
-              <CardContent className="flex flex-col items-center justify-center h-full py-8">
-                <div className="rounded-full bg-blue-100 p-3 mb-4">
-                  <Plus className="h-6 w-6 text-[#0A3D62]" />
+            <Card className="border-2 border-dashed border-gray-300 cursor-pointer hover:border-[#0A3D62] hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 group">
+              <CardContent className="flex flex-col items-center justify-center h-full py-12">
+                <div className="rounded-full bg-gradient-to-r from-[#0A3D62] to-[#0F5585] p-4 mb-4 group-hover:scale-110 transition-transform duration-200">
+                  <Plus className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="text-lg font-medium">Create New Savings Goal</h3>
-                <p className="text-sm text-gray-500 text-center mt-2">
-                  Set up a new savings goal and start saving towards your dreams
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Create New Goal</h3>
+                <p className="text-sm text-gray-500 text-center leading-relaxed">
+                  Set up a new savings goal and start building your financial future
                 </p>
               </CardContent>
             </Card>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Create New Savings Goal</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <PiggyBank className="h-5 w-5 text-[#0A3D62]" />
+                Create New Savings Goal
+              </DialogTitle>
               <DialogDescription>Set a target amount and start saving towards your goal.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateSavingsAccount}>
@@ -495,7 +526,7 @@ export default function SavingsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="targetAmount">Target Amount</Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5">$</span>
+                    <span className="absolute left-3 top-2.5 text-gray-500">$</span>
                     <Input
                       id="targetAmount"
                       name="targetAmount"
@@ -513,7 +544,7 @@ export default function SavingsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="initialDeposit">Initial Deposit (Optional)</Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5">$</span>
+                    <span className="absolute left-3 top-2.5 text-gray-500">$</span>
                     <Input
                       id="initialDeposit"
                       name="initialDeposit"
@@ -545,7 +576,14 @@ export default function SavingsPage() {
                   className="bg-[#0A3D62] hover:bg-[#0F5585] w-full sm:w-auto"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? "Creating..." : "Create Savings Goal"}
+                  {isSubmitting ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      Creating...
+                    </div>
+                  ) : (
+                    "Create Goal"
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -554,24 +592,39 @@ export default function SavingsPage() {
 
         {/* Savings Goals Cards */}
         {isLoading ? (
-          <div className="col-span-full flex items-center justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
+          <div className="col-span-full flex items-center justify-center py-16">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0A3D62] border-t-transparent"></div>
+              <span>Loading your savings goals...</span>
+            </div>
           </div>
         ) : savingsAccounts.length > 0 ? (
           savingsAccounts.map((account) => (
-            <Card key={account.id} className="overflow-hidden">
-              <CardHeader className="pb-2">
+            <Card
+              key={account.id}
+              className="border-0 shadow-lg hover:shadow-xl transition-all duration-200 overflow-hidden"
+            >
+              <CardHeader className="pb-3 bg-gradient-to-r from-gray-50 to-gray-100">
                 <div className="flex justify-between items-start">
-                  <CardTitle>{account.name}</CardTitle>
+                  <div className="flex-1">
+                    <CardTitle className="text-lg font-semibold text-gray-900 mb-1">{account.name}</CardTitle>
+                    <CardDescription className="text-sm">
+                      Target: {formatCurrency(account.target_amount)}
+                    </CardDescription>
+                  </div>
                   <div className="flex gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-8 w-8 hover:bg-white/50"
                       onClick={() => handleToggleLock(account)}
                       title={account.is_locked ? "Unlock" : "Lock"}
                     >
-                      {account.is_locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                      {account.is_locked ? (
+                        <Lock className="h-4 w-4 text-gray-600" />
+                      ) : (
+                        <Unlock className="h-4 w-4 text-gray-600" />
+                      )}
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -590,7 +643,7 @@ export default function SavingsPage() {
                           <AlertDialogDescription>
                             Are you sure you want to delete this savings goal?
                             {account.current_amount > 0 && (
-                              <span className="block mt-2 font-medium">
+                              <span className="block mt-2 font-medium text-green-600">
                                 The current balance of {formatCurrency(account.current_amount)} will be returned to your
                                 main account.
                               </span>
@@ -610,32 +663,47 @@ export default function SavingsPage() {
                     </AlertDialog>
                   </div>
                 </div>
-                <CardDescription>Target: {formatCurrency(account.target_amount)}</CardDescription>
               </CardHeader>
-              <CardContent className="pb-2">
-                <div className="space-y-2">
+              <CardContent className="pb-3">
+                <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span>Progress</span>
-                    <span>
+                    <span className="text-gray-600">Progress</span>
+                    <span className="font-medium">
                       {formatCurrency(account.current_amount)} of {formatCurrency(account.target_amount)}
                     </span>
                   </div>
-                  <Progress value={(account.current_amount / account.target_amount) * 100} className="h-2" />
-                  <div className="text-right text-xs text-gray-500">
-                    {Math.round((account.current_amount / account.target_amount) * 100)}% complete
+                  <Progress
+                    value={(account.current_amount / account.target_amount) * 100}
+                    className="h-3 bg-gray-200"
+                  />
+                  <div className="flex justify-between items-center">
+                    <div className="text-xs text-gray-500">
+                      {Math.round((account.current_amount / account.target_amount) * 100)}% complete
+                    </div>
+                    {account.current_amount >= account.target_amount && (
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium">
+                        🎉 Goal Reached!
+                      </span>
+                    )}
                   </div>
                 </div>
               </CardContent>
-              <CardFooter>
+              <CardFooter className="pt-0">
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button className="w-full bg-[#0A3D62] hover:bg-[#0F5585]" disabled={account.is_locked}>
-                      Add Money
+                    <Button
+                      className="w-full bg-[#0A3D62] hover:bg-[#0F5585] transition-colors"
+                      disabled={account.is_locked}
+                    >
+                      {account.is_locked ? "Account Locked" : "Add Money"}
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Add Money to {account.name}</DialogTitle>
+                      <DialogTitle className="flex items-center gap-2">
+                        <PiggyBank className="h-5 w-5 text-[#0A3D62]" />
+                        Add Money to {account.name}
+                      </DialogTitle>
                       <DialogDescription>Add funds to your savings goal.</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleDeposit}>
@@ -643,7 +711,7 @@ export default function SavingsPage() {
                         <div className="space-y-2">
                           <Label htmlFor="depositAmount">Amount</Label>
                           <div className="relative">
-                            <span className="absolute left-3 top-2.5">$</span>
+                            <span className="absolute left-3 top-2.5 text-gray-500">$</span>
                             <Input
                               id="depositAmount"
                               type="number"
@@ -667,8 +735,8 @@ export default function SavingsPage() {
                         </div>
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
-                            <span>Current Progress</span>
-                            <span>
+                            <span className="text-gray-600">Current Progress</span>
+                            <span className="font-medium">
                               {formatCurrency(account.current_amount)} of {formatCurrency(account.target_amount)}
                             </span>
                           </div>
@@ -677,7 +745,14 @@ export default function SavingsPage() {
                       </div>
                       <DialogFooter>
                         <Button type="submit" className="bg-[#0A3D62] hover:bg-[#0F5585]" disabled={isSubmitting}>
-                          {isSubmitting ? "Processing..." : "Add Money"}
+                          {isSubmitting ? (
+                            <div className="flex items-center gap-2">
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                              Processing...
+                            </div>
+                          ) : (
+                            "Add Money"
+                          )}
                         </Button>
                       </DialogFooter>
                     </form>
@@ -687,11 +762,14 @@ export default function SavingsPage() {
             </Card>
           ))
         ) : (
-          <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
-            <PiggyBank className="h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium">No Savings Goals Yet</h3>
-            <p className="text-sm text-gray-500 max-w-md mt-2">
-              Start saving for your future by creating your first savings goal.
+          <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+            <div className="rounded-full bg-gradient-to-r from-blue-100 to-indigo-100 p-6 mb-6">
+              <PiggyBank className="h-16 w-16 text-[#0A3D62]" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-3">No Savings Goals Yet</h3>
+            <p className="text-gray-500 max-w-md leading-relaxed">
+              Start building your financial future by creating your first savings goal. Set targets and watch your money
+              grow!
             </p>
           </div>
         )}

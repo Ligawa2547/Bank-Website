@@ -8,8 +8,8 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "IAE Banking - Your Trusted Financial Partner",
-  description: "Modern banking solutions with secure transactions, loans, and financial services.",
+  title: "I&E Bank - Your Trusted Banking Partner",
+  description: "Experience modern banking with I&E Bank. Secure, reliable, and innovative financial services.",
     generator: 'v0.dev'
 }
 

@@ -1,340 +1,324 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-provider"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import {
-  Eye,
-  EyeOff,
-  CreditCard,
-  Send,
-  History,
-  FileText,
-  Shield,
-  User,
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  DollarSign,
-} from "lucide-react"
+import { Eye, EyeOff, ArrowUpRight, ArrowDownLeft, CreditCard, PiggyBank, Bell, Activity, Users } from "lucide-react"
+import Link from "next/link"
 
-interface UserData {
-  id: string
-  email: string
-  first_name: string
-  last_name: string
-  phone_number: string
-  city: string
-  country: string
-  account_no: string
-  account_balance: number
-  status: string
-  email_verified: boolean
-  phone_verified: boolean
-  kyc_status: string
-  created_at: string
-  updated_at: string
+interface DashboardStats {
+  totalBalance: number
+  totalTransactions: number
+  totalSavings: number
+  unreadNotifications: number
+  recentTransactions: Array<{
+    id: string
+    amount: number
+    type: string
+    description: string
+    created_at: string
+  }>
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth()
-  const [userData, setUserData] = useState<UserData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { user, profile } = useAuth()
   const [showBalance, setShowBalance] = useState(false)
+  const [stats, setStats] = useState<DashboardStats>({
+    totalBalance: 0,
+    totalTransactions: 0,
+    totalSavings: 0,
+    unreadNotifications: 0,
+    recentTransactions: [],
+  })
+  const [isLoading, setIsLoading] = useState(true)
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) return
+    if (!user || !profile) return
 
+    const fetchDashboardData = async () => {
+      setIsLoading(true)
       try {
-        const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single()
+        // Fetch recent transactions
+        const { data: transactions } = await supabase
+          .from("transactions")
+          .select("*")
+          .or(
+            `sender_account_number.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number},account_no.eq.${profile.account_number}`,
+          )
+          .order("created_at", { ascending: false })
+          .limit(5)
 
-        if (error) {
-          console.error("Error fetching user data:", error)
-          setError("Failed to load user data")
-          return
-        }
+        // Fetch savings accounts
+        const { data: savings } = await supabase
+          .from("savings_accounts")
+          .select("current_amount")
+          .eq("account_no", profile.account_number)
 
-        setUserData(data)
-      } catch (err: any) {
-        console.error("Error fetching user data:", err)
-        setError("An unexpected error occurred")
+        // Fetch unread notifications
+        const { data: notifications } = await supabase
+          .from("notifications")
+          .select("id")
+          .eq("account_no", profile.account_number)
+          .eq("is_read", false)
+
+        const totalSavings = savings?.reduce((sum, account) => sum + account.current_amount, 0) || 0
+        const totalTransactions = transactions?.length || 0
+        const unreadNotifications = notifications?.length || 0
+
+        setStats({
+          totalBalance: profile.balance || 0,
+          totalTransactions,
+          totalSavings,
+          unreadNotifications,
+          recentTransactions: transactions || [],
+        })
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error)
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
 
-    fetchUserData()
-  }, [user, supabase])
+    fetchDashboardData()
+  }, [user, profile, supabase])
 
-  if (loading) {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount)
+  }
+
+  const formatAccountNumber = (accountNumber: string) => {
+    return accountNumber.replace(/(\d{4})(\d{4})(\d{4})/, "$1 $2 $3")
+  }
+
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return "Good morning"
+    if (hour < 17) return "Good afternoon"
+    return "Good evening"
+  }
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex items-center gap-2">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-          <span className="text-lg">Loading your dashboard...</span>
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0A3D62] border-t-transparent"></div>
+          <span className="text-lg text-gray-600">Loading your dashboard...</span>
         </div>
       </div>
     )
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive" className="max-w-md mx-auto mt-8">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (!userData) {
-    return (
-      <Alert className="max-w-md mx-auto mt-8">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>No Data Found</AlertTitle>
-        <AlertDescription>Your account data is being set up. Please try refreshing the page.</AlertDescription>
-      </Alert>
-    )
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800"
-      case "pending":
-        return "bg-yellow-100 text-yellow-800"
-      case "suspended":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
-
-  const getKycStatusColor = (status: string) => {
-    switch (status) {
-      case "approved":
-        return "bg-green-100 text-green-800"
-      case "pending":
-        return "bg-yellow-100 text-yellow-800"
-      case "rejected":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
-
-  const formatAccountNumber = (accountNo: string) => {
-    // Format 12-digit account number with spaces for readability
-    return accountNo.replace(/(\d{4})(\d{4})(\d{4})/, "$1 $2 $3")
-  }
-
-  const accountAge = Math.floor((Date.now() - new Date(userData.created_at).getTime()) / (1000 * 60 * 60 * 24))
-
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 rounded-lg">
-        <h1 className="text-3xl font-bold mb-2">Welcome back, {userData.first_name || "Valued Customer"}!</h1>
-        <p className="text-blue-100">Here's your account overview for today</p>
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-r from-[#0A3D62] to-[#0F5585] rounded-2xl p-6 sm:p-8 text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-4 sm:mb-0">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+              {getGreeting()}, {profile?.first_name}! 👋
+            </h1>
+            <p className="text-blue-100 text-sm sm:text-base">Welcome back to your I&E Bank dashboard</p>
+          </div>
+          <div className="text-right">
+            <p className="text-blue-100 text-sm mb-1">Account Number</p>
+            <p className="font-mono text-lg font-semibold">
+              {profile?.account_number ? formatAccountNumber(profile.account_number) : "Loading..."}
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Account Alerts */}
-      {!userData.email_verified && (
-        <Alert className="bg-yellow-50 border-yellow-200">
-          <AlertCircle className="h-4 w-4 text-yellow-600" />
-          <AlertTitle className="text-yellow-800">Email Verification Required</AlertTitle>
-          <AlertDescription className="text-yellow-700">
-            Please check your email and click the verification link to secure your account.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {userData.kyc_status === "not_submitted" && (
-        <Alert className="bg-blue-50 border-blue-200">
-          <Shield className="h-4 w-4 text-blue-600" />
-          <AlertTitle className="text-blue-800">Complete Your KYC Verification</AlertTitle>
-          <AlertDescription className="text-blue-700">
-            Submit your identity documents to unlock all banking features and increase your transaction limits.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Account Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Account Balance */}
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-800">Account Balance</CardTitle>
+      {/* Account Balance Card */}
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-semibold text-gray-900">Account Balance</CardTitle>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setShowBalance(!showBalance)}
-              className="h-8 w-8 text-green-600 hover:bg-green-200"
+              className="h-8 w-8 text-gray-500 hover:text-gray-700"
             >
               {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-900">
-              {showBalance ? `$${userData.account_balance.toLocaleString()}` : "••••••"}
-            </div>
-            <p className="text-xs text-green-700 mt-1">Available balance</p>
-          </CardContent>
-        </Card>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-3xl sm:text-4xl font-bold text-[#0A3D62] mb-2">
+            {showBalance ? formatCurrency(stats.totalBalance) : "••••••"}
+          </div>
+          <p className="text-gray-600 text-sm">Available Balance</p>
+        </CardContent>
+      </Card>
 
-        {/* Account Number */}
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-800">Account Number</CardTitle>
-            <CreditCard className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-mono font-bold text-blue-900">{formatAccountNumber(userData.account_no)}</div>
-            <p className="text-xs text-blue-700 mt-1">Your unique account identifier</p>
-          </CardContent>
-        </Card>
-
-        {/* Account Status */}
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-purple-800">Account Status</CardTitle>
-            <Shield className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <Badge className={`${getStatusColor(userData.status)} mb-2`}>
-              {userData.status.charAt(0).toUpperCase() + userData.status.slice(1)}
-            </Badge>
-            <p className="text-xs text-purple-700">Account opened {accountAge} days ago</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Personal Information & Verification Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Personal Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Personal Information
-            </CardTitle>
-            <CardDescription>Your account details and contact information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Full Name</p>
-                <p className="text-base font-semibold">
-                  {userData.first_name} {userData.last_name}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Email</p>
-                <p className="text-base">{userData.email}</p>
-              </div>
-            </div>
-
-            {userData.phone_number && (
-              <div>
-                <p className="text-sm font-medium text-gray-500">Phone Number</p>
-                <p className="text-base">{userData.phone_number}</p>
-              </div>
-            )}
-
-            {(userData.city || userData.country) && (
-              <div>
-                <p className="text-sm font-medium text-gray-500">Location</p>
-                <p className="text-base">{[userData.city, userData.country].filter(Boolean).join(", ")}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Verification Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Security & Verification
-            </CardTitle>
-            <CardDescription>Your account security status</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Email Verification</span>
-              <div className="flex items-center gap-2">
-                {userData.email_verified ? (
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                ) : (
-                  <Clock className="h-4 w-4 text-yellow-600" />
-                )}
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Savings</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.totalSavings)}</p>
+              </div>
+              <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
+                <PiggyBank className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Transactions</p>
+                <p className="text-2xl font-bold text-blue-600">{stats.totalTransactions}</p>
+              </div>
+              <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <Activity className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Notifications</p>
+                <p className="text-2xl font-bold text-orange-600">{stats.unreadNotifications}</p>
+              </div>
+              <div className="h-12 w-12 bg-orange-100 rounded-full flex items-center justify-center">
+                <Bell className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">KYC Status</p>
                 <Badge
-                  className={userData.email_verified ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}
+                  variant={profile?.kyc_status === "approved" ? "default" : "secondary"}
+                  className={
+                    profile?.kyc_status === "approved"
+                      ? "bg-green-100 text-green-800"
+                      : profile?.kyc_status === "pending"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-red-100 text-red-800"
+                  }
                 >
-                  {userData.email_verified ? "Verified" : "Pending"}
+                  {profile?.kyc_status === "approved"
+                    ? "Verified"
+                    : profile?.kyc_status === "pending"
+                      ? "Pending"
+                      : "Not Verified"}
                 </Badge>
               </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Phone Verification</span>
-              <div className="flex items-center gap-2">
-                {userData.phone_verified ? (
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                ) : (
-                  <Clock className="h-4 w-4 text-gray-400" />
-                )}
-                <Badge
-                  className={userData.phone_verified ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}
-                >
-                  {userData.phone_verified ? "Verified" : "Not Verified"}
-                </Badge>
+              <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
+                <Users className="h-6 w-6 text-purple-600" />
               </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">KYC Status</span>
-              <Badge className={getKycStatusColor(userData.kyc_status)}>
-                {userData.kyc_status.replace("_", " ").charAt(0).toUpperCase() +
-                  userData.kyc_status.replace("_", " ").slice(1)}
-              </Badge>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Quick Actions */}
-      <Card>
+      <Card className="border-0 shadow-lg">
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common banking tasks and services</CardDescription>
+          <CardTitle className="text-xl font-semibold">Quick Actions</CardTitle>
+          <CardDescription>Frequently used banking services</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-              <Send className="h-6 w-6" />
-              <span className="text-sm">Send Money</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Button asChild className="h-20 flex-col bg-[#0A3D62] hover:bg-[#0F5585]">
+              <Link href="/dashboard/transfers">
+                <ArrowUpRight className="h-6 w-6 mb-2" />
+                <span className="text-sm">Send Money</span>
+              </Link>
             </Button>
-            <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-              <History className="h-6 w-6" />
-              <span className="text-sm">Transactions</span>
+            <Button asChild variant="outline" className="h-20 flex-col border-2 hover:bg-gray-50 bg-transparent">
+              <Link href="/dashboard/savings">
+                <PiggyBank className="h-6 w-6 mb-2" />
+                <span className="text-sm">Save Money</span>
+              </Link>
             </Button>
-            <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-              <DollarSign className="h-6 w-6" />
-              <span className="text-sm">Apply for Loan</span>
+            <Button asChild variant="outline" className="h-20 flex-col border-2 hover:bg-gray-50 bg-transparent">
+              <Link href="/dashboard/loans">
+                <CreditCard className="h-6 w-6 mb-2" />
+                <span className="text-sm">Get Loan</span>
+              </Link>
             </Button>
-            <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-              <FileText className="h-6 w-6" />
-              <span className="text-sm">KYC Documents</span>
+            <Button asChild variant="outline" className="h-20 flex-col border-2 hover:bg-gray-50 bg-transparent">
+              <Link href="/dashboard/transactions">
+                <Activity className="h-6 w-6 mb-2" />
+                <span className="text-sm">View History</span>
+              </Link>
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Transactions */}
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-xl font-semibold">Recent Activity</CardTitle>
+            <CardDescription>Your latest transactions</CardDescription>
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/transactions">View All</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {stats.recentTransactions.length > 0 ? (
+            <div className="space-y-4">
+              {stats.recentTransactions.map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      {transaction.type === "deposit" || transaction.type === "transfer_in" ? (
+                        <ArrowDownLeft className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <ArrowUpRight className="h-5 w-5 text-red-600" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{transaction.description}</p>
+                      <p className="text-sm text-gray-500">{new Date(transaction.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p
+                      className={`font-semibold ${
+                        transaction.type === "deposit" || transaction.type === "transfer_in"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {transaction.type === "deposit" || transaction.type === "transfer_in" ? "+" : "-"}
+                      {formatCurrency(Math.abs(transaction.amount))}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No recent transactions</p>
+              <p className="text-sm">Your transaction history will appear here</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

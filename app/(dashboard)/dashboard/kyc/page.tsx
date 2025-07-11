@@ -145,14 +145,6 @@ export default function KYCPage() {
     return null
   }
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-  }
-
   const handleFileUpload = async (documentType: string, file: File) => {
     if (!user) return
 
@@ -436,17 +428,17 @@ export default function KYCPage() {
         return (
           <Card className="border-green-200 bg-green-50">
             <CardContent className="pt-6">
-              <div className="flex items-center justify-center space-x-4">
+              <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
                 <div className="flex items-center justify-center w-16 h-16 bg-green-100 rounded-full">
                   <Award className="h-8 w-8 text-green-600" />
                 </div>
-                <div className="text-center">
+                <div className="text-center sm:text-left">
                   <h3 className="text-xl font-semibold text-green-800 mb-2">KYC Verification Approved!</h3>
                   <p className="text-green-700 mb-4">
                     Congratulations! Your identity has been successfully verified. You now have full access to all
                     banking features.
                   </p>
-                  <div className="flex items-center justify-center space-x-2 text-sm text-green-600">
+                  <div className="flex items-center justify-center sm:justify-start space-x-2 text-sm text-green-600">
                     <Shield className="h-4 w-4" />
                     <span>Your account is fully verified and secure</span>
                   </div>
@@ -460,17 +452,17 @@ export default function KYCPage() {
         return (
           <Card className="border-yellow-200 bg-yellow-50">
             <CardContent className="pt-6">
-              <div className="flex items-center justify-center space-x-4">
+              <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
                 <div className="flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full">
                   <Clock className="h-8 w-8 text-yellow-600" />
                 </div>
-                <div className="text-center">
+                <div className="text-center sm:text-left">
                   <h3 className="text-xl font-semibold text-yellow-800 mb-2">KYC Under Review</h3>
                   <p className="text-yellow-700 mb-4">
                     Your KYC verification is currently being reviewed by our team. This process typically takes 1-3
                     business days.
                   </p>
-                  <div className="flex items-center justify-center space-x-2 text-sm text-yellow-600">
+                  <div className="flex items-center justify-center sm:justify-start space-x-2 text-sm text-yellow-600">
                     <FileCheck className="h-4 w-4" />
                     <span>We'll notify you once the review is complete</span>
                   </div>
@@ -484,17 +476,17 @@ export default function KYCPage() {
         return (
           <Card className="border-red-200 bg-red-50">
             <CardContent className="pt-6">
-              <div className="flex items-center justify-center space-x-4">
+              <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
                 <div className="flex items-center justify-center w-16 h-16 bg-red-100 rounded-full">
                   <XCircle className="h-8 w-8 text-red-600" />
                 </div>
-                <div className="text-center">
+                <div className="text-center sm:text-left">
                   <h3 className="text-xl font-semibold text-red-800 mb-2">KYC Verification Rejected</h3>
                   <p className="text-red-700 mb-4">
                     Your KYC verification was rejected. Please review the feedback below and resubmit your documents
                     with the required corrections.
                   </p>
-                  <div className="flex items-center justify-center space-x-2 text-sm text-red-600">
+                  <div className="flex items-center justify-center sm:justify-start space-x-2 text-sm text-red-600">
                     <AlertCircle className="h-4 w-4" />
                     <span>You can upload new documents to resubmit your verification</span>
                   </div>
@@ -519,7 +511,7 @@ export default function KYCPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">KYC Verification</h1>
           <p className="text-gray-600">Complete your identity verification to unlock all features</p>
@@ -544,7 +536,7 @@ export default function KYCPage() {
       )}
 
       <Tabs defaultValue="documents" className="space-y-6">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="status">Status</TabsTrigger>
         </TabsList>
@@ -587,7 +579,7 @@ export default function KYCPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-blue-50 rounded-lg gap-4">
                       <div>
                         <p className="font-medium">KYC Verification Fee</p>
                         <p className="text-sm text-gray-600">One-time identity verification charge</p>
@@ -625,13 +617,13 @@ export default function KYCPage() {
                     {uploadedDoc ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <File className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm font-medium truncate max-w-[150px]" title={uploadedDoc.file_name}>
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <File className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                            <span className="text-sm font-medium truncate" title={uploadedDoc.file_name}>
                               {uploadedDoc.file_name}
                             </span>
                           </div>
-                          <Badge className={getStatusColor(uploadedDoc.status)}>
+                          <Badge className={`${getStatusColor(uploadedDoc.status)} ml-2 flex-shrink-0`}>
                             {getStatusIcon(uploadedDoc.status)}
                             <span className="ml-1 capitalize">{uploadedDoc.status}</span>
                           </Badge>
@@ -643,7 +635,7 @@ export default function KYCPage() {
                           </div>
                         )}
 
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                           <p className="text-xs text-gray-500">
                             Uploaded: {new Date(uploadedDoc.uploaded_at).toLocaleDateString()}
                           </p>
@@ -817,12 +809,15 @@ export default function KYCPage() {
                   documents.map((doc) => {
                     const docType = DOCUMENT_TYPES.find((type) => type.id === doc.document_type)
                     return (
-                      <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          {docType && <docType.icon className="h-4 w-4" />}
-                          <div>
+                      <div
+                        key={doc.id}
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg gap-4"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {docType && <docType.icon className="h-4 w-4 flex-shrink-0" />}
+                          <div className="min-w-0 flex-1">
                             <p className="font-medium">{docType?.name || doc.document_type}</p>
-                            <p className="text-sm text-gray-600">{doc.file_name}</p>
+                            <p className="text-sm text-gray-600 truncate">{doc.file_name}</p>
                             <p className="text-xs text-gray-500">
                               Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}
                             </p>
@@ -831,7 +826,7 @@ export default function KYCPage() {
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge className={getStatusColor(doc.status)}>
                             {getStatusIcon(doc.status)}
                             <span className="ml-1 capitalize">{doc.status}</span>

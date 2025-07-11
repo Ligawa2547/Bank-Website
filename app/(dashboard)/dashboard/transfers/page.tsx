@@ -9,18 +9,19 @@ import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useAuth } from "@/lib/auth-provider"
-import { ArrowUpDown, Send, Clock, CheckCircle, XCircle } from "lucide-react"
+import { ArrowUpDown, Send, Clock, CheckCircle, XCircle, DollarSign, Eye, EyeOff } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 interface Transaction {
   id: string
   amount: number
-  description: string
+  narration: string
   transaction_type: string
   status: string
   created_at: string
   recipient_name?: string
   sender_name?: string
+  reference: string
 }
 
 const TransfersPage = () => {
@@ -31,24 +32,25 @@ const TransfersPage = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [recentTransfers, setRecentTransfers] = useState<Transaction[]>([])
   const [isLoadingTransfers, setIsLoadingTransfers] = useState(true)
+  const [showBalance, setShowBalance] = useState(false)
 
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    if (user) {
+    if (user && profile) {
       fetchRecentTransfers()
     }
-  }, [user])
+  }, [user, profile])
 
   const fetchRecentTransfers = async () => {
-    if (!user) return
+    if (!user || !profile) return
 
     setIsLoadingTransfers(true)
     try {
       const { data, error } = await supabase
         .from("transactions")
         .select("*")
-        .eq("user_id", user.id)
+        .or(`sender_account_number.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number}`)
         .in("transaction_type", ["transfer_out", "transfer_in"])
         .order("created_at", { ascending: false })
         .limit(10)
@@ -107,36 +109,18 @@ const TransfersPage = () => {
       return
     }
 
+    if (transferAmount > profile.balance) {
+      toast({
+        title: "Insufficient Funds",
+        description: `Your current balance is $${profile.balance.toFixed(2)}. You cannot transfer $${transferAmount.toFixed(2)}.`,
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      // Check sender's balance using account_balance column
-      const { data: senderData, error: senderError } = await supabase
-        .from("users")
-        .select("account_balance, first_name, last_name")
-        .eq("id", user.id)
-        .single()
-
-      if (senderError) {
-        console.error("Error fetching sender data:", senderError)
-        throw new Error("Failed to verify sender balance.")
-      }
-
-      if (!senderData) {
-        throw new Error("Sender account not found.")
-      }
-
-      const currentBalance = Number.parseFloat(senderData.account_balance?.toString() || "0")
-
-      if (currentBalance < transferAmount) {
-        toast({
-          title: "Insufficient Funds",
-          description: `Your current balance is $${currentBalance.toFixed(2)}. You cannot transfer $${transferAmount.toFixed(2)}.`,
-          variant: "destructive",
-        })
-        return
-      }
-
       // Find recipient by account number
       const { data: recipientData, error: recipientError } = await supabase
         .from("users")
@@ -154,7 +138,7 @@ const TransfersPage = () => {
       }
 
       const recipientBalance = Number.parseFloat(recipientData.account_balance?.toString() || "0")
-      const newSenderBalance = currentBalance - transferAmount
+      const newSenderBalance = profile.balance - transferAmount
       const newRecipientBalance = recipientBalance + transferAmount
 
       // Update sender's balance
@@ -183,19 +167,23 @@ const TransfersPage = () => {
       if (recipientUpdateError) {
         console.error("Error updating recipient balance:", recipientUpdateError)
         // Rollback sender balance
-        await supabase.from("users").update({ account_balance: currentBalance }).eq("id", user.id)
+        await supabase.from("users").update({ account_balance: profile.balance }).eq("id", user.id)
         throw new Error("Failed to update recipient balance")
       }
 
+      const transactionRef = `TXN${Date.now()}`
+
       // Create outgoing transaction record for sender
       const { error: outgoingError } = await supabase.from("transactions").insert({
-        user_id: user.id,
-        amount: -transferAmount,
-        description: description || `Transfer to ${recipientData.first_name} ${recipientData.last_name}`,
+        account_no: profile.account_number,
+        sender_account_number: profile.account_number,
+        recipient_account_number: recipientAccount,
+        amount: transferAmount,
+        narration: description || `Transfer to ${recipientData.first_name} ${recipientData.last_name}`,
         transaction_type: "transfer_out",
         status: "completed",
         recipient_name: `${recipientData.first_name} ${recipientData.last_name}`,
-        reference: `TXN${Date.now()}OUT`,
+        reference: transactionRef,
         created_at: new Date().toISOString(),
       })
 
@@ -205,13 +193,15 @@ const TransfersPage = () => {
 
       // Create incoming transaction record for recipient
       const { error: incomingError } = await supabase.from("transactions").insert({
-        user_id: recipientData.id,
+        account_no: recipientData.account_number,
+        sender_account_number: profile.account_number,
+        recipient_account_number: recipientAccount,
         amount: transferAmount,
-        description: description || `Transfer from ${senderData.first_name} ${senderData.last_name}`,
+        narration: description || `Transfer from ${profile.first_name} ${profile.last_name}`,
         transaction_type: "transfer_in",
         status: "completed",
-        sender_name: `${senderData.first_name} ${senderData.last_name}`,
-        reference: `TXN${Date.now()}IN`,
+        sender_name: `${profile.first_name} ${profile.last_name}`,
+        reference: transactionRef,
         created_at: new Date().toISOString(),
       })
 
@@ -279,6 +269,17 @@ const TransfersPage = () => {
     }
   }
 
+  if (!user || !profile) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0A3D62] border-t-transparent"></div>
+          <span className="text-lg text-gray-600">Loading transfers...</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -286,12 +287,12 @@ const TransfersPage = () => {
         <p className="text-gray-600 mt-1">Send money to other accounts instantly</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Transfer Form */}
-        <Card>
+        <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <Send className="h-5 w-5" />
+              <Send className="h-5 w-5 text-[#0A3D62]" />
               <span>Send Money</span>
             </CardTitle>
             <CardDescription>Transfer funds to another account</CardDescription>
@@ -300,17 +301,20 @@ const TransfersPage = () => {
             <form onSubmit={handleTransfer} className="space-y-4">
               <div>
                 <Label htmlFor="amount">Amount ($)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  disabled={isLoading}
-                  className="mt-1"
-                />
+                <div className="relative mt-1">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    disabled={isLoading}
+                    className="pl-10"
+                  />
+                </div>
               </div>
 
               <div>
@@ -318,11 +322,12 @@ const TransfersPage = () => {
                 <Input
                   id="recipient"
                   type="text"
-                  placeholder="Enter account number"
+                  placeholder="Enter 12-digit account number"
                   value={recipientAccount}
                   onChange={(e) => setRecipientAccount(e.target.value)}
                   disabled={isLoading}
-                  className="mt-1"
+                  className="mt-1 font-mono"
+                  maxLength={12}
                 />
               </div>
 
@@ -340,27 +345,52 @@ const TransfersPage = () => {
               </div>
 
               <Button type="submit" disabled={isLoading} className="w-full bg-[#0A3D62] hover:bg-[#0F5585]">
-                {isLoading ? "Processing..." : "Send Money"}
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                    Processing...
+                  </div>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Send Money
+                  </>
+                )}
               </Button>
             </form>
           </CardContent>
         </Card>
 
         {/* Account Balance */}
-        <Card>
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-[#0A3D62] to-[#0F5585] text-white">
           <CardHeader>
-            <CardTitle>Available Balance</CardTitle>
-            <CardDescription>Your current account balance</CardDescription>
+            <CardTitle className="text-white">Your Account</CardTitle>
+            <CardDescription className="text-blue-100">Current balance and account details</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-6">
-              <div className="text-3xl font-bold text-[#0A3D62] mb-2">
-                {profile ? formatCurrency(profile.balance || 0) : "Loading..."}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-blue-100">Available Balance</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowBalance(!showBalance)}
+                  className="h-6 w-6 text-blue-100 hover:text-white hover:bg-white/10"
+                >
+                  {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
               </div>
-              <p className="text-gray-600">Available for transfer</p>
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <strong>Your Account:</strong> {profile?.account_number || "Loading..."}
+              <div className="text-3xl font-bold">{showBalance ? formatCurrency(profile.balance || 0) : "••••••"}</div>
+              <div className="pt-4 border-t border-blue-400/30">
+                <p className="text-blue-100 text-sm mb-1">Account Number</p>
+                <p className="font-mono text-lg">
+                  {profile.account_number?.replace(/(\d{4})(\d{4})(\d{4})/, "$1 $2 $3") || "Loading..."}
+                </p>
+              </div>
+              <div>
+                <p className="text-blue-100 text-sm mb-1">Account Holder</p>
+                <p className="font-medium">
+                  {profile.first_name} {profile.last_name}
                 </p>
               </div>
             </div>
@@ -369,7 +399,7 @@ const TransfersPage = () => {
       </div>
 
       {/* Recent Transfers */}
-      <Card>
+      <Card className="border-0 shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <ArrowUpDown className="h-5 w-5" />
@@ -380,13 +410,15 @@ const TransfersPage = () => {
         <CardContent>
           {isLoadingTransfers ? (
             <div className="flex items-center justify-center py-8">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
-              <span className="ml-2">Loading transfers...</span>
+              <div className="flex items-center gap-3">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#0A3D62] border-t-transparent"></div>
+                <span>Loading transfers...</span>
+              </div>
             </div>
           ) : recentTransfers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <ArrowUpDown className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No transfers yet</p>
+            <div className="text-center py-12 text-gray-500">
+              <ArrowUpDown className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+              <h3 className="text-lg font-medium mb-2">No transfers yet</h3>
               <p className="text-sm">Your transfer history will appear here</p>
             </div>
           ) : (
@@ -394,25 +426,32 @@ const TransfersPage = () => {
               {recentTransfers.map((transfer) => (
                 <div
                   key={transfer.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-4">
                     {getStatusIcon(transfer.status)}
-                    <div>
-                      <p className="font-medium">{transfer.description}</p>
-                      <p className="text-sm text-gray-600">
-                        {new Date(transfer.created_at).toLocaleDateString()} at{" "}
-                        {new Date(transfer.created_at).toLocaleTimeString()}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900 truncate">{transfer.narration}</p>
+                      <div className="flex items-center gap-4 mt-1">
+                        <p className="text-sm text-gray-500">
+                          {new Date(transfer.created_at).toLocaleDateString()} at{" "}
+                          {new Date(transfer.created_at).toLocaleTimeString()}
+                        </p>
+                        <p className="text-xs text-gray-400 font-mono">{transfer.reference}</p>
+                      </div>
                       {transfer.recipient_name && (
-                        <p className="text-sm text-gray-500">To: {transfer.recipient_name}</p>
+                        <p className="text-sm text-gray-500 mt-1">To: {transfer.recipient_name}</p>
                       )}
-                      {transfer.sender_name && <p className="text-sm text-gray-500">From: {transfer.sender_name}</p>}
+                      {transfer.sender_name && (
+                        <p className="text-sm text-gray-500 mt-1">From: {transfer.sender_name}</p>
+                      )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-semibold ${transfer.amount > 0 ? "text-green-600" : "text-red-600"}`}>
-                      {transfer.amount > 0 ? "+" : ""}
+                  <div className="text-right flex-shrink-0 ml-4">
+                    <p
+                      className={`font-semibold text-lg ${transfer.transaction_type === "transfer_in" ? "text-green-600" : "text-red-600"}`}
+                    >
+                      {transfer.transaction_type === "transfer_in" ? "+" : "-"}
                       {formatCurrency(transfer.amount)}
                     </p>
                     {getStatusBadge(transfer.status)}

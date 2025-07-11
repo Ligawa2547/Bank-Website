@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Search, Bell, User, Settings, LogOut } from "lucide-react"
+import Link from "next/link"
 
 interface UserData {
   first_name: string
@@ -64,24 +65,38 @@ export function DashboardHeader() {
   }
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4">
+    <header className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center flex-1 max-w-md">
+        {/* Search - Hidden on mobile, shown on larger screens */}
+        <div className="hidden md:flex items-center flex-1 max-w-md">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input type="search" placeholder="Search transactions, accounts..." className="pl-10 w-full" />
+            <Input
+              type="search"
+              placeholder="Search transactions, accounts..."
+              className="pl-10 w-full bg-gray-50 border-gray-200 focus:bg-white"
+            />
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        {/* Mobile search button */}
+        <div className="md:hidden flex-1">
+          <Button variant="ghost" size="icon">
+            <Search className="h-5 w-5 text-gray-500" />
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-4">
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            {notifications > 0 && (
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
-                {notifications}
-              </Badge>
-            )}
+          <Button variant="ghost" size="icon" className="relative" asChild>
+            <Link href="/dashboard/notifications">
+              <Bell className="h-5 w-5" />
+              {notifications > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-red-500">
+                  {notifications}
+                </Badge>
+              )}
+            </Link>
           </Button>
 
           {/* User Menu */}
@@ -90,7 +105,9 @@ export function DashboardHeader() {
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={userData?.profile_pic || "/placeholder.svg"} alt="Profile" />
-                  <AvatarFallback>{getInitials()}</AvatarFallback>
+                  <AvatarFallback className="bg-[#0A3D62] text-white text-sm font-semibold">
+                    {getInitials()}
+                  </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
@@ -104,13 +121,17 @@ export function DashboardHeader() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/profile">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut}>

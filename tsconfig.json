@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./"],
+      "zod/v4": ["./lib/zod-shim"],
+      "zod/v4/core": ["./lib/zod-shim"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
