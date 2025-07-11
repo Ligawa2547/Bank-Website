@@ -2,26 +2,16 @@
 
 import * as React from "react"
 
-type ToastProps = {
-  title?: string
-  description?: string
-  variant?: "default" | "destructive"
-}
-
-type ToastActionElement = React.ReactElement
+const TOAST_LIMIT = 1
+const TOAST_REMOVE_DELAY = 1000000
 
 type ToasterToast = {
   id: string
-  title?: string
-  description?: string
+  title?: React.ReactNode
+  description?: React.ReactNode
+  action?: React.ReactElement
   variant?: "default" | "destructive"
-  action?: ToastActionElement
-  open: boolean
-  onOpenChange: (open: boolean) => void
 }
-
-const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -33,7 +23,7 @@ const actionTypes = {
 let count = 0
 
 function genId() {
-  count = (count + 1) % Number.MAX_VALUE
+  count = (count + 1) % Number.MAX_SAFE_INTEGER
   return count.toString()
 }
 
@@ -141,9 +131,9 @@ function dispatch(action: Action) {
   })
 }
 
-type ToastWithoutId = Omit<ToasterToast, "id">
+type Toast = Omit<ToasterToast, "id">
 
-function toast({ ...props }: ToastWithoutId) {
+function toast({ ...props }: Toast) {
   const id = genId()
 
   const update = (props: ToasterToast) =>
