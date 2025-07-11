@@ -2,26 +2,16 @@
 
 import type React from "react"
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/use-toast"
-import { zodResolver } from "@hookform/resolvers/zod"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
-import * as z from "zod"
 import { useProfile } from "@/hooks/use-profile"
 import { useSupabase } from "@/providers/supabase-provider"
 import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-
-const formSchema = z.object({
-  phoneNumber: z.string().optional(),
-  city: z.string().optional(),
-  country: z.string().optional(),
-})
 
 const ProfilePage = () => {
   const router = useRouter()
@@ -38,13 +28,10 @@ const ProfilePage = () => {
     country: "",
   })
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      phoneNumber: "",
-      city: "",
-      country: "",
-    },
+  const [errors, setErrors] = useState({
+    phoneNumber: "",
+    city: "",
+    country: "",
   })
 
   useEffect(() => {
@@ -57,10 +44,43 @@ const ProfilePage = () => {
     }
   }, [profile])
 
+  const validateForm = () => {
+    const newErrors = {
+      phoneNumber: "",
+      city: "",
+      country: "",
+    }
+
+    // Basic validation
+    if (formData.phoneNumber && !/^\+?[\d\s\-$$$$]+$/.test(formData.phoneNumber)) {
+      newErrors.phoneNumber = "Please enter a valid phone number"
+    }
+
+    if (formData.city && formData.city.length < 2) {
+      newErrors.city = "City must be at least 2 characters"
+    }
+
+    if (formData.country && formData.country.length < 2) {
+      newErrors.country = "Country must be at least 2 characters"
+    }
+
+    setErrors(newErrors)
+    return !Object.values(newErrors).some((error) => error !== "")
+  }
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!user) return
+
+    if (!validateForm()) {
+      toast({
+        title: "Validation Error",
+        description: "Please fix the errors in the form",
+        variant: "destructive",
+      })
+      return
+    }
 
     setIsLoading(true)
 
@@ -117,6 +137,14 @@ const ProfilePage = () => {
   const handleProfilePictureUpdate = (newUrl: string) => {
     console.log("Profile picture updated:", newUrl)
     // The profile will be refreshed automatically by the upload component
+  }
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+    // Clear error when user starts typing
+    if (errors[field as keyof typeof errors]) {
+      setErrors((prev) => ({ ...prev, [field]: "" }))
+    }
   }
 
   return (
@@ -179,94 +207,84 @@ const ProfilePage = () => {
                   <Separator />
 
                   {/* Editable fields */}
-                  <Form {...form}>
-                    <form onSubmit={handleUpdateProfile} className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <FormField
-                          control={form.control}
-                          name="phoneNumber"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Phone Number</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="Enter phone number"
-                                  {...field}
-                                  value={formData.phoneNumber}
-                                  onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                                  disabled={!isEditing}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
+                  <form onSubmit={handleUpdateProfile} className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label htmlFor="phoneNumber" className="text-sm font-medium text-gray-700">
+                          Phone Number
+                        </label>
+                        <Input
+                          id="phoneNumber"
+                          placeholder="Enter phone number"
+                          value={formData.phoneNumber}
+                          onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
+                          disabled={!isEditing}
+                          className={errors.phoneNumber ? "border-red-500" : ""}
                         />
-                        <FormField
-                          control={form.control}
-                          name="city"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>City</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="Enter city"
-                                  {...field}
-                                  value={formData.city}
-                                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                                  disabled={!isEditing}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="country"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Country</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="Enter country"
-                                  {...field}
-                                  value={formData.country}
-                                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                                  disabled={!isEditing}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                        {errors.phoneNumber && <p className="text-sm text-red-500 mt-1">{errors.phoneNumber}</p>}
                       </div>
+                      <div>
+                        <label htmlFor="city" className="text-sm font-medium text-gray-700">
+                          City
+                        </label>
+                        <Input
+                          id="city"
+                          placeholder="Enter city"
+                          value={formData.city}
+                          onChange={(e) => handleInputChange("city", e.target.value)}
+                          disabled={!isEditing}
+                          className={errors.city ? "border-red-500" : ""}
+                        />
+                        {errors.city && <p className="text-sm text-red-500 mt-1">{errors.city}</p>}
+                      </div>
+                      <div>
+                        <label htmlFor="country" className="text-sm font-medium text-gray-700">
+                          Country
+                        </label>
+                        <Input
+                          id="country"
+                          placeholder="Enter country"
+                          value={formData.country}
+                          onChange={(e) => handleInputChange("country", e.target.value)}
+                          disabled={!isEditing}
+                          className={errors.country ? "border-red-500" : ""}
+                        />
+                        {errors.country && <p className="text-sm text-red-500 mt-1">{errors.country}</p>}
+                      </div>
+                    </div>
 
-                      <div className="flex gap-2 pt-4">
-                        {!isEditing ? (
+                    <div className="flex gap-2 pt-4">
+                      {!isEditing ? (
+                        <Button
+                          type="button"
+                          onClick={() => setIsEditing(true)}
+                          className="bg-[#0A3D62] text-white hover:bg-[#0F5585]"
+                        >
+                          Edit Profile
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            type="submit"
+                            disabled={isLoading}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            {isLoading ? "Updating..." : "Save Changes"}
+                          </Button>
                           <Button
                             type="button"
-                            onClick={() => setIsEditing(true)}
-                            className="bg-[#0A3D62] text-white hover:bg-[#0F5585]"
+                            variant="outline"
+                            onClick={() => {
+                              setIsEditing(false)
+                              setErrors({ phoneNumber: "", city: "", country: "" })
+                            }}
                           >
-                            Edit Profile
+                            Cancel
                           </Button>
-                        ) : (
-                          <>
-                            <Button
-                              type="submit"
-                              disabled={isLoading}
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                            >
-                              {isLoading ? "Updating..." : "Save Changes"}
-                            </Button>
-                            <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
-                              Cancel
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </form>
-                  </Form>
+                        </>
+                      )}
+                    </div>
+                  </form>
                 </div>
               ) : (
                 <div className="flex items-center justify-center py-8">
