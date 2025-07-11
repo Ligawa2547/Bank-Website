@@ -1,235 +1,97 @@
 "use client"
 
 import type React from "react"
-import { createContext, useCallback, useContext, useEffect, useState } from "react"
-import { useRouter, usePathname } from "next/navigation"
-import type { Session, User } from "@supabase/supabase-js"
+
+import { createContext, useContext, useEffect, useState } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Database } from "@/types/supabase"
-import type { UserProfile } from "@/types/user"
+import type { User } from "@supabase/auth-helpers-nextjs"
 
-/* -----------------------------------------------------------------------------
- * Supabase (client-side, singleton)
- * -------------------------------------------------------------------------- */
-export const supabase = createClientComponentClient<Database>()
-
-/* -----------------------------------------------------------------------------
- * Small in-memory cache for user profiles (avoids redundant XHR in RSC)
- * -------------------------------------------------------------------------- */
-const PROFILE_CACHE_TTL = 30_000 // 30 s
-const profileCache = new Map<string, { profile: UserProfile; timestamp: number }>()
-
-/* -----------------------------------------------------------------------------
- * AuthContext 🚀
- * -------------------------------------------------------------------------- */
-type AuthContextType = {
+interface AuthContextType {
   user: User | null
-  profile: UserProfile | null
-  session: Session | null
-  isLoading: boolean
-  refreshUserProfile: () => Promise<void>
-  /* auth helpers */
-  signUp: (email: string, password: string) => Promise<{ error: any }>
-  signIn: (email: string, password: string) => Promise<{ error: any }>
-  signInWithMagicLink: (email: string) => Promise<{ error: any }>
+  loading: boolean
+  signIn: (email: string, password: string) => Promise<any>
+  signUp: (email: string, password: string, metadata?: any) => Promise<any>
   signOut: () => Promise<void>
+  signInWithOtp: (email: string) => Promise<any>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-/* -----------------------------------------------------------------------------
- * Provider 🧩
- * -------------------------------------------------------------------------- */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  const pathname = usePathname()
-
-  const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const supabase = createClientComponentClient()
 
-  /* --------------------- fetch profile helper --------------------- */
-  const fetchUserProfile = useCallback(async (userId: string) => {
-    /* hit cache first */
-    const cached = profileCache.get(userId)
-    if (cached && Date.now() - cached.timestamp < PROFILE_CACHE_TTL) {
-      return cached.profile
-    }
-
-    const { data, error } = await supabase
-      .from("users")
-      .select(
-        `
-          id,
-          email,
-          first_name,
-          last_name,
-          phone_number,
-          city,
-          country,
-          account_no,
-          account_balance,
-          profile_pic,
-          status,
-          created_at,
-          updated_at,
-          email_verified,
-          phone_verified,
-          kyc_status
-        `,
-      )
-      .eq("id", userId)
-      .maybeSingle()
-
-    if (error) {
-      console.error("Error fetching profile:", error)
-      return null
-    }
-
-    if (!data) {
-      /* brand-new account (e.g. fresh admin) – no row yet */
-      return null
-    }
-
-    /* normalise balance */
-    const balance =
-      typeof data.account_balance === "number"
-        ? data.account_balance
-        : Number.parseFloat(data.account_balance ?? "0") || 0
-
-    const processed: UserProfile = {
-      id: data.id,
-      user_id: data.id,
-      email: data.email ?? "",
-      first_name: data.first_name ?? "",
-      last_name: data.last_name ?? "",
-      phone_number: data.phone_number ?? "",
-      city: data.city ?? "",
-      country: data.country ?? "",
-      account_number: data.account_no ?? "",
-      balance,
-      profile_pic: data.profile_pic ?? "",
-      status: data.status ?? "pending",
-      email_verified: !!data.email_verified,
-      phone_verified: !!data.phone_verified,
-      kyc_status: data.kyc_status ?? "not_submitted",
-      created_at: data.created_at ?? "",
-      updated_at: data.updated_at ?? "",
-    }
-
-    profileCache.set(userId, { profile: processed, timestamp: Date.now() })
-    return processed
-  }, [])
-
-  /* --------------------- expose manual refresh ------------------- */
-  const refreshUserProfile = useCallback(async () => {
-    if (!user) return
-    profileCache.delete(user.id)
-    const fresh = await fetchUserProfile(user.id)
-    setProfile(fresh)
-  }, [user, fetchUserProfile])
-
-  /* --------------------- initialise session ---------------------- */
   useEffect(() => {
-    let isMounted = true
-
-    const init = async () => {
-      setIsLoading(true)
+    const getUser = async () => {
       const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession()
-      if (error) console.error(error)
-
-      if (!isMounted) return
-
-      setSession(session)
-      setUser(session?.user ?? null)
-
-      if (session?.user) {
-        const prof = await fetchUserProfile(session.user.id)
-        if (isMounted) setProfile(prof)
-      } else {
-        setProfile(null)
-      }
-      setIsLoading(false)
+        data: { user },
+      } = await supabase.auth.getUser()
+      setUser(user)
+      setLoading(false)
     }
 
-    init()
+    getUser()
 
-    /* auth listener */
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, sess) => {
-      setSession(sess)
-      setUser(sess?.user ?? null)
-      if (sess?.user) fetchUserProfile(sess.user.id).then(setProfile)
-      else setProfile(null)
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null)
+      setLoading(false)
     })
 
-    return () => {
-      isMounted = false
-      subscription.unsubscribe()
-    }
-  }, [fetchUserProfile])
-
-  /* --------------------- auth helpers ---------------------------- */
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-    })
-    return { error }
-  }
+    return () => subscription.unsubscribe()
+  }, [supabase.auth])
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
-    return { error }
+    return { data, error }
   }
 
-  const signInWithMagicLink = async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({
+  const signUp = async (email: string, password: string, metadata?: any) => {
+    const { data, error } = await supabase.auth.signUp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      password,
+      options: {
+        data: metadata,
+      },
     })
-    return { error }
+    return { data, error }
   }
 
   const signOut = async () => {
     await supabase.auth.signOut()
-    profileCache.clear()
-    /* redirect to generic login preserving current path for potential return */
-    router.push(`/login?next=${encodeURIComponent(pathname)}`)
   }
 
-  /* --------------------- context value --------------------------- */
-  const value: AuthContextType = {
+  const signInWithOtp = async (email: string) => {
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+    return { data, error }
+  }
+
+  const value = {
     user,
-    profile,
-    session,
-    isLoading,
-    refreshUserProfile,
-    signUp,
+    loading,
     signIn,
-    signInWithMagicLink,
+    signUp,
     signOut,
+    signInWithOtp,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-/* -----------------------------------------------------------------------------
- * Hook
- * -------------------------------------------------------------------------- */
 export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider")
   }
-  return ctx
+  return context
 }
