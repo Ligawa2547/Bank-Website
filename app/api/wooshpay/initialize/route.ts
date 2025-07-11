@@ -1,17 +1,19 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { wooshPayClient } from "@/lib/wooshpay/client"
-import { getWooshPayServerConfig } from "@/lib/wooshpay/config"
-import type { NextRequest } from "next/server"
+import { wooshPayClient, isWooshPayConfigured } from "@/lib/wooshpay/client"
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     // Check if WooshPay is configured
-    const config = await getWooshPayServerConfig()
-
-    if (!config.secretKey) {
-      return NextResponse.json({ success: false, error: "WooshPay not configured" }, { status: 503 })
+    if (!isWooshPayConfigured()) {
+      return NextResponse.json(
+        {
+          message: "Payment service is not configured. Please contact support.",
+          error: "WOOSHPAY_NOT_CONFIGURED",
+        },
+        { status: 503 },
+      )
     }
 
     // Verify authentication
@@ -25,8 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    const body = await request.json()
-    const { email, amount, reference, metadata } = body
+    const { email, amount, reference, metadata } = await request.json()
 
     // Validate required fields
     if (!email || !amount || !reference) {
