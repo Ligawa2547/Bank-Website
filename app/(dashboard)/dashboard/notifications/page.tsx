@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Bell, Check, CheckCheck, Trash2, AlertCircle } from "lucide-react"
+import { Bell, Check, CheckCheck, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth-provider"
@@ -219,45 +219,38 @@ export default function NotificationsPage() {
 
   if (!user || !profile) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0A3D62] border-t-transparent"></div>
-          <span className="text-lg text-gray-600">Loading notifications...</span>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <p className="text-gray-500">Please log in to view your notifications</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Notifications</h1>
-          <p className="text-gray-600 mt-1">
-            Account: {profile.account_number?.replace(/(\d{4})(\d{4})(\d{4})/, "$1 $2 $3")} • {unreadCount} unread
-            notification
-            {unreadCount !== 1 ? "s" : ""}
-          </p>
+    <div className="max-w-4xl mx-auto p-4 sm:p-6">
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">Notifications</h1>
+            <p className="text-gray-600">
+              Account: {profile.account_number} • {unreadCount} unread notification
+              {unreadCount !== 1 ? "s" : ""}
+            </p>
+          </div>
+          {unreadCount > 0 && (
+            <Button onClick={markAllAsRead} variant="outline" size="sm">
+              <CheckCheck className="h-4 w-4 mr-2" />
+              Mark All Read
+            </Button>
+          )}
         </div>
-        {unreadCount > 0 && (
-          <Button
-            onClick={markAllAsRead}
-            variant="outline"
-            size="sm"
-            className="bg-[#0A3D62] text-white hover:bg-[#0F5585]"
-          >
-            <CheckCheck className="h-4 w-4 mr-2" />
-            Mark All Read
-          </Button>
-        )}
       </div>
 
-      {/* Notifications Card */}
-      <Card className="border-0 shadow-lg">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5 text-[#0A3D62]" />
+            <Bell className="h-5 w-5" />
             Your Notifications
           </CardTitle>
           <CardDescription>
@@ -267,39 +260,33 @@ export default function NotificationsPage() {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0A3D62] border-t-transparent"></div>
-                <span>Loading notifications...</span>
-              </div>
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
             </div>
           ) : notifications.length > 0 ? (
             <div className="space-y-4">
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 rounded-xl border transition-all duration-200 ${
-                    notification.is_read
-                      ? "bg-gray-50 border-gray-200 hover:bg-gray-100"
-                      : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 hover:from-blue-100 hover:to-indigo-100"
+                  className={`p-4 rounded-lg border transition-colors ${
+                    notification.is_read ? "bg-gray-50 border-gray-200" : "bg-blue-50 border-blue-200"
                   }`}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-gray-900 truncate">{notification.title}</h3>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-medium text-gray-900">{notification.title}</h3>
                         {!notification.is_read && (
-                          <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 flex-shrink-0">
+                          <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
                             New
                           </span>
                         )}
                       </div>
-                      <p className="text-gray-700 text-sm mb-3 leading-relaxed">{notification.message}</p>
-                      <p className="text-xs text-gray-500 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />
+                      <p className="text-gray-600 text-sm mb-2">{notification.message}</p>
+                      <p className="text-xs text-gray-500">
                         {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                    <div className="flex items-center gap-2 ml-4">
                       {!notification.is_read && (
                         <Button
                           variant="ghost"
@@ -307,9 +294,8 @@ export default function NotificationsPage() {
                           onClick={() => markAsRead(notification.id)}
                           disabled={updatingIds.has(notification.id)}
                           title="Mark as read"
-                          className="h-8 w-8 p-0 hover:bg-blue-100"
                         >
-                          <Check className="h-4 w-4 text-blue-600" />
+                          <Check className="h-4 w-4" />
                         </Button>
                       )}
                       <Button
@@ -318,7 +304,7 @@ export default function NotificationsPage() {
                         onClick={() => deleteNotification(notification.id)}
                         disabled={updatingIds.has(notification.id)}
                         title="Delete notification"
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -328,12 +314,12 @@ export default function NotificationsPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-16 text-gray-500">
-              <div className="mb-6">
-                <Bell className="h-16 w-16 mx-auto text-gray-300" />
+            <div className="text-center py-12 text-gray-500">
+              <div className="mb-4">
+                <Bell className="h-12 w-12 mx-auto text-gray-300" />
               </div>
-              <h3 className="text-xl font-semibold mb-3 text-gray-700">No notifications yet</h3>
-              <p className="text-sm max-w-md mx-auto leading-relaxed">
+              <h3 className="text-lg font-medium mb-2">No notifications yet</h3>
+              <p className="text-sm">
                 You'll receive notifications here for account activities, transactions, and important updates.
               </p>
             </div>

@@ -1,8 +1,4 @@
-"use server"
-
-/**
- * Internal validator – not exported (allowed in a server-only file).
- */
+// Environment variable validation
 const validateEnvVar = (name: string, value: string | undefined): string => {
   if (!value) {
     console.warn(`Warning: ${name} environment variable is not set`)
@@ -11,33 +7,33 @@ const validateEnvVar = (name: string, value: string | undefined): string => {
   return value
 }
 
-const BASE_URL = process.env.NODE_ENV === "production" ? "https://api.wooshpay.com" : "https://api.wooshpay.com"
+// Client-side configuration (non-sensitive only)
+export const WOOSHPAY_CLIENT_CONFIG = {
+  baseUrl: process.env.NODE_ENV === "production" ? "https://api.wooshpay.com" : "https://api.wooshpay.com",
+}
 
-const ENDPOINTS = {
+// Server-side configuration (sensitive data)
+export const WOOSHPAY_SERVER_CONFIG = {
+  publicKey: validateEnvVar("NEXT_PUBLIC_WOOSHPAY_PUBLIC_KEY", process.env.NEXT_PUBLIC_WOOSHPAY_PUBLIC_KEY),
+  secretKey: validateEnvVar("WOOSHPAY_SECRET_KEY", process.env.WOOSHPAY_SECRET_KEY),
+  webhookSecret: validateEnvVar("WOOSHPAY_WEBHOOK_SECRET", process.env.WOOSHPAY_WEBHOOK_SECRET),
+  baseUrl: process.env.NODE_ENV === "production" ? "https://api.wooshpay.com" : "https://api.wooshpay.com",
+}
+
+export const WOOSHPAY_ENDPOINTS = {
   initialize: "/transaction/initialize",
   verify: "/transaction/verify",
   refund: "/refund",
   transfer: "/transfer",
 }
 
-/**
- * Returns all **sensitive** WooshPay credentials & endpoints.
- * ONLY call this from the server (Route Handlers, Server Actions, etc.).
- */
-export async function getWooshPayServerConfig() {
-  return {
-    baseUrl: BASE_URL,
-    publicKey: validateEnvVar("NEXT_PUBLIC_WOOSHPAY_PUBLIC_KEY", process.env.NEXT_PUBLIC_WOOSHPAY_PUBLIC_KEY),
-    secretKey: validateEnvVar("WOOSHPAY_SECRET_KEY", process.env.WOOSHPAY_SECRET_KEY),
-    webhookSecret: validateEnvVar("WOOSHPAY_WEBHOOK_SECRET", process.env.WOOSHPAY_WEBHOOK_SECRET),
-    endpoints: ENDPOINTS,
-  }
+// Legacy export for backward compatibility
+export const WOOSHPAY_CONFIG = {
+  baseUrl: WOOSHPAY_SERVER_CONFIG.baseUrl,
+  secretKey: WOOSHPAY_SERVER_CONFIG.secretKey,
 }
 
-/**
- * Convenience helper for sanity-checking your env.
- */
-export async function isWooshPayConfigured(): Promise<boolean> {
-  const cfg = await getWooshPayServerConfig()
-  return !!(cfg.secretKey && cfg.publicKey)
+// Helper function to check if WooshPay is properly configured
+export const isWooshPayConfigured = (): boolean => {
+  return !!(WOOSHPAY_SERVER_CONFIG.secretKey && WOOSHPAY_SERVER_CONFIG.publicKey)
 }

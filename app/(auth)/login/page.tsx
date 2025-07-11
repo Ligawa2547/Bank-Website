@@ -1,216 +1,403 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import type React from "react"
-
-import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { useAuth } from "@/lib/auth-provider"
+import Image from "next/image"
+import { useRouter } from "next/navigation"
+import { Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Separator } from "@/components/ui/separator"
-import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react"
+import { useAuth } from "@/lib/auth-provider"
+import { useToast } from "@/components/ui/use-toast"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function LoginPage() {
-  const router = useRouter()
-  const { signIn, signInWithOtp } = useAuth()
-  const [loading, setLoading] = useState(false)
-  const [magicLinkLoading, setMagicLinkLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState("password")
+  const [loginStatus, setLoginStatus] = useState<"idle" | "success" | "error" | "retrying">("idle")
+  const [statusMessage, setStatusMessage] = useState("")
+  const [retryCount, setRetryCount] = useState(0)
+  const [logoError, setLogoError] = useState(false)
+  const router = useRouter()
+  const { signIn, signInWithMagicLink } = useAuth()
+  const { toast } = useToast()
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  })
+  // Add a timeout to reset loading state if it takes too long
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+    if (isLoading) {
+      timeoutId = setTimeout(() => {
+        setIsLoading(false)
+        setLoginStatus("error")
+        setStatusMessage("Request timed out. Please try again.")
+
+        toast({
+          title: "Timeout",
+          description: "Request took too long. Please try again.",
+          variant: "destructive",
+        })
+      }, 45000) // 45 seconds timeout (increased from 30 seconds)
+    }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [isLoading, toast])
+
+  // Check network connectivity
+  const checkConnectivity = async () => {
+    try {
+      // First check navigator.onLine
+      if (!navigator.onLine) {
+        return false
+      }
+
+      // Then try to fetch a small endpoint to confirm actual connectivity
+      const response = await fetch("/api/health-check", {
+        method: "GET",
+        headers: { "Cache-Control": "no-cache" },
+      })
+      return response.ok
+    } catch (error) {
+      console.error("Connectivity check failed:", error)
+      return false
+    }
   }
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
-    setLoading(true)
+    setLoginStatus("idle")
+    setStatusMessage("")
 
-    try {
-      const { data, error } = await signIn(formData.email, formData.password)
-
-      if (error) {
-        setError(error.message)
-        return
-      }
-
-      if (data?.user) {
-        router.push("/dashboard")
-      }
-    } catch (err: any) {
-      setError("An unexpected error occurred. Please try again.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleMagicLink = async () => {
-    if (!formData.email) {
-      setError("Please enter your email address")
+    // Check if we're offline
+    const isConnected = await checkConnectivity()
+    if (!isConnected) {
+      setLoginStatus("error")
+      setStatusMessage("You appear to be offline. Please check your internet connection and try again.")
+      toast({
+        title: "Network Error",
+        description: "You appear to be offline. Please check your internet connection.",
+        variant: "destructive",
+      })
       return
     }
 
-    setError(null)
-    setMagicLinkLoading(true)
+    setIsLoading(true)
+    const currentRetry = retryCount
 
     try {
-      const { error } = await signInWithOtp(formData.email)
+      const { error } = await signIn(email, password)
 
       if (error) {
-        setError(error.message)
-        return
-      }
+        console.error("Login error:", error)
 
-      setMagicLinkSent(true)
-    } catch (err: any) {
-      setError("Failed to send magic link. Please try again.")
+        // Check if it's a network error
+        if (
+          error.message.includes("fetch") ||
+          error.message.includes("network") ||
+          error.message.includes("Failed to fetch") ||
+          error.message.includes("NetworkError") ||
+          error.message.includes("timeout")
+        ) {
+          // Network error - we can retry
+          if (currentRetry < 3) {
+            // Implement exponential backoff
+            const backoffTime = Math.pow(2, currentRetry) * 1000 // 1s, 2s, 4s, 8s
+            setLoginStatus("retrying")
+            setStatusMessage(`Network issue detected. Retrying in ${backoffTime / 1000} seconds...`)
+
+            await new Promise((resolve) => setTimeout(resolve, backoffTime))
+
+            setRetryCount(currentRetry + 1)
+            // Try again
+            handlePasswordLogin(e)
+            return
+          } else {
+            setLoginStatus("error")
+            setStatusMessage("Network connection issue. Please check your internet and try again later.")
+          }
+        } else {
+          // Auth error - no retry
+          setLoginStatus("error")
+          setStatusMessage(error.message)
+        }
+
+        toast({
+          title: "Login Failed",
+          description: error.message,
+          variant: "destructive",
+        })
+      } else {
+        setLoginStatus("success")
+        setStatusMessage("Login successful! Redirecting...")
+
+        toast({
+          title: "Success",
+          description: "You have successfully logged in.",
+        })
+
+        // Redirect to dashboard
+        router.push("/dashboard")
+      }
+    } catch (error: any) {
+      console.error("Unexpected error during login:", error)
+      setLoginStatus("error")
+      setStatusMessage(error.message || "An unexpected error occurred. Please try again.")
+
+      toast({
+        title: "Error",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      })
     } finally {
-      setMagicLinkLoading(false)
+      setIsLoading(false)
     }
   }
 
-  if (magicLinkSent) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-              <Mail className="h-6 w-6 text-blue-600" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Check Your Email</CardTitle>
-            <CardDescription>We've sent you a magic link</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Alert className="bg-blue-50 border-blue-200">
-              <Mail className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-800">
-                We've sent a magic link to <strong>{formData.email}</strong>. Click the link in your email to sign in.
-              </AlertDescription>
-            </Alert>
-            <Button variant="outline" onClick={() => setMagicLinkSent(false)} className="w-full">
-              Back to Login
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
+  const handleMagicLinkLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginStatus("idle")
+    setStatusMessage("")
+    setIsLoading(true)
+
+    // Maximum number of retry attempts
+    const maxRetries = 2
+    let currentRetry = 0
+
+    while (currentRetry <= maxRetries) {
+      try {
+        if (currentRetry > 0) {
+          console.log(`Magic link retry attempt ${currentRetry}...`)
+          // Add exponential backoff delay between retries
+          const backoffDelay = Math.min(1000 * Math.pow(2, currentRetry - 1), 4000)
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay))
+        }
+
+        const { error } = await signInWithMagicLink(email)
+
+        if (error) {
+          console.error("Magic link error:", error)
+
+          // For network errors, retry
+          if (
+            error.message?.includes("Failed to fetch") ||
+            error.message?.includes("NetworkError") ||
+            error.message?.includes("network")
+          ) {
+            if (currentRetry < maxRetries) {
+              currentRetry++
+              continue
+            }
+          }
+
+          setLoginStatus("error")
+          setStatusMessage(error.message || "Failed to send magic link. Please try again.")
+
+          toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive",
+          })
+          return
+        }
+
+        setLoginStatus("success")
+        setStatusMessage("Magic link sent! Please check your email to complete login.")
+
+        toast({
+          title: "Success",
+          description: "Check your email for the magic link to log in.",
+        })
+        break
+      } catch (error: any) {
+        console.error("Unexpected error during magic link login:", error)
+
+        // For network errors, retry
+        if ((error.message?.includes("fetch") || error.message?.includes("network")) && currentRetry < maxRetries) {
+          currentRetry++
+          continue
+        }
+
+        setLoginStatus("error")
+        setStatusMessage(error.message || "An unexpected error occurred. Please try again.")
+
+        toast({
+          title: "Error",
+          description: error.message || "Something went wrong",
+          variant: "destructive",
+        })
+        break
+      } finally {
+        setIsLoading(false)
+      }
+    }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center bg-blue-50 px-4 py-12">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-            Welcome Back
-          </CardTitle>
-          <CardDescription className="text-lg">Sign in to your IAE Banking account</CardDescription>
+        <CardHeader className="space-y-1">
+          <div className="flex justify-center mb-4">
+            <Link href="/" className="flex items-center gap-2">
+              {logoError ? (
+                <div className="h-8 w-8 bg-[#0A3D62] rounded-md flex items-center justify-center text-white font-bold">
+                  I&E
+                </div>
+              ) : (
+                <Image
+                  src="/images/iae-logo.png"
+                  alt="I&E National Bank"
+                  width={32}
+                  height={32}
+                  className="h-8 w-auto"
+                  onError={() => setLogoError(true)}
+                />
+              )}
+              <span className="text-2xl font-bold text-[#0A3D62]">I&E National Bank</span>
+            </Link>
+          </div>
+          <CardTitle className="text-2xl text-center">Sign in to your account</CardTitle>
+          <CardDescription className="text-center">Enter your email and password to sign in</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+        <CardContent className="space-y-4">
+          {loginStatus === "success" && (
+            <Alert className="mb-4 bg-green-50 border-green-200">
+              <AlertTitle>Success!</AlertTitle>
+              <AlertDescription>{statusMessage}</AlertDescription>
             </Alert>
           )}
 
-          <form onSubmit={handlePasswordLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="Enter your email"
-                  className="pl-10"
-                  required
-                />
-              </div>
-            </div>
+          {loginStatus === "error" && (
+            <Alert className="mb-4 bg-red-50 border-red-200" variant="destructive">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{statusMessage}</AlertDescription>
+            </Alert>
+          )}
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  placeholder="Enter your password"
-                  className="pl-10 pr-10"
-                  required
-                />
+          {loginStatus === "retrying" && (
+            <Alert className="mb-4 bg-yellow-50 border-yellow-200">
+              <AlertTitle>Retrying Connection</AlertTitle>
+              <AlertDescription>{statusMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          <Tabs defaultValue="password" value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="password">Password</TabsTrigger>
+              <TabsTrigger value="magic-link">Magic Link</TabsTrigger>
+            </TabsList>
+            <TabsContent value="password">
+              <form onSubmit={handlePasswordLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    placeholder="name@example.com"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={isLoading || loginStatus === "success"}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password</Label>
+                    <Link href="/forgot-password" className="text-xs text-[#0A3D62] hover:underline">
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={isLoading || loginStatus === "success"}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                      disabled={isLoading || loginStatus === "success"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                    </Button>
+                  </div>
+                </div>
                 <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                  onClick={() => setShowPassword(!showPassword)}
+                  type="submit"
+                  className="w-full"
+                  disabled={isLoading || loginStatus === "success"}
+                  aria-label="Sign in with password"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {isLoading ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      {retryCount > 0 ? `Retrying (${retryCount}/3)...` : "Signing in..."}
+                    </>
+                  ) : loginStatus === "success" ? (
+                    "Signed In"
+                  ) : (
+                    "Sign in"
+                  )}
                 </Button>
-              </div>
-            </div>
+              </form>
+            </TabsContent>
+            <TabsContent value="magic-link">
+              <form onSubmit={handleMagicLinkLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="magic-email">Email</Label>
+                  <Input
+                    id="magic-email"
+                    placeholder="name@example.com"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={isLoading || loginStatus === "success"}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isLoading || loginStatus === "success"}
+                  aria-label="Send magic link"
+                >
+                  {isLoading ? "Sending link..." : loginStatus === "success" ? "Link Sent" : "Send magic link"}
+                </Button>
 
-            <div className="flex items-center justify-between">
-              <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
-                Forgot password?
-              </Link>
-            </div>
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing In..." : "Sign In"}
-            </Button>
-          </form>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">Or continue with</span>
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleMagicLink}
-            disabled={magicLinkLoading}
-            className="w-full bg-transparent"
-          >
-            {magicLinkLoading ? "Sending..." : "Send Magic Link"}
-          </Button>
-
-          <div className="text-center">
-            <p className="text-sm text-gray-600">
-              Don't have an account?{" "}
-              <Link href="/signup" className="text-blue-600 hover:underline font-medium">
-                Create one here
-              </Link>
-            </p>
-          </div>
+                {loginStatus === "success" && activeTab === "magic-link" && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-md border border-blue-100">
+                    <p className="text-sm text-center">
+                      Please check your email inbox for the magic link to complete your login.
+                    </p>
+                  </div>
+                )}
+              </form>
+            </TabsContent>
+          </Tabs>
         </CardContent>
+        <CardFooter className="flex justify-center">
+          <div className="text-sm text-center">
+            Don&apos;t have an account?{" "}
+            <Link href="/signup" className="font-medium underline text-[#0A3D62] hover:text-[#0F5585]">
+              Sign up
+            </Link>
+          </div>
+        </CardFooter>
       </Card>
     </div>
   )

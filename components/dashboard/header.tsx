@@ -1,11 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useAuth } from "@/lib/auth-provider"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Menu, Search, User, LogOut, Settings, CreditCard } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,134 +10,154 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Search, Bell, User, Settings, LogOut } from "lucide-react"
-import Link from "next/link"
+import { useSession } from "@/providers/session-provider"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { NotificationsPopover } from "./notifications-popover"
+import { useAuth } from "@/lib/auth-provider"
 
-interface UserData {
-  first_name: string
-  last_name: string
-  email: string
-  profile_pic?: string
+interface HeaderProps {
+  onMenuClick?: () => void
 }
 
-export function DashboardHeader() {
-  const { user, signOut } = useAuth()
-  const [userData, setUserData] = useState<UserData | null>(null)
-  const [notifications, setNotifications] = useState(0)
-  const supabase = createClientComponentClient()
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user) return
-
-      try {
-        const { data } = await supabase
-          .from("users")
-          .select("first_name, last_name, email, profile_pic")
-          .eq("id", user.id)
-          .single()
-
-        if (data) {
-          setUserData(data)
-        }
-      } catch (error) {
-        console.error("Error fetching user data:", error)
-      }
-    }
-
-    fetchUserData()
-  }, [user, supabase])
+export function Header({ onMenuClick }: HeaderProps) {
+  const { session } = useSession()
+  const { signOut } = useAuth()
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleSignOut = async () => {
-    await signOut()
+    setIsLoading(true)
+    console.log("Header: Starting signout process...")
+
+    try {
+      await signOut()
+      console.log("Header: Signout completed successfully")
+    } catch (error) {
+      console.error("Header: Error during signout:", error)
+      // Force redirect as fallback
+      router.push("/login")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const getInitials = () => {
-    if (userData?.first_name && userData?.last_name) {
-      return `${userData.first_name[0]}${userData.last_name[0]}`.toUpperCase()
-    }
-    return user?.email?.[0]?.toUpperCase() || "U"
-  }
+  const userEmail = session?.user?.email || ""
+  const userName = session?.user?.user_metadata?.full_name || userEmail.split("@")[0]
+  const userInitials = userName
+    .split(" ")
+    .map((name: string) => name[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-4">
-      <div className="flex items-center justify-between">
-        {/* Search - Hidden on mobile, shown on larger screens */}
-        <div className="hidden md:flex items-center flex-1 max-w-md">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              type="search"
-              placeholder="Search transactions, accounts..."
-              className="pl-10 w-full bg-gray-50 border-gray-200 focus:bg-white"
-            />
-          </div>
-        </div>
+    <header className="flex h-14 sm:h-16 items-center justify-between border-b bg-white px-3 sm:px-4 shadow-sm dark:bg-gray-800 dark:border-gray-700 md:px-6">
+      {/* Mobile menu button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden h-10 w-10"
+        onClick={onMenuClick}
+        aria-label="Toggle menu"
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
 
-        {/* Mobile search button */}
-        <div className="md:hidden flex-1">
-          <Button variant="ghost" size="icon">
-            <Search className="h-5 w-5 text-gray-500" />
+      {/* Search bar */}
+      <div className="flex flex-1 items-center justify-center px-2 sm:px-4 md:justify-start">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Input
+            type="search"
+            placeholder="Search..."
+            className="pl-10 pr-4 w-full bg-gray-50 border-gray-200 focus:bg-white dark:bg-gray-700 dark:border-gray-600 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Right side actions */}
+      <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-4">
+        {/* Notifications */}
+        <NotificationsPopover />
+
+        {/* Quick actions - hidden on mobile */}
+        <div className="hidden lg:flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/dashboard/transfers")}
+            className="text-sm font-medium"
+          >
+            <CreditCard className="h-4 w-4 mr-2" />
+            Transfer
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4">
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative" asChild>
-            <Link href="/dashboard/notifications">
-              <Bell className="h-5 w-5" />
-              {notifications > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-red-500">
-                  {notifications}
-                </Badge>
-              )}
-            </Link>
-          </Button>
-
-          {/* User Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={userData?.profile_pic || "/placeholder.svg"} alt="Profile" />
-                  <AvatarFallback className="bg-[#0A3D62] text-white text-sm font-semibold">
-                    {getInitials()}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">
-                    {userData?.first_name} {userData?.last_name}
-                  </p>
-                  <p className="text-xs leading-none text-muted-foreground">{userData?.email || user?.email}</p>
+        {/* User menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
+                <AvatarImage src={session?.user?.user_metadata?.avatar_url || "/placeholder.svg"} alt={userName} />
+                <AvatarFallback className="bg-primary text-primary-foreground font-medium text-xs sm:text-sm">
+                  {userInitials}
+                </AvatarFallback>
+              </Avatar>
+              {/* Online indicator */}
+              <div className="absolute bottom-0 right-0 h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-800" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56 sm:w-64" align="end" forceMount>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-2">
+                <div className="flex items-center space-x-2">
+                  <p className="text-sm font-medium leading-none truncate">{userName}</p>
+                  <Badge variant="secondary" className="text-xs">
+                    Premium
+                  </Badge>
                 </div>
-              </DropdownMenuLabel>
+                <p className="text-xs leading-none text-muted-foreground truncate">{userEmail}</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push("/dashboard/profile")} className="cursor-pointer">
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/settings")} className="cursor-pointer">
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
+            </DropdownMenuItem>
+            {/* Mobile-only quick actions */}
+            <div className="lg:hidden">
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/profile">
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
-                </Link>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/transfers")} className="cursor-pointer">
+                <CreditCard className="mr-2 h-4 w-4" />
+                <span>Transfer Money</span>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/settings">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={handleSignOut}
+              disabled={isLoading}
+              className="cursor-pointer text-red-600 focus:text-red-600 dark:text-red-400"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>{isLoading ? "Signing out..." : "Sign out"}</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   )
 }
+
+// Export as default as well for compatibility
+export default Header

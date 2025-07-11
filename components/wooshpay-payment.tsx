@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState } from "react"
+
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,7 +23,6 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [isServiceAvailable, setIsServiceAvailable] = useState(true)
-  const [publicKey, setPublicKey] = useState<string | null>(null)
   const { session } = useSession()
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -56,14 +56,6 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
     }
 
     checkServiceAvailability()
-  }, [])
-
-  // Fetch the public key at runtime (no env vars in the bundle)
-  useEffect(() => {
-    fetch("/api/wooshpay/public-key")
-      .then((res) => res.json())
-      .then(({ publicKey }) => setPublicKey(publicKey))
-      .catch((err) => console.error("Failed to load WooshPay key", err))
   }, [])
 
   const handlePayment = async (e: React.FormEvent) => {
@@ -166,7 +158,7 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
         </Alert>
 
         {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} className="w-full bg-transparent">
+          <Button type="button" variant="outline" onClick={onCancel} className="w-full">
             Close
           </Button>
         )}
@@ -207,12 +199,7 @@ export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
         )}
 
         <div className="flex gap-2">
-          <Button
-            type="submit"
-            className="flex-1 bg-[#0A3D62] text-white hover:bg-[#0F5585]"
-            disabled={isLoading || !publicKey}
-            aria-busy={isLoading}
-          >
+          <Button type="submit" className="flex-1 bg-[#0A3D62] text-white hover:bg-[#0F5585]" disabled={isLoading}>
             {isLoading ? "Processing..." : "Pay with WooshPay"}
           </Button>
           {onCancel && (

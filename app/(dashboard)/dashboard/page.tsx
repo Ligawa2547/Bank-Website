@@ -1,324 +1,487 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "@/lib/auth-provider"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Eye, EyeOff, ArrowUpRight, ArrowDownLeft, CreditCard, PiggyBank, Bell, Activity, Users } from "lucide-react"
+import { useAuth } from "@/lib/auth-provider"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import {
+  ArrowUpRight,
+  ArrowDownLeft,
+  CreditCard,
+  DollarSign,
+  TrendingUp,
+  Eye,
+  EyeOff,
+  Plus,
+  Send,
+  Building2,
+  Bell,
+  RefreshCw,
+} from "lucide-react"
 import Link from "next/link"
-
-interface DashboardStats {
-  totalBalance: number
-  totalTransactions: number
-  totalSavings: number
-  unreadNotifications: number
-  recentTransactions: Array<{
-    id: string
-    amount: number
-    type: string
-    description: string
-    created_at: string
-  }>
-}
+import type { Transaction, Notification } from "@/types/user"
 
 export default function DashboardPage() {
-  const { user, profile } = useAuth()
-  const [showBalance, setShowBalance] = useState(false)
-  const [stats, setStats] = useState<DashboardStats>({
-    totalBalance: 0,
-    totalTransactions: 0,
-    totalSavings: 0,
-    unreadNotifications: 0,
-    recentTransactions: [],
-  })
+  const { user, profile, refreshUserProfile } = useAuth()
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([])
+  const [recentNotifications, setRecentNotifications] = useState<Notification[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [showBalance, setShowBalance] = useState(true)
+  const [monthlyStats, setMonthlyStats] = useState({
+    totalIncome: 0,
+    totalExpenses: 0,
+    transactionCount: 0,
+  })
   const supabase = createClientComponentClient()
 
-  useEffect(() => {
-    if (!user || !profile) return
+  // Function to refresh balance and data
+  const handleRefreshData = async () => {
+    setIsRefreshing(true)
+    try {
+      await refreshUserProfile()
+      await fetchDashboardData()
+    } catch (error) {
+      console.error("Error refreshing data:", error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
-    const fetchDashboardData = async () => {
-      setIsLoading(true)
-      try {
-        // Fetch recent transactions
-        const { data: transactions } = await supabase
-          .from("transactions")
-          .select("*")
-          .or(
-            `sender_account_number.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number},account_no.eq.${profile.account_number}`,
-          )
-          .order("created_at", { ascending: false })
-          .limit(5)
-
-        // Fetch savings accounts
-        const { data: savings } = await supabase
-          .from("savings_accounts")
-          .select("current_amount")
-          .eq("account_no", profile.account_number)
-
-        // Fetch unread notifications
-        const { data: notifications } = await supabase
-          .from("notifications")
-          .select("id")
-          .eq("account_no", profile.account_number)
-          .eq("is_read", false)
-
-        const totalSavings = savings?.reduce((sum, account) => sum + account.current_amount, 0) || 0
-        const totalTransactions = transactions?.length || 0
-        const unreadNotifications = notifications?.length || 0
-
-        setStats({
-          totalBalance: profile.balance || 0,
-          totalTransactions,
-          totalSavings,
-          unreadNotifications,
-          recentTransactions: transactions || [],
-        })
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error)
-      } finally {
-        setIsLoading(false)
-      }
+  const fetchDashboardData = async () => {
+    if (!user || !profile?.account_number) {
+      setIsLoading(false)
+      return
     }
 
-    fetchDashboardData()
+    try {
+      console.log("Fetching dashboard data for account:", profile.account_number)
+
+      // Fetch recent transactions
+      const { data: transactions, error: transactionsError } = await supabase
+        .from("transactions")
+        .select("*")
+        .or(`sender_account_number.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number}`)
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      if (transactionsError) {
+        console.error("Error fetching transactions:", transactionsError)
+      } else if (transactions) {
+        console.log("Fetched transactions:", transactions.length)
+        // Process transactions to show correct perspective
+        const processedTransactions = transactions.map((transaction) => {
+          const processed = { ...transaction }
+          if (transaction.sender_account_number === profile.account_number) {
+            processed.transaction_type = "transfer_out"
+          } else if (transaction.recipient_account_number === profile.account_number) {
+            processed.transaction_type = "transfer_in"
+          }
+          return processed
+        })
+        setRecentTransactions(processedTransactions)
+      }
+
+      // Fetch recent notifications
+      const { data: notifications, error: notificationsError } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("account_no", profile.account_number)
+        .order("created_at", { ascending: false })
+        .limit(3)
+
+      if (notificationsError) {
+        console.error("Error fetching notifications:", notificationsError)
+      } else if (notifications) {
+        setRecentNotifications(notifications)
+      }
+
+      // Calculate monthly statistics
+      const currentMonth = new Date()
+      const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
+
+      const { data: monthlyTransactions, error: monthlyError } = await supabase
+        .from("transactions")
+        .select("*")
+        .or(`sender_account_number.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number}`)
+        .gte("created_at", firstDayOfMonth.toISOString())
+        .eq("status", "completed")
+
+      if (monthlyError) {
+        console.error("Error fetching monthly stats:", monthlyError)
+      } else if (monthlyTransactions) {
+        let totalIncome = 0
+        let totalExpenses = 0
+
+        monthlyTransactions.forEach((transaction) => {
+          if (
+            transaction.transaction_type === "deposit" ||
+            (transaction.transaction_type === "transfer_in" &&
+              transaction.recipient_account_number === profile.account_number) ||
+            transaction.transaction_type === "loan_disbursement"
+          ) {
+            totalIncome += transaction.amount
+          } else if (
+            transaction.transaction_type === "withdrawal" ||
+            (transaction.transaction_type === "transfer_out" &&
+              transaction.sender_account_number === profile.account_number) ||
+            transaction.transaction_type === "loan_repayment"
+          ) {
+            totalExpenses += transaction.amount
+          }
+        })
+
+        setMonthlyStats({
+          totalIncome,
+          totalExpenses,
+          transactionCount: monthlyTransactions.length,
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error)
+    }
+  }
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true)
+      await fetchDashboardData()
+      setIsLoading(false)
+    }
+
+    if (profile?.account_number) {
+      loadData()
+    }
   }, [user, profile, supabase])
 
   const formatCurrency = (amount: number) => {
+    // Ensure amount is a valid number
+    const numAmount = typeof amount === "number" ? amount : Number.parseFloat(amount) || 0
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-    }).format(amount)
+      minimumFractionDigits: 2,
+    }).format(numAmount)
   }
 
-  const formatAccountNumber = (accountNumber: string) => {
-    return accountNumber.replace(/(\d{4})(\d{4})(\d{4})/, "$1 $2 $3")
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+
+    if (diffInHours < 24) {
+      return date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    } else if (diffInHours < 168) {
+      return date.toLocaleDateString("en-US", {
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    } else {
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+    }
   }
 
-  const getGreeting = () => {
-    const hour = new Date().getHours()
-    if (hour < 12) return "Good morning"
-    if (hour < 17) return "Good afternoon"
-    return "Good evening"
+  const getTransactionIcon = (type: string) => {
+    switch (type) {
+      case "deposit":
+        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
+      case "withdrawal":
+        return <ArrowUpRight className="h-4 w-4 text-red-600" />
+      case "transfer_in":
+        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
+      case "transfer_out":
+        return <ArrowUpRight className="h-4 w-4 text-red-600" />
+      case "loan_disbursement":
+        return <Building2 className="h-4 w-4 text-blue-600" />
+      case "loan_repayment":
+        return <CreditCard className="h-4 w-4 text-orange-600" />
+      default:
+        return <DollarSign className="h-4 w-4 text-gray-600" />
+    }
   }
 
-  if (isLoading) {
+  const getTransactionDescription = (transaction: Transaction) => {
+    if (transaction.transaction_type === "deposit") {
+      return transaction.narration || "Account deposit"
+    } else if (transaction.transaction_type === "withdrawal") {
+      return transaction.narration || "Account withdrawal"
+    } else if (transaction.transaction_type === "transfer_in") {
+      return `From ${transaction.sender_name || "Unknown"}`
+    } else if (transaction.transaction_type === "transfer_out") {
+      return `To ${transaction.recipient_name || "Unknown"}`
+    } else if (transaction.transaction_type === "loan_disbursement") {
+      return "Loan disbursement"
+    } else if (transaction.transaction_type === "loan_repayment") {
+      return "Loan payment"
+    }
+    return transaction.narration || "Transaction"
+  }
+
+  if (!user || !profile) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0A3D62] border-t-transparent"></div>
-          <span className="text-lg text-gray-600">Loading your dashboard...</span>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <p className="text-gray-500">Please log in to view your dashboard</p>
         </div>
       </div>
     )
   }
 
+  // Log the current balance for debugging
+  console.log("Dashboard rendering with profile balance:", profile.balance, "type:", typeof profile.balance)
+
   return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-[#0A3D62] to-[#0F5585] rounded-2xl p-6 sm:p-8 text-white">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div className="mb-4 sm:mb-0">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-              {getGreeting()}, {profile?.first_name}! 👋
-            </h1>
-            <p className="text-blue-100 text-sm sm:text-base">Welcome back to your I&E Bank dashboard</p>
-          </div>
-          <div className="text-right">
-            <p className="text-blue-100 text-sm mb-1">Account Number</p>
-            <p className="font-mono text-lg font-semibold">
-              {profile?.account_number ? formatAccountNumber(profile.account_number) : "Loading..."}
-            </p>
-          </div>
+    <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+      {/* Welcome Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold">Welcome back, {profile.first_name || "User"}!</h1>
+          <p className="text-gray-600 mt-1">Here's what's happening with your account today.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshData}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 bg-transparent"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          <Button asChild>
+            <Link href="/dashboard/transfers" className="flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              Send Money
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/dashboard/transfers?tab=deposit" className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Add Money
+            </Link>
+          </Button>
         </div>
       </div>
 
       {/* Account Balance Card */}
-      <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50">
-        <CardHeader className="pb-3">
+      <Card className="bg-gradient-to-r from-[#0A3D62] to-[#0F5585] text-white">
+        <CardContent className="p-6">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold text-gray-900">Account Balance</CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowBalance(!showBalance)}
-              className="h-8 w-8 text-gray-500 hover:text-gray-700"
-            >
-              {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </Button>
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Current Balance</p>
+              <div className="flex items-center gap-3 mt-2">
+                {showBalance ? (
+                  <p className="text-3xl font-bold">{formatCurrency(profile.balance || 0)}</p>
+                ) : (
+                  <p className="text-3xl font-bold">••••••</p>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowBalance(!showBalance)}
+                  className="text-white hover:bg-white/20 p-1"
+                >
+                  {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-blue-100 text-sm mt-1">Account: {profile.account_number}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-blue-100 text-sm">This Month</p>
+              <p className="text-lg font-semibold text-green-300">
+                +{formatCurrency(monthlyStats.totalIncome - monthlyStats.totalExpenses)}
+              </p>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl sm:text-4xl font-bold text-[#0A3D62] mb-2">
-            {showBalance ? formatCurrency(stats.totalBalance) : "••••••"}
-          </div>
-          <p className="text-gray-600 text-sm">Available Balance</p>
         </CardContent>
       </Card>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-4 sm:p-6">
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Savings</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.totalSavings)}</p>
+                <p className="text-sm font-medium text-gray-600">Money In (This Month)</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(monthlyStats.totalIncome)}</p>
               </div>
-              <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
-                <PiggyBank className="h-6 w-6 text-green-600" />
-              </div>
+              <ArrowDownLeft className="h-8 w-8 text-green-600" />
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-4 sm:p-6">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Money Out (This Month)</p>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(monthlyStats.totalExpenses)}</p>
+              </div>
+              <ArrowUpRight className="h-8 w-8 text-red-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Transactions</p>
-                <p className="text-2xl font-bold text-blue-600">{stats.totalTransactions}</p>
+                <p className="text-2xl font-bold text-blue-600">{monthlyStats.transactionCount}</p>
               </div>
-              <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <Activity className="h-6 w-6 text-blue-600" />
-              </div>
+              <TrendingUp className="h-8 w-8 text-blue-600" />
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Notifications</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.unreadNotifications}</p>
-              </div>
-              <div className="h-12 w-12 bg-orange-100 rounded-full flex items-center justify-center">
-                <Bell className="h-6 w-6 text-orange-600" />
-              </div>
+      {/* Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Transactions */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Recent Transactions</CardTitle>
+              <CardDescription>Your latest financial activities</CardDescription>
             </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/transactions">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="h-8 w-8 bg-gray-200 rounded animate-pulse" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded animate-pulse mb-1" />
+                      <div className="h-3 bg-gray-200 rounded animate-pulse w-2/3" />
+                    </div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
+                  </div>
+                ))}
+              </div>
+            ) : recentTransactions.length > 0 ? (
+              <div className="space-y-3">
+                {recentTransactions.map((transaction) => (
+                  <div key={transaction.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+                    <div className="flex-shrink-0">{getTransactionIcon(transaction.transaction_type)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{getTransactionDescription(transaction)}</p>
+                      <p className="text-xs text-gray-500">{formatDate(transaction.created_at)}</p>
+                    </div>
+                    <p
+                      className={`font-semibold text-sm ${
+                        transaction.transaction_type === "deposit" ||
+                        transaction.transaction_type === "transfer_in" ||
+                        transaction.transaction_type === "loan_disbursement"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {transaction.transaction_type === "deposit" ||
+                      transaction.transaction_type === "transfer_in" ||
+                      transaction.transaction_type === "loan_disbursement"
+                        ? "+"
+                        : "-"}
+                      {formatCurrency(transaction.amount)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">No recent transactions</p>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">KYC Status</p>
-                <Badge
-                  variant={profile?.kyc_status === "approved" ? "default" : "secondary"}
-                  className={
-                    profile?.kyc_status === "approved"
-                      ? "bg-green-100 text-green-800"
-                      : profile?.kyc_status === "pending"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-red-100 text-red-800"
-                  }
-                >
-                  {profile?.kyc_status === "approved"
-                    ? "Verified"
-                    : profile?.kyc_status === "pending"
-                      ? "Pending"
-                      : "Not Verified"}
-                </Badge>
-              </div>
-              <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <Users className="h-6 w-6 text-purple-600" />
-              </div>
+        {/* Recent Notifications */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Recent Notifications</CardTitle>
+              <CardDescription>Important updates and alerts</CardDescription>
             </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/notifications">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className="h-6 w-6 bg-gray-200 rounded animate-pulse mt-1" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded animate-pulse mb-1" />
+                      <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : recentNotifications.length > 0 ? (
+              <div className="space-y-3">
+                {recentNotifications.map((notification) => (
+                  <div key={notification.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50">
+                    <Bell className="h-4 w-4 text-blue-600 mt-1 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{notification.title}</p>
+                      <p className="text-xs text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
+                      <p className="text-xs text-gray-500 mt-1">{formatDate(notification.created_at)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">No recent notifications</p>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Quick Actions */}
-      <Card className="border-0 shadow-lg">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-xl font-semibold">Quick Actions</CardTitle>
-          <CardDescription>Frequently used banking services</CardDescription>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Common tasks and services</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Button asChild className="h-20 flex-col bg-[#0A3D62] hover:bg-[#0F5585]">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent" asChild>
               <Link href="/dashboard/transfers">
-                <ArrowUpRight className="h-6 w-6 mb-2" />
+                <Send className="h-6 w-6" />
                 <span className="text-sm">Send Money</span>
               </Link>
             </Button>
-            <Button asChild variant="outline" className="h-20 flex-col border-2 hover:bg-gray-50 bg-transparent">
-              <Link href="/dashboard/savings">
-                <PiggyBank className="h-6 w-6 mb-2" />
-                <span className="text-sm">Save Money</span>
+            <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent" asChild>
+              <Link href="/dashboard/transfers?tab=deposit">
+                <Plus className="h-6 w-6" />
+                <span className="text-sm">Add Money</span>
               </Link>
             </Button>
-            <Button asChild variant="outline" className="h-20 flex-col border-2 hover:bg-gray-50 bg-transparent">
+            <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent" asChild>
               <Link href="/dashboard/loans">
-                <CreditCard className="h-6 w-6 mb-2" />
-                <span className="text-sm">Get Loan</span>
+                <Building2 className="h-6 w-6" />
+                <span className="text-sm">Apply for Loan</span>
               </Link>
             </Button>
-            <Button asChild variant="outline" className="h-20 flex-col border-2 hover:bg-gray-50 bg-transparent">
+            <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent" asChild>
               <Link href="/dashboard/transactions">
-                <Activity className="h-6 w-6 mb-2" />
-                <span className="text-sm">View History</span>
+                <TrendingUp className="h-6 w-6" />
+                <span className="text-sm">View Statements</span>
               </Link>
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Recent Transactions */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-xl font-semibold">Recent Activity</CardTitle>
-            <CardDescription>Your latest transactions</CardDescription>
-          </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/dashboard/transactions">View All</Link>
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {stats.recentTransactions.length > 0 ? (
-            <div className="space-y-4">
-              {stats.recentTransactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      {transaction.type === "deposit" || transaction.type === "transfer_in" ? (
-                        <ArrowDownLeft className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <ArrowUpRight className="h-5 w-5 text-red-600" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{transaction.description}</p>
-                      <p className="text-sm text-gray-500">{new Date(transaction.created_at).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p
-                      className={`font-semibold ${
-                        transaction.type === "deposit" || transaction.type === "transfer_in"
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }`}
-                    >
-                      {transaction.type === "deposit" || transaction.type === "transfer_in" ? "+" : "-"}
-                      {formatCurrency(Math.abs(transaction.amount))}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Activity className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No recent transactions</p>
-              <p className="text-sm">Your transaction history will appear here</p>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
