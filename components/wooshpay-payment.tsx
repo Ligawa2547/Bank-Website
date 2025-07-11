@@ -1,220 +1,218 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useSession } from "@/providers/session-provider"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle, AlertTriangle } from "lucide-react"
+import { Loader2, CreditCard, AlertCircle } from "lucide-react"
 
 interface WooshPayPaymentProps {
-  onSuccess?: () => void
-  onCancel?: () => void
+  amount: number
+  onSuccess?: (reference: string) => void
+  onError?: (error: string) => void
+  onClose?: () => void
 }
 
-export function WooshPayPayment({ onSuccess, onCancel }: WooshPayPaymentProps) {
-  const [amount, setAmount] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
-  const [isServiceAvailable, setIsServiceAvailable] = useState(true)
-  const { session } = useSession()
-  const router = useRouter()
-  const supabase = createClientComponentClient()
+export function WooshPayPayment({ amount, onSuccess, onError, onClose }: WooshPayPaymentProps) {
+  const [loading, setLoading] = useState(false)
+  const [publicKey, setPublicKey] = useState<string>("")
+  const [error, setError] = useState<string | null>(null)
+  const [cardDetails, setCardDetails] = useState({
+    cardNumber: "",
+    expiryMonth: "",
+    expiryYear: "",
+    cvv: "",
+    cardholderName: "",
+  })
 
-  // Check service availability on component mount
   useEffect(() => {
-    const checkServiceAvailability = async () => {
+    const fetchPublicKey = async () => {
       try {
-        const response = await fetch("/api/wooshpay/initialize", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: "test@example.com",
-            amount: 1,
-            reference: "test_availability_check",
-          }),
-        })
-
-        if (response.status === 503) {
-          const data = await response.json()
-          if (data.error === "WOOSHPAY_NOT_CONFIGURED") {
-            setIsServiceAvailable(false)
-            setError("Payment service is currently unavailable. Please contact support.")
-          }
+        const response = await fetch("/api/wooshpay/public-key")
+        const data = await response.json()
+        if (data.success && data.publicKey) {
+          setPublicKey(data.publicKey)
         }
-      } catch (error) {
-        console.log("Service availability check failed, assuming available")
+      } catch (err) {
+        console.error("Failed to fetch public key:", err)
       }
     }
 
-    checkServiceAvailability()
+    fetchPublicKey()
   }, [])
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setCardDetails((prev) => ({
+      ...prev,
+      [name]: value,
+    }))
+  }
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
-    setSuccess("")
-
-    if (!isServiceAvailable) {
-      setError("Payment service is currently unavailable. Please contact support.")
-      return
-    }
-
-    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-      setError("Please enter a valid amount")
-      return
-    }
-
-    if (!session?.user) {
-      setError("You must be logged in to make a deposit")
-      return
-    }
-
-    setIsLoading(true)
+    setError(null)
+    setLoading(true)
 
     try {
-      // Get user data
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", session.user.id)
-        .single()
+      const reference = `woosh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-      if (userError || !userData) {
-        setError("User data not found. Please try again.")
-        setIsLoading(false)
-        return
-      }
-
-      // Generate a unique reference
-      const reference = `dep_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
-
-      // Initialize payment through API (server-side)
-      const response = await fetch("/api/wooshpay/initialize", {
+      // Initialize payment
+      const initResponse = await fetch("/api/wooshpay/initialize", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: session.user.email,
-          amount: Number(amount),
+          amount: amount * 100,
+          email: "user@example.com",
           reference,
-          metadata: {
-            account_number: userData.account_no,
-            user_id: session.user.id,
-            user_name: `${userData.first_name} ${userData.last_name}`,
-          },
+          ...cardDetails,
         }),
       })
 
-      const data = await response.json()
+      const initData = await initResponse.json()
 
-      if (!response.ok) {
-        if (response.status === 503) {
-          setError("Payment service is temporarily unavailable. Please try again later.")
-          setIsServiceAvailable(false)
-        } else {
-          setError(data.message || "Failed to initialize payment")
-        }
-        setIsLoading(false)
-        return
+      if (!initResponse.ok) {
+        throw new Error(initData.error || "Payment initialization failed")
       }
 
-      if (!data.authorization_url) {
-        setError("No payment URL received from gateway")
-        setIsLoading(false)
-        return
+      // Simulate payment processing
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      // Verify payment
+      const verifyResponse = await fetch("/api/wooshpay/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reference }),
+      })
+
+      const verifyData = await verifyResponse.json()
+
+      if (!verifyResponse.ok) {
+        throw new Error(verifyData.error || "Payment verification failed")
       }
 
-      // Store payment reference for verification
-      localStorage.setItem("wooshpay_reference", reference)
-      localStorage.setItem("wooshpay_amount", amount)
-
-      // Redirect to WooshPay checkout
-      window.location.href = data.authorization_url
-    } catch (error: any) {
-      console.error("Payment error:", error)
-      setError("An error occurred while processing your payment. Please try again.")
-      setIsLoading(false)
+      if (verifyData.success && verifyData.data.status === "success") {
+        onSuccess?.(reference)
+      } else {
+        throw new Error("Payment was not successful")
+      }
+    } catch (err: any) {
+      const errorMessage = err.message || "Payment failed"
+      setError(errorMessage)
+      onError?.(errorMessage)
+    } finally {
+      setLoading(false)
     }
   }
 
-  if (!isServiceAvailable) {
-    return (
-      <div className="space-y-4">
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            Payment service is currently unavailable. Please contact support for assistance with deposits.
-          </AlertDescription>
-        </Alert>
-
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} className="w-full">
-            Close
-          </Button>
-        )}
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-4">
-      <form onSubmit={handlePayment} className="space-y-4">
-        <div>
-          <Label htmlFor="amount">Amount (USD)</Label>
-          <Input
-            id="amount"
-            type="number"
-            placeholder="Enter amount"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            min="1"
-            step="0.01"
-            required
-            className="text-lg"
-          />
-        </div>
-
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CreditCard className="h-5 w-5" />
+          WooshPay Payment
+        </CardTitle>
+        <CardDescription>Pay ${amount.toLocaleString()} securely with WooshPay</CardDescription>
+      </CardHeader>
+      <CardContent>
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        {success && (
-          <Alert className="border-green-200 bg-green-50">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">{success}</AlertDescription>
-          </Alert>
-        )}
+        <form onSubmit={handlePayment} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="cardholderName">Cardholder Name</Label>
+            <Input
+              id="cardholderName"
+              name="cardholderName"
+              value={cardDetails.cardholderName}
+              onChange={handleInputChange}
+              placeholder="John Doe"
+              required
+            />
+          </div>
 
-        <div className="flex gap-2">
-          <Button type="submit" className="flex-1 bg-[#0A3D62] text-white hover:bg-[#0F5585]" disabled={isLoading}>
-            {isLoading ? "Processing..." : "Pay with WooshPay"}
-          </Button>
-          {onCancel && (
-            <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+          <div className="space-y-2">
+            <Label htmlFor="cardNumber">Card Number</Label>
+            <Input
+              id="cardNumber"
+              name="cardNumber"
+              value={cardDetails.cardNumber}
+              onChange={handleInputChange}
+              placeholder="1234 5678 9012 3456"
+              maxLength={19}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-2">
+              <Label htmlFor="expiryMonth">Month</Label>
+              <Input
+                id="expiryMonth"
+                name="expiryMonth"
+                value={cardDetails.expiryMonth}
+                onChange={handleInputChange}
+                placeholder="MM"
+                maxLength={2}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expiryYear">Year</Label>
+              <Input
+                id="expiryYear"
+                name="expiryYear"
+                value={cardDetails.expiryYear}
+                onChange={handleInputChange}
+                placeholder="YY"
+                maxLength={2}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cvv">CVV</Label>
+              <Input
+                id="cvv"
+                name="cvv"
+                value={cardDetails.cvv}
+                onChange={handleInputChange}
+                placeholder="123"
+                maxLength={4}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="flex-1 bg-transparent"
+              disabled={loading}
+            >
               Cancel
             </Button>
-          )}
-        </div>
-      </form>
-
-      <div className="text-sm text-gray-600 space-y-1">
-        <p>• Secure payment processing</p>
-        <p>• Instant account funding</p>
-        <p>• 24/7 transaction support</p>
-      </div>
-    </div>
+            <Button type="submit" className="flex-1" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Processing...
+                </>
+              ) : (
+                `Pay $${amount.toLocaleString()}`
+              )}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

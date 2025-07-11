@@ -1,39 +1,28 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
-import { wooshPayClient, isWooshPayConfigured } from "@/lib/wooshpay/client"
+import { type NextRequest, NextResponse } from "next/server"
+import { wooshPayClient } from "@/lib/wooshpay/client"
+import { getWooshPayServerConfig } from "@/lib/wooshpay/config"
 
-export async function GET(request: Request) {
+export async function POST(request: NextRequest) {
   console.log("WooshPay verify endpoint called")
 
   try {
-    // Check if WooshPay is configured
-    if (!isWooshPayConfigured()) {
-      return NextResponse.json(
-        {
-          message: "Payment service is not configured",
-          error: "WOOSHPAY_NOT_CONFIGURED",
-        },
-        { status: 503 },
-      )
+    const config = await getWooshPayServerConfig()
+
+    if (!config.secretKey) {
+      return NextResponse.json({ success: false, error: "WooshPay not configured" }, { status: 503 })
     }
 
-    // Get reference from URL
-    const url = new URL(request.url)
-    const reference = url.searchParams.get("reference")
-
-    console.log("Verifying reference:", reference)
-
-    if (!reference) {
-      return NextResponse.json({ message: "Reference is required" }, { status: 400 })
-    }
+    const body = await request.json()
+    const { reference } = body
 
     // Check if WooshPay client is ready
     if (!wooshPayClient.isReady()) {
       return NextResponse.json(
         {
-          message: "Payment service is temporarily unavailable",
-          error: "SERVICE_UNAVAILABLE",
+          success: false,
+          error: "Payment service is temporarily unavailable",
         },
         { status: 503 },
       )
@@ -44,9 +33,10 @@ export async function GET(request: Request) {
 
     console.log("WooshPay verification response:", wooshPayResponse)
 
-    if (!wooshPayResponse.status) {
+    if (!wooshPayResponse.success) {
       return NextResponse.json(
         {
+          success: false,
           message: wooshPayResponse.message || "Verification failed",
         },
         { status: 400 },
@@ -68,7 +58,7 @@ export async function GET(request: Request) {
 
       if (transactionError || !transactionData) {
         console.error("Transaction not found:", transactionError)
-        return NextResponse.json({ message: "Transaction not found" }, { status: 404 })
+        return NextResponse.json({ success: false, message: "Transaction not found" }, { status: 404 })
       }
 
       console.log("Found transaction:", transactionData)
@@ -91,13 +81,13 @@ export async function GET(request: Request) {
 
       if (userError || !userData) {
         console.error("User not found:", userError)
-        return NextResponse.json({ message: "User not found" }, { status: 404 })
+        return NextResponse.json({ success: false, message: "User not found" }, { status: 404 })
       }
 
       console.log("Found user:", userData.account_no)
 
       // Update user's balance
-      const newBalance = (userData.account_balance || 0) + transactionData.amount
+      const newBalance = (userData.account_balance || 0) + wooshPayResponse.data.amount / 100 // Convert kobo to USD
       await supabase
         .from("users")
         .update({
@@ -112,7 +102,7 @@ export async function GET(request: Request) {
       await supabase.from("notifications").insert({
         account_no: transactionData.account_no,
         title: "Deposit Successful",
-        message: `Your account has been credited with USD ${transactionData.amount.toFixed(2)}`,
+        message: `Your account has been credited with USD ${(wooshPayResponse.data.amount / 100).toFixed(2)}`,
         is_read: false,
         created_at: new Date().toISOString(),
       })
@@ -121,18 +111,12 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      status: wooshPayResponse.data?.status || "unknown",
+      success: wooshPayResponse.success,
       message: wooshPayResponse.message,
       data: wooshPayResponse.data,
     })
   } catch (error: any) {
     console.error("WooshPay verification error:", error)
-    return NextResponse.json(
-      {
-        message: error.message || "Internal server error",
-        details: process.env.NODE_ENV === "development" ? error.toString() : "Payment verification error",
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ success: false, error: "Payment verification failed" }, { status: 500 })
   }
 }
