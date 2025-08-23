@@ -3,31 +3,22 @@ Allow: /
 Allow: /login
 Allow: /signup
 Allow: /forgot-password
-Allow: /about
-Allow: /services
-Allow: /contact
-Allow: /support
-Allow: /terms
-Allow: /privacy
-Allow: /help
-Allow: /news
-Allow: /careers
-Allow: /locations
 
-# Disallow private/secure areas
+# Disallow sensitive areas
 Disallow: /dashboard/
 Disallow: /admin/
 Disallow: /api/
 Disallow: /auth/
-Disallow: /profile/
+Disallow: /onboarding/
+Disallow: /reset-password/
 Disallow: /_next/
-Disallow: /static/
+Disallow: /scripts/
 
-# Allow specific public API endpoints
-Allow: /api/health-check
+# Allow important files
+Allow: /sitemap.xml
+Allow: /robots.txt
+Allow: /favicon.ico
+Allow: /google35bf1cdf0bb83eed.html
 
 # Sitemap location
-Sitemap: https://iaenb.com/sitemap.xml
-
-# Crawl delay (optional)
-Crawl-delay: 1
+Sitemap: https://ebanking.iaenb.com/sitemap.xml

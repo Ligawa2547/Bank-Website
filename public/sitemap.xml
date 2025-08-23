@@ -2,157 +2,125 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!-- Homepage -->
   <url>
-    <loc>https://iaenb.com</loc>
-    <lastmod>2024-01-15</lastmod>
+    <loc>https://ebanking.iaenb.com/</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   
   <!-- Authentication Pages -->
   <url>
-    <loc>https://iaenb.com/login</loc>
-    <lastmod>2024-01-15</lastmod>
+    <loc>https://ebanking.iaenb.com/login</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   
   <url>
-    <loc>https://iaenb.com/signup</loc>
-    <lastmod>2024-01-15</lastmod>
+    <loc>https://ebanking.iaenb.com/signup</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   
   <url>
-    <loc>https://iaenb.com/forgot-password</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  
-  <url>
-    <loc>https://iaenb.com/reset-password</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  
-  <!-- Public Information Pages -->
-  <url>
-    <loc>https://iaenb.com/about</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  
-  <url>
-    <loc>https://iaenb.com/services</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  
-  <url>
-    <loc>https://iaenb.com/contact</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  
-  <url>
-    <loc>https://iaenb.com/support</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  
-  <!-- Legal Pages -->
-  <url>
-    <loc>https://iaenb.com/terms</loc>
-    <lastmod>2024-01-15</lastmod>
+    <loc>https://ebanking.iaenb.com/forgot-password</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.3</priority>
+  </url>
+  
+  <!-- Public Pages -->
+  <url>
+    <loc>https://ebanking.iaenb.com/dashboard/support</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- Dashboard Pages (for authenticated users) -->
+  <url>
+    <loc>https://ebanking.iaenb.com/dashboard</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
   </url>
   
   <url>
-    <loc>https://iaenb.com/privacy</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  
-  <!-- Banking Services -->
-  <url>
-    <loc>https://iaenb.com/services/personal-banking</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <loc>https://ebanking.iaenb.com/dashboard/transactions</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
   </url>
   
   <url>
-    <loc>https://iaenb.com/services/business-banking</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <loc>https://ebanking.iaenb.com/dashboard/transfers</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
   </url>
   
   <url>
-    <loc>https://iaenb.com/services/loans</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  
-  <url>
-    <loc>https://iaenb.com/services/savings</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  
-  <!-- Help & Support -->
-  <url>
-    <loc>https://iaenb.com/help</loc>
-    <lastmod>2024-01-15</lastmod>
+    <loc>https://ebanking.iaenb.com/dashboard/savings</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   
   <url>
-    <loc>https://iaenb.com/help/faq</loc>
-    <lastmod>2024-01-15</lastmod>
+    <loc>https://ebanking.iaenb.com/dashboard/loans</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <url>
+    <loc>https://ebanking.iaenb.com/dashboard/statements</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   
   <url>
-    <loc>https://iaenb.com/help/security</loc>
-    <lastmod>2024-01-15</lastmod>
+    <loc>https://ebanking.iaenb.com/dashboard/profile</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   
-  <!-- News & Updates -->
   <url>
-    <loc>https://iaenb.com/news</loc>
-    <lastmod>2024-01-15</lastmod>
-    <changefreq>weekly</changefreq>
+    <loc>https://ebanking.iaenb.com/dashboard/kyc</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   
-  <!-- Careers -->
   <url>
-    <loc>https://iaenb.com/careers</loc>
-    <lastmod>2024-01-15</lastmod>
+    <loc>https://ebanking.iaenb.com/dashboard/notifications</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://ebanking.iaenb.com/dashboard/settings</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   
-  <!-- Locations -->
+  <!-- Admin Authentication -->
   <url>
-    <loc>https://iaenb.com/locations</loc>
-    <lastmod>2024-01-15</lastmod>
+    <loc>https://ebanking.iaenb.com/admin/login</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.3</priority>
+  </url>
+  
+  <url>
+    <loc>https://ebanking.iaenb.com/admin/signup</loc>
+    <lastmod>2024-01-15T00:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
   </url>
 </urlset>

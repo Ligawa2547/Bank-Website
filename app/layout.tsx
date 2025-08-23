@@ -9,59 +9,63 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: {
-    default: "I&E National Bank - Your Trusted Banking Partner",
-    template: "%s | I&E National Bank",
+    default: "IAE Bank - Secure Online Banking",
+    template: "%s | IAE Bank",
   },
   description:
-    "I&E National Bank offers comprehensive banking services including personal banking, business banking, loans, savings accounts, and digital banking solutions. Bank with confidence and security.",
+    "Experience secure and convenient online banking with IAE Bank. Manage your accounts, transfer funds, pay bills, and access financial services 24/7.",
   keywords: [
-    "banking",
-    "personal banking",
-    "business banking",
-    "loans",
-    "savings",
-    "digital banking",
     "online banking",
-    "mobile banking",
+    "digital banking",
+    "secure banking",
+    "IAE Bank",
     "financial services",
-    "Nigeria bank",
-    "I&E National Bank",
+    "money transfer",
+    "account management",
+    "mobile banking",
+    "internet banking",
+    "bank account",
+    "savings account",
+    "checking account",
+    "loans",
+    "credit cards",
   ],
-  authors: [{ name: "I&E National Bank" }],
-  creator: "I&E National Bank",
-  publisher: "I&E National Bank",
+  authors: [{ name: "IAE Bank" }],
+  creator: "IAE Bank",
+  publisher: "IAE Bank",
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
-  metadataBase: new URL("https://iaenb.com"),
+  metadataBase: new URL("https://ebanking.iaenb.com"),
   alternates: {
     canonical: "/",
   },
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://iaenb.com",
-    title: "I&E National Bank - Your Trusted Banking Partner",
+    url: "https://ebanking.iaenb.com",
+    title: "IAE Bank - Secure Online Banking",
     description:
-      "Comprehensive banking services with security and convenience. Personal banking, business banking, loans, and digital solutions.",
-    siteName: "I&E National Bank",
+      "Experience secure and convenient online banking with IAE Bank. Manage your accounts, transfer funds, pay bills, and access financial services 24/7.",
+    siteName: "IAE Bank",
     images: [
       {
-        url: "/images/bank-building.jpeg",
+        url: "/images/iae-logo.png",
         width: 1200,
         height: 630,
-        alt: "I&E National Bank Building",
+        alt: "IAE Bank Logo",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "I&E National Bank - Your Trusted Banking Partner",
-    description: "Comprehensive banking services with security and convenience.",
-    images: ["/images/bank-building.jpeg"],
-    creator: "@iaenationalbank",
+    title: "IAE Bank - Secure Online Banking",
+    description:
+      "Experience secure and convenient online banking with IAE Bank. Manage your accounts, transfer funds, pay bills, and access financial services 24/7.",
+    images: ["/images/iae-logo.png"],
+    creator: "@iaebank",
   },
   robots: {
     index: true,
@@ -75,10 +79,9 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: "your-google-verification-code",
-    yandex: "your-yandex-verification-code",
-    yahoo: "your-yahoo-verification-code",
+    google: "google35bf1cdf0bb83eed",
   },
+  category: "finance",
     generator: 'v0.app'
 }
 
@@ -88,12 +91,14 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="google-site-verification" content="google35bf1cdf0bb83eed" />
+        <link rel="canonical" href="https://ebanking.iaenb.com" />
         <link rel="icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/images/iae-logo.png" />
-        <meta name="theme-color" content="#0A3D62" />
-        <meta name="msapplication-TileColor" content="#0A3D62" />
+        <meta name="theme-color" content="#1e40af" />
+        <meta name="msapplication-TileColor" content="#1e40af" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className={inter.className}>

@@ -1,22 +1,36 @@
 import type { Metadata } from "next"
-import SignupClientPage from "./signup-client-page"
+import SignupClient from "./signup-client"
 
 export const metadata: Metadata = {
-  title: "Sign Up - Create Your Account",
+  title: "Sign Up - Open Your Account Today",
   description:
-    "Create your I&E National Bank account today. Enjoy secure online banking, easy transfers, savings accounts, and comprehensive financial services.",
-  keywords: ["sign up", "create account", "register", "new account", "online banking registration"],
+    "Join IAE Bank today and open your new account. Enjoy secure online banking, competitive rates, and exceptional customer service.",
+  keywords: [
+    "sign up",
+    "create account",
+    "open account",
+    "new customer",
+    "bank account registration",
+    "IAE Bank signup",
+    "online account opening",
+    "banking registration",
+  ],
   openGraph: {
-    title: "Sign Up - I&E National Bank",
-    description: "Create your secure banking account today",
-    url: "/signup",
+    title: "Sign Up - IAE Bank",
+    description:
+      "Join IAE Bank today and open your new account. Enjoy secure online banking, competitive rates, and exceptional customer service.",
+    url: "https://ebanking.iaenb.com/signup",
   },
-  robots: {
-    index: true,
-    follow: true,
+  twitter: {
+    title: "Sign Up - IAE Bank",
+    description:
+      "Join IAE Bank today and open your new account. Enjoy secure online banking, competitive rates, and exceptional customer service.",
+  },
+  alternates: {
+    canonical: "/signup",
   },
 }
 
 export default function SignupPage() {
-  return <SignupClientPage />
+  return <SignupClient />
 }

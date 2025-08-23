@@ -1,19 +1,33 @@
-import LoginClient from "./login-client"
 import type { Metadata } from "next"
+import LoginClient from "./login-client"
 
 export const metadata: Metadata = {
-  title: "Login - Access Your Account",
+  title: "Login - Secure Access to Your Account",
   description:
-    "Securely login to your I&E National Bank account. Access your dashboard, view transactions, transfer money, and manage your banking needs online.",
-  keywords: ["login", "sign in", "online banking", "secure login", "bank account access"],
+    "Securely log in to your IAE Bank account to access your finances, view balances, transfer money, and manage your banking needs online.",
+  keywords: [
+    "login",
+    "sign in",
+    "account access",
+    "secure login",
+    "online banking login",
+    "IAE Bank login",
+    "banking portal",
+    "customer portal",
+  ],
   openGraph: {
-    title: "Login - I&E National Bank",
-    description: "Securely access your banking account online",
-    url: "/login",
+    title: "Login - IAE Bank",
+    description:
+      "Securely log in to your IAE Bank account to access your finances, view balances, transfer money, and manage your banking needs online.",
+    url: "https://ebanking.iaenb.com/login",
   },
-  robots: {
-    index: true,
-    follow: true,
+  twitter: {
+    title: "Login - IAE Bank",
+    description:
+      "Securely log in to your IAE Bank account to access your finances, view balances, transfer money, and manage your banking needs online.",
+  },
+  alternates: {
+    canonical: "/login",
   },
 }
 
