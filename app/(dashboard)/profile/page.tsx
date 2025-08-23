@@ -1,78 +1,159 @@
 "use client"
 
-import type React from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { toast } from "@/components/ui/use-toast"
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
-import { useProfile } from "@/hooks/use-profile"
-import { useSupabase } from "@/providers/supabase-provider"
-import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { User } from "@supabase/supabase-js"
+import { Camera, Save, UserIcon } from "lucide-react"
 
-const ProfilePage = () => {
-  const router = useRouter()
-  const { supabase } = useSupabase()
-  const { data: session } = useSession()
-  const user = session?.user
-  const { profile, refreshUserProfile } = useProfile()
+interface ProfileData {
+  full_name: string
+  email: string
+  phone: string
+  address: string
+  date_of_birth: string
+  bio: string
+  profile_picture_url?: string
+  notification_preferences: {
+    email_notifications: boolean
+    sms_notifications: boolean
+    push_notifications: boolean
+  }
+  privacy_settings: {
+    profile_visibility: "public" | "private" | "friends"
+    show_email: boolean
+    show_phone: boolean
+  }
+}
 
-  const [isEditing, setIsEditing] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    phoneNumber: "",
-    city: "",
-    country: "",
+export default function ProfilePage() {
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<ProfileData>({
+    full_name: "",
+    email: "",
+    phone: "",
+    address: "",
+    date_of_birth: "",
+    bio: "",
+    profile_picture_url: "",
+    notification_preferences: {
+      email_notifications: true,
+      sms_notifications: false,
+      push_notifications: true,
+    },
+    privacy_settings: {
+      profile_visibility: "private",
+      show_email: false,
+      show_phone: false,
+    },
   })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const [errors, setErrors] = useState({
-    phoneNumber: "",
-    city: "",
-    country: "",
-  })
+  const { toast } = useToast()
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
-    if (profile) {
-      setFormData({
-        phoneNumber: profile.phone_number || "",
-        city: profile.city || "",
-        country: profile.country || "",
+    getProfile()
+  }, [])
+
+  const getProfile = async () => {
+    try {
+      setLoading(true)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        setUser(user)
+
+        const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+
+        if (error && error.code !== "PGRST116") {
+          throw error
+        }
+
+        if (data) {
+          setProfile({
+            full_name: data.full_name || "",
+            email: user.email || "",
+            phone: data.phone || "",
+            address: data.address || "",
+            date_of_birth: data.date_of_birth || "",
+            bio: data.bio || "",
+            profile_picture_url: data.profile_picture_url || "",
+            notification_preferences: data.notification_preferences || {
+              email_notifications: true,
+              sms_notifications: false,
+              push_notifications: true,
+            },
+            privacy_settings: data.privacy_settings || {
+              profile_visibility: "private",
+              show_email: false,
+              show_phone: false,
+            },
+          })
+        } else {
+          // Set default values with user email
+          setProfile((prev) => ({
+            ...prev,
+            email: user.email || "",
+          }))
+        }
+      }
+    } catch (error) {
+      console.error("Error loading profile:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load profile data",
+        variant: "destructive",
       })
+    } finally {
+      setLoading(false)
     }
-  }, [profile])
+  }
 
-  const validateForm = () => {
-    const newErrors = {
-      phoneNumber: "",
-      city: "",
-      country: "",
-    }
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {}
 
-    // Basic validation
-    if (formData.phoneNumber && !/^\+?[\d\s\-()]+$/.test(formData.phoneNumber)) {
-      newErrors.phoneNumber = "Please enter a valid phone number"
+    if (!profile.full_name.trim()) {
+      newErrors.full_name = "Full name is required"
     }
 
-    if (formData.city && formData.city.length < 2) {
-      newErrors.city = "City must be at least 2 characters"
+    if (!profile.email.trim()) {
+      newErrors.email = "Email is required"
+    } else if (!/\S+@\S+\.\S+/.test(profile.email)) {
+      newErrors.email = "Email is invalid"
     }
 
-    if (formData.country && formData.country.length < 2) {
-      newErrors.country = "Country must be at least 2 characters"
+    if (profile.phone && !/^\+?[\d\s-()]+$/.test(profile.phone)) {
+      newErrors.phone = "Phone number is invalid"
+    }
+
+    if (profile.date_of_birth) {
+      const birthDate = new Date(profile.date_of_birth)
+      const today = new Date()
+      const age = today.getFullYear() - birthDate.getFullYear()
+      if (age < 18) {
+        newErrors.date_of_birth = "You must be at least 18 years old"
+      }
     }
 
     setErrors(newErrors)
-    return !Object.values(newErrors).some((error) => error !== "")
+    return Object.keys(newErrors).length === 0
   }
 
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!user) return
-
+  const updateProfile = async () => {
     if (!validateForm()) {
       toast({
         title: "Validation Error",
@@ -82,222 +163,272 @@ const ProfilePage = () => {
       return
     }
 
-    setIsLoading(true)
-
     try {
-      // Update both users and user_profiles tables
-      const { error: usersError } = await supabase
-        .from("users")
-        .update({
-          phone_number: formData.phoneNumber,
-          city: formData.city,
-          country: formData.country,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id)
+      setSaving(true)
 
-      if (usersError) {
-        throw new Error(usersError.message)
+      if (!user) throw new Error("No user found")
+
+      const updates = {
+        id: user.id,
+        full_name: profile.full_name,
+        phone: profile.phone,
+        address: profile.address,
+        date_of_birth: profile.date_of_birth,
+        bio: profile.bio,
+        profile_picture_url: profile.profile_picture_url,
+        notification_preferences: profile.notification_preferences,
+        privacy_settings: profile.privacy_settings,
+        updated_at: new Date().toISOString(),
       }
 
-      const { error: profilesError } = await supabase
-        .from("user_profiles")
-        .update({
-          phone_number: formData.phoneNumber,
-          city: formData.city,
-          country: formData.country,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", user.id)
+      const { error } = await supabase.from("profiles").upsert(updates)
 
-      if (profilesError) {
-        console.error("Error updating user_profiles:", profilesError)
-      }
-
-      // Refresh user profile data in context
-      await refreshUserProfile()
+      if (error) throw error
 
       toast({
         title: "Success",
         description: "Profile updated successfully",
       })
-
-      setIsEditing(false)
-    } catch (error: any) {
+    } catch (error) {
+      console.error("Error updating profile:", error)
       toast({
         title: "Error",
-        description: error.message || "Something went wrong",
+        description: "Failed to update profile",
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setSaving(false)
     }
   }
 
-  const handleProfilePictureUpdate = (newUrl: string) => {
-    console.log("Profile picture updated:", newUrl)
-    // The profile will be refreshed automatically by the upload component
-  }
+  const handleInputChange = (field: keyof ProfileData, value: any) => {
+    setProfile((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
     // Clear error when user starts typing
-    if (errors[field as keyof typeof errors]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }))
+    if (errors[field]) {
+      setErrors((prev) => ({
+        ...prev,
+        [field]: "",
+      }))
     }
+  }
+
+  const handleNotificationChange = (key: keyof ProfileData["notification_preferences"], value: boolean) => {
+    setProfile((prev) => ({
+      ...prev,
+      notification_preferences: {
+        ...prev.notification_preferences,
+        [key]: value,
+      },
+    }))
+  }
+
+  const handlePrivacyChange = (key: keyof ProfileData["privacy_settings"], value: any) => {
+    setProfile((prev) => ({
+      ...prev,
+      privacy_settings: {
+        ...prev.privacy_settings,
+        [key]: value,
+      },
+    }))
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
   }
 
   return (
-    <div className="container mx-auto py-10 max-w-4xl">
-      <div className="space-y-6">
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Profile Settings</h1>
-          <p className="text-gray-600">Manage your account information and preferences</p>
+          <p className="text-muted-foreground">Manage your account settings and preferences</p>
         </div>
+        <Button onClick={updateProfile} disabled={saving}>
+          <Save className="mr-2 h-4 w-4" />
+          {saving ? "Saving..." : "Save Changes"}
+        </Button>
+      </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Profile Picture Section */}
-          <Card className="md:col-span-1">
-            <CardHeader>
-              <CardTitle>Profile Picture</CardTitle>
-              <CardDescription>Upload a profile picture to personalize your account</CardDescription>
-            </CardHeader>
-            <CardContent className="flex justify-center">
-              <ProfilePictureUpload currentImageUrl={profile?.profile_pic} onImageUpdate={handleProfilePictureUpdate} />
-            </CardContent>
-          </Card>
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Profile Picture */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile Picture</CardTitle>
+            <CardDescription>Upload a profile picture to personalize your account</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center space-y-4">
+            <Avatar className="h-24 w-24">
+              <AvatarImage src={profile.profile_picture_url || "/placeholder.svg"} />
+              <AvatarFallback>
+                <UserIcon className="h-12 w-12" />
+              </AvatarFallback>
+            </Avatar>
+            <Button variant="outline" size="sm">
+              <Camera className="mr-2 h-4 w-4" />
+              Change Picture
+            </Button>
+          </CardContent>
+        </Card>
 
-          {/* Profile Information Section */}
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Personal Information</CardTitle>
-              <CardDescription>Update your personal details and contact information</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {profile ? (
-                <div className="space-y-6">
-                  {/* Read-only fields */}
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">First Name</label>
-                      <div className="mt-1 p-3 bg-gray-50 rounded-md text-gray-900">
-                        {profile.first_name || "Not provided"}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Last Name</label>
-                      <div className="mt-1 p-3 bg-gray-50 rounded-md text-gray-900">
-                        {profile.last_name || "Not provided"}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Email</label>
-                      <div className="mt-1 p-3 bg-gray-50 rounded-md text-gray-900">
-                        {profile.email || "Not provided"}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Account Number</label>
-                      <div className="mt-1 p-3 bg-gray-50 rounded-md text-gray-900 font-mono">
-                        {profile.account_number || "Not assigned"}
-                      </div>
-                    </div>
-                  </div>
+        {/* Basic Information */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Basic Information</CardTitle>
+            <CardDescription>Update your personal information</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="full_name">Full Name *</Label>
+                <Input
+                  id="full_name"
+                  value={profile.full_name}
+                  onChange={(e) => handleInputChange("full_name", e.target.value)}
+                  className={errors.full_name ? "border-red-500" : ""}
+                />
+                {errors.full_name && <p className="text-sm text-red-500">{errors.full_name}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={profile.email}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  className={errors.email ? "border-red-500" : ""}
+                />
+                {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  value={profile.phone}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
+                  className={errors.phone ? "border-red-500" : ""}
+                />
+                {errors.phone && <p className="text-sm text-red-500">{errors.phone}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="date_of_birth">Date of Birth</Label>
+                <Input
+                  id="date_of_birth"
+                  type="date"
+                  value={profile.date_of_birth}
+                  onChange={(e) => handleInputChange("date_of_birth", e.target.value)}
+                  className={errors.date_of_birth ? "border-red-500" : ""}
+                />
+                {errors.date_of_birth && <p className="text-sm text-red-500">{errors.date_of_birth}</p>}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                value={profile.address}
+                onChange={(e) => handleInputChange("address", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bio">Bio</Label>
+              <Textarea
+                id="bio"
+                value={profile.bio}
+                onChange={(e) => handleInputChange("bio", e.target.value)}
+                placeholder="Tell us about yourself..."
+                rows={3}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-                  <Separator />
+        {/* Notification Preferences */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Notifications</CardTitle>
+            <CardDescription>Choose how you want to be notified</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="email_notifications">Email Notifications</Label>
+              <Switch
+                id="email_notifications"
+                checked={profile.notification_preferences.email_notifications}
+                onCheckedChange={(checked) => handleNotificationChange("email_notifications", checked)}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="sms_notifications">SMS Notifications</Label>
+              <Switch
+                id="sms_notifications"
+                checked={profile.notification_preferences.sms_notifications}
+                onCheckedChange={(checked) => handleNotificationChange("sms_notifications", checked)}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="push_notifications">Push Notifications</Label>
+              <Switch
+                id="push_notifications"
+                checked={profile.notification_preferences.push_notifications}
+                onCheckedChange={(checked) => handleNotificationChange("push_notifications", checked)}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-                  {/* Editable fields */}
-                  <form onSubmit={handleUpdateProfile} className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <label htmlFor="phoneNumber" className="text-sm font-medium text-gray-700">
-                          Phone Number
-                        </label>
-                        <Input
-                          id="phoneNumber"
-                          placeholder="Enter phone number"
-                          value={formData.phoneNumber}
-                          onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
-                          disabled={!isEditing}
-                          className={errors.phoneNumber ? "border-red-500" : ""}
-                        />
-                        {errors.phoneNumber && <p className="text-sm text-red-500 mt-1">{errors.phoneNumber}</p>}
-                      </div>
-                      <div>
-                        <label htmlFor="city" className="text-sm font-medium text-gray-700">
-                          City
-                        </label>
-                        <Input
-                          id="city"
-                          placeholder="Enter city"
-                          value={formData.city}
-                          onChange={(e) => handleInputChange("city", e.target.value)}
-                          disabled={!isEditing}
-                          className={errors.city ? "border-red-500" : ""}
-                        />
-                        {errors.city && <p className="text-sm text-red-500 mt-1">{errors.city}</p>}
-                      </div>
-                      <div>
-                        <label htmlFor="country" className="text-sm font-medium text-gray-700">
-                          Country
-                        </label>
-                        <Input
-                          id="country"
-                          placeholder="Enter country"
-                          value={formData.country}
-                          onChange={(e) => handleInputChange("country", e.target.value)}
-                          disabled={!isEditing}
-                          className={errors.country ? "border-red-500" : ""}
-                        />
-                        {errors.country && <p className="text-sm text-red-500 mt-1">{errors.country}</p>}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 pt-4">
-                      {!isEditing ? (
-                        <Button
-                          type="button"
-                          onClick={() => setIsEditing(true)}
-                          className="bg-[#0A3D62] text-white hover:bg-[#0F5585]"
-                        >
-                          Edit Profile
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            type="submit"
-                            disabled={isLoading}
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                          >
-                            {isLoading ? "Updating..." : "Save Changes"}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              setIsEditing(false)
-                              setErrors({ phoneNumber: "", city: "", country: "" })
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </form>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center py-8">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62]"></div>
-                  <span className="ml-2">Loading profile...</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        {/* Privacy Settings */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Privacy Settings</CardTitle>
+            <CardDescription>Control who can see your information</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="profile_visibility">Profile Visibility</Label>
+              <Select
+                value={profile.privacy_settings.profile_visibility}
+                onValueChange={(value) => handlePrivacyChange("profile_visibility", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="private">Private</SelectItem>
+                  <SelectItem value="friends">Friends Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Separator />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="show_email">Show Email Address</Label>
+                <Switch
+                  id="show_email"
+                  checked={profile.privacy_settings.show_email}
+                  onCheckedChange={(checked) => handlePrivacyChange("show_email", checked)}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="show_phone">Show Phone Number</Label>
+                <Switch
+                  id="show_phone"
+                  checked={profile.privacy_settings.show_phone}
+                  onCheckedChange={(checked) => handlePrivacyChange("show_phone", checked)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
 }
-
-export default ProfilePage
