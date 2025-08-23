@@ -1,20 +1,84 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/toaster"
-import { SessionProvider } from "@/providers/session-provider"
-import { SupabaseProvider } from "@/providers/supabase-provider"
-import { Analytics } from "@vercel/analytics/react"
-import Script from "next/script"
-import { Suspense } from "react"
 import "./globals.css"
+import { Providers } from "@/components/providers"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "I&E Bank - Your Trusted Banking Partner",
-  description: "Experience seamless banking with I&E Bank. Manage your accounts, transfer funds, and more.",
+  title: {
+    default: "I&E National Bank - Your Trusted Banking Partner",
+    template: "%s | I&E National Bank",
+  },
+  description:
+    "I&E National Bank offers comprehensive banking services including personal banking, business banking, loans, savings accounts, and digital banking solutions. Bank with confidence and security.",
+  keywords: [
+    "banking",
+    "personal banking",
+    "business banking",
+    "loans",
+    "savings",
+    "digital banking",
+    "online banking",
+    "mobile banking",
+    "financial services",
+    "Nigeria bank",
+    "I&E National Bank",
+  ],
+  authors: [{ name: "I&E National Bank" }],
+  creator: "I&E National Bank",
+  publisher: "I&E National Bank",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: new URL("https://iaenb.com"),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://iaenb.com",
+    title: "I&E National Bank - Your Trusted Banking Partner",
+    description:
+      "Comprehensive banking services with security and convenience. Personal banking, business banking, loans, and digital solutions.",
+    siteName: "I&E National Bank",
+    images: [
+      {
+        url: "/images/bank-building.jpeg",
+        width: 1200,
+        height: 630,
+        alt: "I&E National Bank Building",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "I&E National Bank - Your Trusted Banking Partner",
+    description: "Comprehensive banking services with security and convenience.",
+    images: ["/images/bank-building.jpeg"],
+    creator: "@iaenationalbank",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  verification: {
+    google: "your-google-verification-code",
+    yandex: "your-yandex-verification-code",
+    yahoo: "your-yahoo-verification-code",
+  },
     generator: 'v0.app'
 }
 
@@ -26,41 +90,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <Script
-          id="zoho-salesiq"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.$zoho=window.$zoho || {};
-              $zoho.salesiq=$zoho.salesiq||{ready:function(){}};
-            `,
-          }}
-        />
-        <Script
-          id="zsiqscript"
-          src="https://salesiq.zohopublic.com/widget?wc=siq66028ee106f61316f5d8676b0bbe2895d4fe65333c2c5fe74e5804e401f7d931"
-          strategy="afterInteractive"
-          defer
-        />
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/images/iae-logo.png" />
+        <meta name="theme-color" content="#0A3D62" />
+        <meta name="msapplication-TileColor" content="#0A3D62" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className={inter.className}>
-        <SupabaseProvider>
-          <SessionProvider>
-            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-              <Suspense
-                fallback={
-                  <div className="flex h-screen w-full items-center justify-center">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
-                  </div>
-                }
-              >
-                {children}
-                <Toaster />
-                <Analytics />
-              </Suspense>
-            </ThemeProvider>
-          </SessionProvider>
-        </SupabaseProvider>
+        <Providers>
+          {children}
+          <Toaster />
+        </Providers>
       </body>
     </html>
   )

@@ -1,434 +1,355 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
-import { Switch } from "@/components/ui/switch"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/lib/auth-provider"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { User } from "@supabase/supabase-js"
-import { Camera, Save, UserIcon } from "lucide-react"
-
-interface ProfileData {
-  full_name: string
-  email: string
-  phone: string
-  address: string
-  date_of_birth: string
-  bio: string
-  profile_picture_url?: string
-  notification_preferences: {
-    email_notifications: boolean
-    sms_notifications: boolean
-    push_notifications: boolean
-  }
-  privacy_settings: {
-    profile_visibility: "public" | "private" | "friends"
-    show_email: boolean
-    show_phone: boolean
-  }
-}
+import { useToast } from "@/components/ui/use-toast"
+import { Loader2, Upload, User } from "lucide-react"
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<ProfileData>({
-    full_name: "",
-    email: "",
-    phone: "",
-    address: "",
-    date_of_birth: "",
-    bio: "",
-    profile_picture_url: "",
-    notification_preferences: {
-      email_notifications: true,
-      sms_notifications: false,
-      push_notifications: true,
-    },
-    privacy_settings: {
-      profile_visibility: "private",
-      show_email: false,
-      show_phone: false,
-    },
+  const { user, profile, refreshUserProfile } = useAuth()
+  const [isLoading, setIsLoading] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [formData, setFormData] = useState({
+    first_name: "",
+    last_name: "",
+    phone_number: "",
+    city: "",
+    country: "",
   })
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
-
-  const { toast } = useToast()
   const supabase = createClientComponentClient()
+  const { toast } = useToast()
 
   useEffect(() => {
-    getProfile()
-  }, [])
-
-  const getProfile = async () => {
-    try {
-      setLoading(true)
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (user) {
-        setUser(user)
-
-        const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-
-        if (error && error.code !== "PGRST116") {
-          throw error
-        }
-
-        if (data) {
-          setProfile({
-            full_name: data.full_name || "",
-            email: user.email || "",
-            phone: data.phone || "",
-            address: data.address || "",
-            date_of_birth: data.date_of_birth || "",
-            bio: data.bio || "",
-            profile_picture_url: data.profile_picture_url || "",
-            notification_preferences: data.notification_preferences || {
-              email_notifications: true,
-              sms_notifications: false,
-              push_notifications: true,
-            },
-            privacy_settings: data.privacy_settings || {
-              profile_visibility: "private",
-              show_email: false,
-              show_phone: false,
-            },
-          })
-        } else {
-          // Set default values with user email
-          setProfile((prev) => ({
-            ...prev,
-            email: user.email || "",
-          }))
-        }
-      }
-    } catch (error) {
-      console.error("Error loading profile:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load profile data",
-        variant: "destructive",
+    if (profile) {
+      setFormData({
+        first_name: profile.first_name || "",
+        last_name: profile.last_name || "",
+        phone_number: profile.phone_number || "",
+        city: profile.city || "",
+        country: profile.country || "",
       })
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [profile])
 
-  const validateForm = (): boolean => {
+  const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
-    if (!profile.full_name.trim()) {
-      newErrors.full_name = "Full name is required"
+    if (!formData.first_name.trim()) {
+      newErrors.first_name = "First name is required"
     }
-
-    if (!profile.email.trim()) {
-      newErrors.email = "Email is required"
-    } else if (!/\S+@\S+\.\S+/.test(profile.email)) {
-      newErrors.email = "Email is invalid"
+    if (!formData.last_name.trim()) {
+      newErrors.last_name = "Last name is required"
     }
-
-    if (profile.phone && !/^\+?[\d\s-()]+$/.test(profile.phone)) {
-      newErrors.phone = "Phone number is invalid"
-    }
-
-    if (profile.date_of_birth) {
-      const birthDate = new Date(profile.date_of_birth)
-      const today = new Date()
-      const age = today.getFullYear() - birthDate.getFullYear()
-      if (age < 18) {
-        newErrors.date_of_birth = "You must be at least 18 years old"
-      }
+    if (!formData.phone_number.trim()) {
+      newErrors.phone_number = "Phone number is required"
+    } else if (!/^\+?[\d\s-()]+$/.test(formData.phone_number)) {
+      newErrors.phone_number = "Please enter a valid phone number"
     }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  const updateProfile = async () => {
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: "" }))
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
     if (!validateForm()) {
-      toast({
-        title: "Validation Error",
-        description: "Please fix the errors in the form",
-        variant: "destructive",
-      })
       return
     }
 
+    setIsLoading(true)
     try {
-      setSaving(true)
+      const { error } = await supabase
+        .from("user_profiles")
+        .update({
+          first_name: formData.first_name.trim(),
+          last_name: formData.last_name.trim(),
+          phone_number: formData.phone_number.trim(),
+          city: formData.city.trim() || null,
+          country: formData.country.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user?.id)
 
-      if (!user) throw new Error("No user found")
-
-      const updates = {
-        id: user.id,
-        full_name: profile.full_name,
-        phone: profile.phone,
-        address: profile.address,
-        date_of_birth: profile.date_of_birth,
-        bio: profile.bio,
-        profile_picture_url: profile.profile_picture_url,
-        notification_preferences: profile.notification_preferences,
-        privacy_settings: profile.privacy_settings,
-        updated_at: new Date().toISOString(),
+      if (error) {
+        throw error
       }
 
-      const { error } = await supabase.from("profiles").upsert(updates)
-
-      if (error) throw error
-
+      await refreshUserProfile()
       toast({
-        title: "Success",
-        description: "Profile updated successfully",
+        title: "Profile Updated",
+        description: "Your profile has been successfully updated.",
       })
     } catch (error) {
       console.error("Error updating profile:", error)
       toast({
         title: "Error",
-        description: "Failed to update profile",
+        description: "Failed to update profile. Please try again.",
         variant: "destructive",
       })
     } finally {
-      setSaving(false)
+      setIsLoading(false)
     }
   }
 
-  const handleInputChange = (field: keyof ProfileData, value: any) => {
-    setProfile((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
+  const handleProfilePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !user) return
 
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors((prev) => ({
-        ...prev,
-        [field]: "",
-      }))
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Invalid File",
+        description: "Please select an image file.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File Too Large",
+        description: "Please select an image smaller than 5MB.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("userId", user.id)
+
+      const response = await fetch("/api/upload-profile-picture", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error("Upload failed")
+      }
+
+      const { url } = await response.json()
+
+      // Update profile with new picture URL
+      const { error } = await supabase
+        .from("user_profiles")
+        .update({
+          profile_pic: url,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id)
+
+      if (error) {
+        throw error
+      }
+
+      await refreshUserProfile()
+      toast({
+        title: "Profile Picture Updated",
+        description: "Your profile picture has been successfully updated.",
+      })
+    } catch (error) {
+      console.error("Error uploading profile picture:", error)
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload profile picture. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUploading(false)
     }
   }
 
-  const handleNotificationChange = (key: keyof ProfileData["notification_preferences"], value: boolean) => {
-    setProfile((prev) => ({
-      ...prev,
-      notification_preferences: {
-        ...prev.notification_preferences,
-        [key]: value,
-      },
-    }))
-  }
-
-  const handlePrivacyChange = (key: keyof ProfileData["privacy_settings"], value: any) => {
-    setProfile((prev) => ({
-      ...prev,
-      privacy_settings: {
-        ...prev.privacy_settings,
-        [key]: value,
-      },
-    }))
-  }
-
-  if (loading) {
+  if (!user || !profile) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <p className="text-gray-500">Please log in to view your profile</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Profile Settings</h1>
-          <p className="text-muted-foreground">Manage your account settings and preferences</p>
-        </div>
-        <Button onClick={updateProfile} disabled={saving}>
-          <Save className="mr-2 h-4 w-4" />
-          {saving ? "Saving..." : "Save Changes"}
-        </Button>
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold">Profile Settings</h1>
+        <p className="text-gray-600 mt-1">Manage your account information and preferences</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Profile Picture */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Profile Picture Section */}
         <Card>
           <CardHeader>
             <CardTitle>Profile Picture</CardTitle>
-            <CardDescription>Upload a profile picture to personalize your account</CardDescription>
+            <CardDescription>Update your profile picture</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center space-y-4">
             <Avatar className="h-24 w-24">
-              <AvatarImage src={profile.profile_picture_url || "/placeholder.svg"} />
-              <AvatarFallback>
-                <UserIcon className="h-12 w-12" />
+              <AvatarImage src={profile.profile_pic || ""} alt="Profile picture" />
+              <AvatarFallback className="text-lg">
+                <User className="h-12 w-12" />
               </AvatarFallback>
             </Avatar>
-            <Button variant="outline" size="sm">
-              <Camera className="mr-2 h-4 w-4" />
-              Change Picture
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Basic Information */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
-            <CardDescription>Update your personal information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="full_name">Full Name *</Label>
-                <Input
-                  id="full_name"
-                  value={profile.full_name}
-                  onChange={(e) => handleInputChange("full_name", e.target.value)}
-                  className={errors.full_name ? "border-red-500" : ""}
-                />
-                {errors.full_name && <p className="text-sm text-red-500">{errors.full_name}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={profile.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  className={errors.email ? "border-red-500" : ""}
-                />
-                {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={profile.phone}
-                  onChange={(e) => handleInputChange("phone", e.target.value)}
-                  className={errors.phone ? "border-red-500" : ""}
-                />
-                {errors.phone && <p className="text-sm text-red-500">{errors.phone}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date_of_birth">Date of Birth</Label>
-                <Input
-                  id="date_of_birth"
-                  type="date"
-                  value={profile.date_of_birth}
-                  onChange={(e) => handleInputChange("date_of_birth", e.target.value)}
-                  className={errors.date_of_birth ? "border-red-500" : ""}
-                />
-                {errors.date_of_birth && <p className="text-sm text-red-500">{errors.date_of_birth}</p>}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
+            <div className="flex flex-col items-center space-y-2">
+              <Label htmlFor="profile-picture" className="cursor-pointer">
+                <div className="flex items-center space-x-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                  {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  <span>{isUploading ? "Uploading..." : "Upload Photo"}</span>
+                </div>
+              </Label>
               <Input
-                id="address"
-                value={profile.address}
-                onChange={(e) => handleInputChange("address", e.target.value)}
+                id="profile-picture"
+                type="file"
+                accept="image/*"
+                onChange={handleProfilePictureUpload}
+                disabled={isUploading}
+                className="hidden"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bio">Bio</Label>
-              <Textarea
-                id="bio"
-                value={profile.bio}
-                onChange={(e) => handleInputChange("bio", e.target.value)}
-                placeholder="Tell us about yourself..."
-                rows={3}
-              />
+              <p className="text-xs text-gray-500 text-center">JPG, PNG or GIF. Max size 5MB.</p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Notification Preferences */}
-        <Card>
+        {/* Personal Information */}
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Notifications</CardTitle>
-            <CardDescription>Choose how you want to be notified</CardDescription>
+            <CardTitle>Personal Information</CardTitle>
+            <CardDescription>Update your personal details</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="email_notifications">Email Notifications</Label>
-              <Switch
-                id="email_notifications"
-                checked={profile.notification_preferences.email_notifications}
-                onCheckedChange={(checked) => handleNotificationChange("email_notifications", checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="sms_notifications">SMS Notifications</Label>
-              <Switch
-                id="sms_notifications"
-                checked={profile.notification_preferences.sms_notifications}
-                onCheckedChange={(checked) => handleNotificationChange("sms_notifications", checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="push_notifications">Push Notifications</Label>
-              <Switch
-                id="push_notifications"
-                checked={profile.notification_preferences.push_notifications}
-                onCheckedChange={(checked) => handleNotificationChange("push_notifications", checked)}
-              />
-            </div>
-          </CardContent>
-        </Card>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="first_name">First Name *</Label>
+                  <Input
+                    id="first_name"
+                    value={formData.first_name}
+                    onChange={(e) => handleInputChange("first_name", e.target.value)}
+                    placeholder="Enter your first name"
+                    className={errors.first_name ? "border-red-500" : ""}
+                  />
+                  {errors.first_name && <p className="text-sm text-red-500">{errors.first_name}</p>}
+                </div>
 
-        {/* Privacy Settings */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Privacy Settings</CardTitle>
-            <CardDescription>Control who can see your information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="profile_visibility">Profile Visibility</Label>
-              <Select
-                value={profile.privacy_settings.profile_visibility}
-                onValueChange={(value) => handlePrivacyChange("profile_visibility", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="public">Public</SelectItem>
-                  <SelectItem value="private">Private</SelectItem>
-                  <SelectItem value="friends">Friends Only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Separator />
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="show_email">Show Email Address</Label>
-                <Switch
-                  id="show_email"
-                  checked={profile.privacy_settings.show_email}
-                  onCheckedChange={(checked) => handlePrivacyChange("show_email", checked)}
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="last_name">Last Name *</Label>
+                  <Input
+                    id="last_name"
+                    value={formData.last_name}
+                    onChange={(e) => handleInputChange("last_name", e.target.value)}
+                    placeholder="Enter your last name"
+                    className={errors.last_name ? "border-red-500" : ""}
+                  />
+                  {errors.last_name && <p className="text-sm text-red-500">{errors.last_name}</p>}
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="show_phone">Show Phone Number</Label>
-                <Switch
-                  id="show_phone"
-                  checked={profile.privacy_settings.show_phone}
-                  onCheckedChange={(checked) => handlePrivacyChange("show_phone", checked)}
+
+              <div className="space-y-2">
+                <Label htmlFor="phone_number">Phone Number *</Label>
+                <Input
+                  id="phone_number"
+                  value={formData.phone_number}
+                  onChange={(e) => handleInputChange("phone_number", e.target.value)}
+                  placeholder="Enter your phone number"
+                  className={errors.phone_number ? "border-red-500" : ""}
                 />
+                {errors.phone_number && <p className="text-sm text-red-500">{errors.phone_number}</p>}
               </div>
-            </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => handleInputChange("city", e.target.value)}
+                    placeholder="Enter your city"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <Input
+                    id="country"
+                    value={formData.country}
+                    onChange={(e) => handleInputChange("country", e.target.value)}
+                    placeholder="Enter your country"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    "Update Profile"
+                  )}
+                </Button>
+              </div>
+            </form>
           </CardContent>
         </Card>
       </div>
+
+      {/* Account Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Account Information</CardTitle>
+          <CardDescription>Your account details (read-only)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-500">Email Address</Label>
+              <p className="text-sm font-mono bg-gray-50 p-2 rounded">{profile.email}</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-500">Account Number</Label>
+              <p className="text-sm font-mono bg-gray-50 p-2 rounded">{profile.account_number}</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-500">Account Status</Label>
+              <p className="text-sm bg-gray-50 p-2 rounded capitalize">{profile.status}</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-500">KYC Status</Label>
+              <p className="text-sm bg-gray-50 p-2 rounded capitalize">{profile.kyc_status.replace("_", " ")}</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-500">Email Verified</Label>
+              <p className="text-sm bg-gray-50 p-2 rounded">{profile.email_verified ? "Yes" : "No"}</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-500">Phone Verified</Label>
+              <p className="text-sm bg-gray-50 p-2 rounded">{profile.phone_verified ? "Yes" : "No"}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
