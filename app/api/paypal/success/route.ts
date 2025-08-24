@@ -18,24 +18,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard/transfers?error=missing_parameters", request.url))
     }
 
-    // Get the pending transaction
-    const { data: transaction, error: transactionError } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("reference", paymentId)
-      .eq("status", "pending")
-      .single()
-
-    if (transactionError || !transaction) {
-      console.error("Transaction not found:", transactionError)
-      return NextResponse.redirect(new URL("/dashboard/transfers?error=transaction_not_found", request.url))
-    }
-
     try {
-      // Execute the PayPal payment
+      // Execute the payment
       const executedPayment = await paypalClient.executePayment(paymentId, payerId)
 
+      console.log("Payment executed successfully:", executedPayment)
+
       if (executedPayment.state === "approved") {
+        // Find the pending transaction
+        const { data: transaction, error: transactionError } = await supabase
+          .from("transactions")
+          .select("*")
+          .eq("reference", paymentId)
+          .eq("status", "pending")
+          .single()
+
+        if (transactionError || !transaction) {
+          console.error("Transaction not found:", transactionError)
+          return NextResponse.redirect(new URL("/dashboard/transfers?error=transaction_not_found", request.url))
+        }
+
         // Update user balance
         const { data: userData, error: userError } = await supabase
           .from("users")
@@ -43,15 +45,15 @@ export async function GET(request: NextRequest) {
           .eq("id", transaction.user_id)
           .single()
 
-        if (userError) {
-          console.error("Error fetching user data:", userError)
-          throw new Error("Failed to fetch user data")
+        if (userError || !userData) {
+          console.error("User not found:", userError)
+          return NextResponse.redirect(new URL("/dashboard/transfers?error=user_not_found", request.url))
         }
 
         const currentBalance = Number.parseFloat(userData.account_balance?.toString() || "0")
         const newBalance = currentBalance + transaction.amount
 
-        // Update balance
+        // Update balance and transaction status
         const { error: balanceError } = await supabase
           .from("users")
           .update({
@@ -62,10 +64,10 @@ export async function GET(request: NextRequest) {
 
         if (balanceError) {
           console.error("Error updating balance:", balanceError)
-          throw new Error("Failed to update balance")
+          return NextResponse.redirect(new URL("/dashboard/transfers?error=balance_update_failed", request.url))
         }
 
-        // Update transaction status
+        // Mark transaction as completed
         const { error: updateError } = await supabase
           .from("transactions")
           .update({
@@ -78,39 +80,17 @@ export async function GET(request: NextRequest) {
           console.error("Error updating transaction:", updateError)
         }
 
-        console.log("Payment completed successfully")
+        console.log("Deposit completed successfully")
         return NextResponse.redirect(new URL("/dashboard/transfers?success=deposit_completed", request.url))
       } else {
-        // Payment failed
-        const { error: updateError } = await supabase
-          .from("transactions")
-          .update({
-            status: "failed",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", transaction.id)
-
-        if (updateError) {
-          console.error("Error updating transaction:", updateError)
-        }
-
+        console.error("Payment not approved:", executedPayment.state)
         return NextResponse.redirect(new URL("/dashboard/transfers?error=payment_failed", request.url))
       }
-    } catch (paymentError) {
-      console.error("Payment execution error:", paymentError)
-
-      // Update transaction status to failed
-      await supabase
-        .from("transactions")
-        .update({
-          status: "failed",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", transaction.id)
-
+    } catch (error: any) {
+      console.error("Error executing payment:", error)
       return NextResponse.redirect(new URL("/dashboard/transfers?error=processing_failed", request.url))
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("PayPal success handler error:", error)
     return NextResponse.redirect(new URL("/dashboard/transfers?error=processing_failed", request.url))
   }

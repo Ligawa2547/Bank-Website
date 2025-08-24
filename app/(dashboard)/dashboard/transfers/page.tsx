@@ -300,33 +300,45 @@ export default function TransfersPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Transfers & Payments</h1>
-          <p className="text-muted-foreground">Manage your money transfers and payments</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Transfers & Payments</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Manage your money transfers and payments</p>
         </div>
         {profile && (
-          <Card>
-            <CardContent className="pt-6">
+          <Card className="w-full sm:w-auto">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Available Balance</p>
-                <p className="text-2xl font-bold text-green-600">${profile.balance?.toFixed(2) || "0.00"}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Available Balance</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-600">${profile.balance?.toFixed(2) || "0.00"}</p>
               </div>
             </CardContent>
           </Card>
         )}
       </div>
 
+      {/* Tabs Section */}
       <Tabs defaultValue="paypal-deposit" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="paypal-deposit">PayPal Deposit</TabsTrigger>
-          <TabsTrigger value="paypal-withdrawal">PayPal Withdrawal</TabsTrigger>
-          <TabsTrigger value="bank-transfer">Bank Transfer</TabsTrigger>
-          <TabsTrigger value="history">Transaction History</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 min-w-[320px]">
+            <TabsTrigger value="paypal-deposit" className="text-xs sm:text-sm px-2 sm:px-4">
+              Deposit
+            </TabsTrigger>
+            <TabsTrigger value="paypal-withdrawal" className="text-xs sm:text-sm px-2 sm:px-4">
+              Withdraw
+            </TabsTrigger>
+            <TabsTrigger value="bank-transfer" className="text-xs sm:text-sm px-2 sm:px-4">
+              Transfer
+            </TabsTrigger>
+            <TabsTrigger value="history" className="text-xs sm:text-sm px-2 sm:px-4">
+              History
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="paypal-deposit">
+        <TabsContent value="paypal-deposit" className="space-y-4">
           <PayPalPayment
             type="deposit"
             onSuccess={() => {
@@ -338,7 +350,7 @@ export default function TransfersPage() {
           />
         </TabsContent>
 
-        <TabsContent value="paypal-withdrawal">
+        <TabsContent value="paypal-withdrawal" className="space-y-4">
           <PayPalPayment
             type="withdrawal"
             onSuccess={() => {
@@ -350,42 +362,47 @@ export default function TransfersPage() {
           />
         </TabsContent>
 
-        <TabsContent value="bank-transfer">
+        <TabsContent value="bank-transfer" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                 <Send className="h-5 w-5 text-purple-600" />
                 Bank Transfer
               </CardTitle>
-              <CardDescription>Transfer money to another bank account</CardDescription>
+              <CardDescription className="text-sm">Transfer money to another bank account</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {error && (
                 <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
+                  <AlertDescription className="text-sm">{error}</AlertDescription>
                 </Alert>
               )}
 
               {success && (
                 <Alert>
                   <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>{success}</AlertDescription>
+                  <AlertDescription className="text-sm">{success}</AlertDescription>
                 </Alert>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="recipient">Recipient Account Number</Label>
+                <Label htmlFor="recipient" className="text-sm">
+                  Recipient Account Number
+                </Label>
                 <Input
                   id="recipient"
                   placeholder="Enter recipient account number"
                   value={recipientAccount}
                   onChange={(e) => setRecipientAccount(e.target.value)}
                   disabled={transferLoading}
+                  className="text-sm"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="transfer-amount">Amount (USD)</Label>
+                <Label htmlFor="transfer-amount" className="text-sm">
+                  Amount (USD)
+                </Label>
                 <Input
                   id="transfer-amount"
                   type="number"
@@ -395,11 +412,14 @@ export default function TransfersPage() {
                   min="0.01"
                   step="0.01"
                   disabled={transferLoading}
+                  className="text-sm"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="transfer-description">Description (Optional)</Label>
+                <Label htmlFor="transfer-description" className="text-sm">
+                  Description (Optional)
+                </Label>
                 <Textarea
                   id="transfer-description"
                   placeholder="Enter transfer description..."
@@ -407,6 +427,7 @@ export default function TransfersPage() {
                   onChange={(e) => setTransferDescription(e.target.value)}
                   disabled={transferLoading}
                   rows={3}
+                  className="text-sm"
                 />
               </div>
 
@@ -419,7 +440,7 @@ export default function TransfersPage() {
                 {transferLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing Transfer...
+                    Processing...
                   </>
                 ) : (
                   <>
@@ -432,11 +453,11 @@ export default function TransfersPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="history">
+        <TabsContent value="history" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
-              <CardDescription>Your recent transactions and transfers</CardDescription>
+              <CardTitle className="text-lg sm:text-xl">Transaction History</CardTitle>
+              <CardDescription className="text-sm">Your recent transactions and transfers</CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -445,29 +466,36 @@ export default function TransfersPage() {
                 </div>
               ) : transactions.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-muted-foreground">No transactions found</p>
+                  <p className="text-muted-foreground text-sm">No transactions found</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {transactions.map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div
+                      key={transaction.id}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-3"
+                    >
                       <div className="flex items-center gap-3">
                         {getTransactionIcon(transaction.transaction_type)}
-                        <div>
-                          <p className="font-medium capitalize">{transaction.transaction_type.replace("_", " ")}</p>
-                          <p className="text-sm text-muted-foreground">{transaction.narration}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm sm:text-base capitalize truncate">
+                            {transaction.transaction_type.replace("_", " ")}
+                          </p>
+                          <p className="text-xs sm:text-sm text-muted-foreground truncate">{transaction.narration}</p>
                           <p className="text-xs text-muted-foreground">
                             {new Date(transaction.created_at).toLocaleString()}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium">
+                      <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2">
+                        <p className="font-medium text-sm sm:text-base">
                           {transaction.amount > 0 ? "+" : ""}${Math.abs(transaction.amount).toFixed(2)}
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2">
                           {getStatusIcon(transaction.status)}
-                          <Badge className={getStatusColor(transaction.status)}>{transaction.status}</Badge>
+                          <Badge className={`${getStatusColor(transaction.status)} text-xs`}>
+                            {transaction.status}
+                          </Badge>
                         </div>
                       </div>
                     </div>

@@ -1,6 +1,6 @@
 import { paypalConfig } from "./config"
 
-interface PayPalAccessTokenResponse {
+interface PayPalTokenResponse {
   access_token: string
   token_type: string
   expires_in: number
@@ -28,13 +28,13 @@ class PayPalClient {
   private tokenExpiry = 0
 
   async getAccessToken(): Promise<string> {
-    // Check if we have a valid token
-    if (this.accessToken && Date.now() < this.tokenExpiry) {
-      return this.accessToken
-    }
-
     try {
-      console.log("Getting PayPal access token...")
+      // Check if we have a valid token
+      if (this.accessToken && Date.now() < this.tokenExpiry) {
+        return this.accessToken
+      }
+
+      console.log("Getting new PayPal access token...")
 
       const auth = Buffer.from(`${paypalConfig.clientId}:${paypalConfig.clientSecret}`).toString("base64")
 
@@ -44,11 +44,10 @@ class PayPalClient {
           Authorization: `Basic ${auth}`,
           "Content-Type": "application/x-www-form-urlencoded",
           Accept: "application/json",
+          "Accept-Language": "en_US",
         },
         body: "grant_type=client_credentials",
       })
-
-      console.log("PayPal token response status:", response.status)
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -56,16 +55,16 @@ class PayPalClient {
         throw new Error(`Failed to get access token: ${response.status} ${response.statusText}`)
       }
 
-      const data: PayPalAccessTokenResponse = await response.json()
+      const data: PayPalTokenResponse = await response.json()
 
       this.accessToken = data.access_token
       this.tokenExpiry = Date.now() + data.expires_in * 1000 - 60000 // Refresh 1 minute early
 
       console.log("PayPal access token obtained successfully")
       return this.accessToken
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error getting PayPal access token:", error)
-      throw error
+      throw new Error(`Failed to get access token: ${error.message}`)
     }
   }
 
@@ -85,6 +84,16 @@ class PayPalClient {
               currency: currency,
             },
             description: description,
+            item_list: {
+              items: [
+                {
+                  name: description,
+                  quantity: "1",
+                  price: amount.toFixed(2),
+                  currency: currency,
+                },
+              ],
+            },
           },
         ],
         redirect_urls: {
@@ -108,28 +117,22 @@ class PayPalClient {
       if (!response.ok) {
         const errorText = await response.text()
         console.error("PayPal payment creation error:", errorText)
-        throw new Error(`Failed to create payment: ${response.status} ${response.statusText}`)
+        throw new Error(`Payment creation failed: ${response.status} ${response.statusText}`)
       }
 
       const payment: PayPalPaymentResponse = await response.json()
-      console.log("PayPal payment created:", payment.id)
+      console.log("PayPal payment created successfully:", payment.id)
 
       return payment
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating PayPal payment:", error)
-      throw error
+      throw new Error(`Payment creation failed: ${error.message}`)
     }
   }
 
-  async executePayment(paymentId: string, payerId: string): Promise<any> {
+  async executePayment(paymentId: string, payerId: string): Promise<PayPalPaymentResponse> {
     try {
       const accessToken = await this.getAccessToken()
-
-      const executeData = {
-        payer_id: payerId,
-      }
-
-      console.log("Executing PayPal payment:", { paymentId, payerId })
 
       const response = await fetch(`${paypalConfig.baseUrl}/v1/payments/payment/${paymentId}/execute`, {
         method: "POST",
@@ -138,22 +141,24 @@ class PayPalClient {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify(executeData),
+        body: JSON.stringify({
+          payer_id: payerId,
+        }),
       })
 
       if (!response.ok) {
         const errorText = await response.text()
         console.error("PayPal payment execution error:", errorText)
-        throw new Error(`Failed to execute payment: ${response.status} ${response.statusText}`)
+        throw new Error(`Payment execution failed: ${response.status} ${response.statusText}`)
       }
 
-      const result = await response.json()
-      console.log("PayPal payment executed successfully")
+      const payment: PayPalPaymentResponse = await response.json()
+      console.log("PayPal payment executed successfully:", payment.id)
 
-      return result
-    } catch (error) {
+      return payment
+    } catch (error: any) {
       console.error("Error executing PayPal payment:", error)
-      throw error
+      throw new Error(`Payment execution failed: ${error.message}`)
     }
   }
 
@@ -201,20 +206,20 @@ class PayPalClient {
       if (!response.ok) {
         const errorText = await response.text()
         console.error("PayPal payout creation error:", errorText)
-        throw new Error(`Failed to create payout: ${response.status} ${response.statusText}`)
+        throw new Error(`Payout creation failed: ${response.status} ${response.statusText}`)
       }
 
       const payout: PayPalPayoutResponse = await response.json()
-      console.log("PayPal payout created:", payout.batch_header.payout_batch_id)
+      console.log("PayPal payout created successfully:", payout.batch_header.payout_batch_id)
 
       return payout
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating PayPal payout:", error)
-      throw error
+      throw new Error(`Payout creation failed: ${error.message}`)
     }
   }
 
-  async getPayment(paymentId: string): Promise<any> {
+  async getPayment(paymentId: string): Promise<PayPalPaymentResponse> {
     try {
       const accessToken = await this.getAccessToken()
 
@@ -229,14 +234,15 @@ class PayPalClient {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error("PayPal get payment error:", errorText)
-        throw new Error(`Failed to get payment: ${response.status} ${response.statusText}`)
+        console.error("PayPal payment retrieval error:", errorText)
+        throw new Error(`Payment retrieval failed: ${response.status} ${response.statusText}`)
       }
 
-      return await response.json()
-    } catch (error) {
-      console.error("Error getting PayPal payment:", error)
-      throw error
+      const payment: PayPalPaymentResponse = await response.json()
+      return payment
+    } catch (error: any) {
+      console.error("Error retrieving PayPal payment:", error)
+      throw new Error(`Payment retrieval failed: ${error.message}`)
     }
   }
 }

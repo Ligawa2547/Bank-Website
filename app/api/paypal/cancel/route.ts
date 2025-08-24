@@ -7,19 +7,20 @@ export async function GET(request: NextRequest) {
     const supabase = createRouteHandlerClient({ cookies })
     const { searchParams } = new URL(request.url)
 
-    const token = searchParams.get("token")
+    const paymentId = searchParams.get("paymentId")
 
-    console.log("PayPal cancel callback:", { token })
+    console.log("PayPal cancel callback:", { paymentId })
 
-    if (token) {
-      // Update transaction status to cancelled
+    if (paymentId) {
+      // Mark the transaction as cancelled
       const { error } = await supabase
         .from("transactions")
         .update({
           status: "cancelled",
           updated_at: new Date().toISOString(),
         })
-        .eq("reference", token)
+        .eq("reference", paymentId)
+        .eq("status", "pending")
 
       if (error) {
         console.error("Error updating cancelled transaction:", error)
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.redirect(new URL("/dashboard/transfers?error=payment_cancelled", request.url))
-  } catch (error) {
+  } catch (error: any) {
     console.error("PayPal cancel handler error:", error)
     return NextResponse.redirect(new URL("/dashboard/transfers?error=payment_cancelled", request.url))
   }

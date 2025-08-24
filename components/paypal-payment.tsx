@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, CreditCard, ArrowUpRight, ArrowDownLeft } from "lucide-react"
+import { Loader2, CreditCard, ArrowUpRight, ArrowDownLeft, Wallet } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface PayPalPaymentProps {
   type: "deposit" | "withdrawal"
@@ -20,10 +21,11 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
   const [description, setDescription] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [paymentMethod, setPaymentMethod] = useState("paypal")
 
   const { toast } = useToast()
 
-  const handlePayment = async () => {
+  const handlePayment = async (method: string = paymentMethod) => {
     if (!amount || Number.parseFloat(amount) <= 0) {
       setError("Please enter a valid amount")
       return
@@ -42,6 +44,7 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
           amount: Number.parseFloat(amount),
           type,
           description: description || `PayPal ${type}`,
+          paymentMethod: method,
         }),
       })
 
@@ -86,32 +89,61 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
           {isDeposit ? (
             <>
               <ArrowDownLeft className="h-5 w-5 text-green-600" />
-              PayPal Deposit
+              Add Money
             </>
           ) : (
             <>
               <ArrowUpRight className="h-5 w-5 text-blue-600" />
-              PayPal Withdrawal
+              Withdraw Money
             </>
           )}
         </CardTitle>
-        <CardDescription>
-          {isDeposit ? "Add money to your account using PayPal" : "Withdraw money to your PayPal account"}
+        <CardDescription className="text-sm">
+          {isDeposit ? "Add money to your account using PayPal or card" : "Withdraw money to your PayPal account"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {error && (
           <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription className="text-sm">{error}</AlertDescription>
           </Alert>
         )}
 
+        {isDeposit && (
+          <Tabs value={paymentMethod} onValueChange={setPaymentMethod} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="paypal" className="text-xs sm:text-sm">
+                PayPal
+              </TabsTrigger>
+              <TabsTrigger value="card" className="text-xs sm:text-sm">
+                Credit Card
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="paypal" className="space-y-4 mt-4">
+              <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
+                <Wallet className="h-5 w-5 text-blue-600" />
+                <p className="text-sm text-blue-800">Pay securely with your PayPal account</p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="card" className="space-y-4 mt-4">
+              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+                <CreditCard className="h-5 w-5 text-green-600" />
+                <p className="text-sm text-green-800">Pay with credit or debit card via PayPal</p>
+              </div>
+            </TabsContent>
+          </Tabs>
+        )}
+
         <div className="space-y-2">
-          <Label htmlFor={`${type}-amount`}>Amount (USD)</Label>
+          <Label htmlFor={`${type}-amount`} className="text-sm">
+            Amount (USD)
+          </Label>
           <Input
             id={`${type}-amount`}
             type="number"
@@ -121,11 +153,14 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
             min="0.01"
             step="0.01"
             disabled={loading}
+            className="text-sm"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor={`${type}-description`}>Description (Optional)</Label>
+          <Label htmlFor={`${type}-description`} className="text-sm">
+            Description (Optional)
+          </Label>
           <Textarea
             id={`${type}-description`}
             placeholder={`Enter ${type} description...`}
@@ -133,11 +168,12 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
             onChange={(e) => setDescription(e.target.value)}
             disabled={loading}
             rows={3}
+            className="text-sm resize-none"
           />
         </div>
 
         <Button
-          onClick={handlePayment}
+          onClick={() => handlePayment(paymentMethod)}
           disabled={loading || !amount || Number.parseFloat(amount) <= 0}
           className="w-full"
           size="lg"
@@ -149,15 +185,19 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
             </>
           ) : (
             <>
-              <CreditCard className="mr-2 h-4 w-4" />
-              {isDeposit ? "Deposit with PayPal" : "Withdraw to PayPal"}
+              {paymentMethod === "card" ? <CreditCard className="mr-2 h-4 w-4" /> : <Wallet className="mr-2 h-4 w-4" />}
+              {isDeposit ? `${paymentMethod === "card" ? "Pay with Card" : "Pay with PayPal"}` : "Withdraw to PayPal"}
             </>
           )}
         </Button>
 
-        <div className="text-center text-sm text-muted-foreground">
+        <div className="text-center text-xs sm:text-sm text-muted-foreground">
           {isDeposit ? (
-            <p>You will be redirected to PayPal to complete your deposit</p>
+            <p>
+              {paymentMethod === "card"
+                ? "You will be redirected to PayPal to enter your card details securely"
+                : "You will be redirected to PayPal to complete your deposit"}
+            </p>
           ) : (
             <p>Funds will be sent to your PayPal account email</p>
           )}
