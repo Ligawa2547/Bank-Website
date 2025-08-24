@@ -1,49 +1,34 @@
-import type { NextRequest } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
     const { searchParams } = new URL(request.url)
 
-    const paymentId = searchParams.get("paymentId")
+    const token = searchParams.get("token")
 
-    console.log("PayPal cancel callback:", { paymentId })
+    console.log("PayPal cancel callback:", { token })
 
-    // Get authenticated user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      console.error("User not authenticated")
-      redirect("/login")
-    }
-
-    if (paymentId) {
-      // Update the transaction status to cancelled
-      const { error: updateError } = await supabase
+    if (token) {
+      // Update transaction status to cancelled
+      const { error } = await supabase
         .from("transactions")
         .update({
           status: "cancelled",
           updated_at: new Date().toISOString(),
         })
-        .eq("reference", paymentId)
-        .eq("user_id", user.id)
+        .eq("reference", token)
 
-      if (updateError) {
-        console.error("Error updating transaction:", updateError)
-      } else {
-        console.log("Transaction marked as cancelled")
+      if (error) {
+        console.error("Error updating cancelled transaction:", error)
       }
     }
 
-    redirect("/dashboard/transfers?error=payment_cancelled")
-  } catch (error: any) {
+    return NextResponse.redirect(new URL("/dashboard/transfers?error=payment_cancelled", request.url))
+  } catch (error) {
     console.error("PayPal cancel handler error:", error)
-    redirect("/dashboard/transfers?error=cancel_failed")
+    return NextResponse.redirect(new URL("/dashboard/transfers?error=payment_cancelled", request.url))
   }
 }

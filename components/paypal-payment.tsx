@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, CreditCard, ArrowUpRight, ArrowDownLeft } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -20,6 +20,7 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
   const [description, setDescription] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
   const { toast } = useToast()
 
   const handlePayment = async () => {
@@ -32,8 +33,6 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
     setError("")
 
     try {
-      console.log("Initiating PayPal payment:", { amount: Number.parseFloat(amount), type, description })
-
       const response = await fetch("/api/paypal/initialize", {
         method: "POST",
         headers: {
@@ -42,33 +41,35 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
         body: JSON.stringify({
           amount: Number.parseFloat(amount),
           type,
-          description: description || (type === "deposit" ? "Account deposit" : "Account withdrawal"),
+          description: description || `PayPal ${type}`,
         }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Payment initialization failed")
+        throw new Error(data.error || `${type} initialization failed`)
       }
 
       if (type === "deposit" && data.approvalUrl) {
         // Redirect to PayPal for approval
-        console.log("Redirecting to PayPal:", data.approvalUrl)
         window.location.href = data.approvalUrl
-      } else if (type === "withdrawal") {
+      } else if (type === "withdrawal" && data.success) {
         // Withdrawal completed immediately
         toast({
-          title: "Withdrawal Initiated",
+          title: "Withdrawal Successful",
           description: `$${amount} has been sent to your PayPal account.`,
         })
 
         setAmount("")
         setDescription("")
-        onSuccess?.()
+
+        if (onSuccess) {
+          onSuccess()
+        }
       }
     } catch (error: any) {
-      console.error("Payment error:", error.message)
+      console.error("Payment error:", error)
       setError(error.message)
       toast({
         title: "Payment Error",
@@ -110,9 +111,9 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="amount">Amount (USD)</Label>
+          <Label htmlFor={`${type}-amount`}>Amount (USD)</Label>
           <Input
-            id="amount"
+            id={`${type}-amount`}
             type="number"
             placeholder="0.00"
             value={amount}
@@ -124,10 +125,10 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="description">Description (Optional)</Label>
+          <Label htmlFor={`${type}-description`}>Description (Optional)</Label>
           <Textarea
-            id="description"
-            placeholder={`Enter description for this ${type}...`}
+            id={`${type}-description`}
+            placeholder={`Enter ${type} description...`}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             disabled={loading}
@@ -135,7 +136,12 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
           />
         </div>
 
-        <Button onClick={handlePayment} disabled={loading || !amount} className="w-full" size="lg">
+        <Button
+          onClick={handlePayment}
+          disabled={loading || !amount || Number.parseFloat(amount) <= 0}
+          className="w-full"
+          size="lg"
+        >
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -149,16 +155,16 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
           )}
         </Button>
 
-        {isDeposit && (
-          <p className="text-sm text-muted-foreground text-center">
-            You will be redirected to PayPal to complete your deposit
-          </p>
-        )}
-
-        {!isDeposit && (
-          <p className="text-sm text-muted-foreground text-center">Funds will be sent to your PayPal account email</p>
-        )}
+        <div className="text-center text-sm text-muted-foreground">
+          {isDeposit ? (
+            <p>You will be redirected to PayPal to complete your deposit</p>
+          ) : (
+            <p>Funds will be sent to your PayPal account email</p>
+          )}
+        </div>
       </CardContent>
     </Card>
   )
 }
+
+export default PayPalPayment

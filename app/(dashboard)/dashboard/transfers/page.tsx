@@ -9,11 +9,12 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { PayPalPayment } from "@/components/paypal-payment"
+import PayPalPayment from "@/components/paypal-payment"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Send, ArrowUpRight, ArrowDownLeft, RefreshCw, CheckCircle, XCircle, Clock } from "lucide-react"
 import { useSearchParams } from "next/navigation"
+import { useAuth } from "@/lib/auth-provider"
 
 interface Transaction {
   id: string
@@ -26,17 +27,8 @@ interface Transaction {
   account_no: string
 }
 
-interface User {
-  id: string
-  account_number: string
-  account_balance: number
-  first_name: string
-  last_name: string
-  email: string
-}
-
 export default function TransfersPage() {
-  const [user, setUser] = useState<User | null>(null)
+  const { user, profile, refreshUserProfile } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [transferLoading, setTransferLoading] = useState(false)
@@ -53,9 +45,12 @@ export default function TransfersPage() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    fetchUserData()
-    fetchTransactions()
+    if (user) {
+      fetchTransactions()
+    }
+  }, [user])
 
+  useEffect(() => {
     // Handle URL parameters for PayPal callbacks
     const success = searchParams.get("success")
     const error = searchParams.get("error")
@@ -65,6 +60,9 @@ export default function TransfersPage() {
         title: "Deposit Successful",
         description: "Your PayPal deposit has been completed successfully.",
       })
+      if (refreshUserProfile) {
+        refreshUserProfile()
+      }
     } else if (error) {
       let errorMessage = "An error occurred"
       switch (error) {
@@ -88,31 +86,25 @@ export default function TransfersPage() {
         variant: "destructive",
       })
     }
-  }, [searchParams, toast])
+  }, [searchParams, toast, refreshUserProfile])
 
-  const fetchUserData = async () => {
+  const fetchTransactions = async () => {
+    if (!user) return
+
     try {
-      const {
-        data: { user: authUser },
-        error: authError,
-      } = await supabase.auth.getUser()
-
-      if (authError || !authUser) {
-        setError("Please log in to view transfers")
-        return
-      }
-
+      setLoading(true)
       const { data, error } = await supabase
-        .from("users")
-        .select("id, account_number, account_balance, first_name, last_name, email")
-        .eq("id", authUser.id)
-        .single()
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(20)
 
       if (error) {
-        console.error("Error fetching user data:", error)
-        setError("Failed to load user data")
+        console.error("Error fetching transactions:", error)
+        setError("Failed to load transactions")
       } else {
-        setUser(data)
+        setTransactions(data || [])
       }
     } catch (error) {
       console.error("Error:", error)
@@ -122,45 +114,19 @@ export default function TransfersPage() {
     }
   }
 
-  const fetchTransactions = async () => {
-    try {
-      const {
-        data: { user: authUser },
-        error: authError,
-      } = await supabase.auth.getUser()
-
-      if (authError || !authUser) return
-
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", authUser.id)
-        .order("created_at", { ascending: false })
-        .limit(20)
-
-      if (error) {
-        console.error("Error fetching transactions:", error)
-      } else {
-        setTransactions(data || [])
-      }
-    } catch (error) {
-      console.error("Error:", error)
-    }
-  }
-
   const handleBankTransfer = async () => {
     if (!recipientAccount || !transferAmount || Number.parseFloat(transferAmount) <= 0) {
       setError("Please fill in all required fields with valid values")
       return
     }
 
-    if (!user) {
-      setError("User data not available")
+    if (!profile) {
+      setError("User profile not available")
       return
     }
 
     const amount = Number.parseFloat(transferAmount)
-    if (amount > user.account_balance) {
+    if (amount > (profile.balance || 0)) {
       setError("Insufficient balance")
       return
     }
@@ -170,23 +136,90 @@ export default function TransfersPage() {
     setSuccess("")
 
     try {
-      const response = await fetch("/api/transfer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          recipientAccount,
-          amount,
-          description: transferDescription || "Bank transfer",
-        }),
+      // Use the existing transfer function from the transfers page logic
+      const { data: senderData, error: senderError } = await supabase
+        .from("users")
+        .select("account_balance, first_name, last_name")
+        .eq("id", user.id)
+        .single()
+
+      if (senderError || !senderData) {
+        throw new Error("Failed to verify sender balance")
+      }
+
+      const currentBalance = Number.parseFloat(senderData.account_balance?.toString() || "0")
+
+      if (currentBalance < amount) {
+        throw new Error(`Insufficient funds. Current balance: $${currentBalance.toFixed(2)}`)
+      }
+
+      // Find recipient by account number
+      const { data: recipientData, error: recipientError } = await supabase
+        .from("users")
+        .select("id, account_balance, first_name, last_name, account_number")
+        .eq("account_number", recipientAccount)
+        .single()
+
+      if (recipientError || !recipientData) {
+        throw new Error("Recipient account not found")
+      }
+
+      const recipientBalance = Number.parseFloat(recipientData.account_balance?.toString() || "0")
+      const newSenderBalance = currentBalance - amount
+      const newRecipientBalance = recipientBalance + amount
+
+      // Update sender's balance
+      const { error: senderUpdateError } = await supabase
+        .from("users")
+        .update({
+          account_balance: newSenderBalance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id)
+
+      if (senderUpdateError) {
+        throw new Error("Failed to update sender balance")
+      }
+
+      // Update recipient's balance
+      const { error: recipientUpdateError } = await supabase
+        .from("users")
+        .update({
+          account_balance: newRecipientBalance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", recipientData.id)
+
+      if (recipientUpdateError) {
+        // Rollback sender balance
+        await supabase.from("users").update({ account_balance: currentBalance }).eq("id", user.id)
+        throw new Error("Failed to update recipient balance")
+      }
+
+      // Create transaction records
+      const reference = `TXN${Date.now()}`
+
+      // Outgoing transaction for sender
+      await supabase.from("transactions").insert({
+        user_id: user.id,
+        amount: -amount,
+        transaction_type: "transfer_out",
+        status: "completed",
+        reference: `${reference}OUT`,
+        narration: transferDescription || `Transfer to ${recipientData.first_name} ${recipientData.last_name}`,
+        created_at: new Date().toISOString(),
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Transfer failed")
-      }
+      // Incoming transaction for recipient
+      await supabase.from("transactions").insert({
+        user_id: recipientData.id,
+        amount: amount,
+        transaction_type: "transfer_in",
+        status: "completed",
+        reference: `${reference}IN`,
+        narration: transferDescription || `Transfer from ${senderData.first_name} ${senderData.last_name}`,
+        created_at: new Date().toISOString(),
+      })
 
       setSuccess("Transfer completed successfully!")
       setRecipientAccount("")
@@ -194,7 +227,9 @@ export default function TransfersPage() {
       setTransferDescription("")
 
       // Refresh data
-      fetchUserData()
+      if (refreshUserProfile) {
+        refreshUserProfile()
+      }
       fetchTransactions()
 
       toast({
@@ -248,14 +283,15 @@ export default function TransfersPage() {
         return <ArrowDownLeft className="h-4 w-4 text-green-600" />
       case "withdrawal":
         return <ArrowUpRight className="h-4 w-4 text-blue-600" />
-      case "transfer":
+      case "transfer_out":
+      case "transfer_in":
         return <Send className="h-4 w-4 text-purple-600" />
       default:
         return <RefreshCw className="h-4 w-4 text-gray-600" />
     }
   }
 
-  if (loading) {
+  if (loading && !user) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -270,12 +306,12 @@ export default function TransfersPage() {
           <h1 className="text-3xl font-bold">Transfers & Payments</h1>
           <p className="text-muted-foreground">Manage your money transfers and payments</p>
         </div>
-        {user && (
+        {profile && (
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">Available Balance</p>
-                <p className="text-2xl font-bold text-green-600">${user.account_balance?.toFixed(2) || "0.00"}</p>
+                <p className="text-2xl font-bold text-green-600">${profile.balance?.toFixed(2) || "0.00"}</p>
               </div>
             </CardContent>
           </Card>
@@ -294,7 +330,9 @@ export default function TransfersPage() {
           <PayPalPayment
             type="deposit"
             onSuccess={() => {
-              fetchUserData()
+              if (refreshUserProfile) {
+                refreshUserProfile()
+              }
               fetchTransactions()
             }}
           />
@@ -304,7 +342,9 @@ export default function TransfersPage() {
           <PayPalPayment
             type="withdrawal"
             onSuccess={() => {
-              fetchUserData()
+              if (refreshUserProfile) {
+                refreshUserProfile()
+              }
               fetchTransactions()
             }}
           />
@@ -399,7 +439,11 @@ export default function TransfersPage() {
               <CardDescription>Your recent transactions and transfers</CardDescription>
             </CardHeader>
             <CardContent>
-              {transactions.length === 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : transactions.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-muted-foreground">No transactions found</p>
                 </div>
@@ -410,7 +454,7 @@ export default function TransfersPage() {
                       <div className="flex items-center gap-3">
                         {getTransactionIcon(transaction.transaction_type)}
                         <div>
-                          <p className="font-medium capitalize">{transaction.transaction_type}</p>
+                          <p className="font-medium capitalize">{transaction.transaction_type.replace("_", " ")}</p>
                           <p className="text-sm text-muted-foreground">{transaction.narration}</p>
                           <p className="text-xs text-muted-foreground">
                             {new Date(transaction.created_at).toLocaleString()}
@@ -418,7 +462,9 @@ export default function TransfersPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">${transaction.amount.toFixed(2)}</p>
+                        <p className="font-medium">
+                          {transaction.amount > 0 ? "+" : ""}${Math.abs(transaction.amount).toFixed(2)}
+                        </p>
                         <div className="flex items-center gap-2 mt-1">
                           {getStatusIcon(transaction.status)}
                           <Badge className={getStatusColor(transaction.status)}>{transaction.status}</Badge>
