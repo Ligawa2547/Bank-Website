@@ -1,105 +1,123 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import { paypalClient } from "@/lib/paypal/client"
-import { PAYPAL_CONFIG } from "@/lib/paypal/config"
 
 export async function GET(request: NextRequest) {
   try {
+    console.log("=== PayPal Success Handler ===")
+
     const { searchParams } = new URL(request.url)
     const paymentId = searchParams.get("paymentId")
     const payerId = searchParams.get("PayerID")
 
-    console.log("PayPal success callback:", { paymentId, payerId })
+    console.log("PayPal success params:", { paymentId, payerId })
 
     if (!paymentId || !payerId) {
-      console.error("Missing payment parameters")
-      return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=missing_parameters`)
+      console.error("Missing required parameters:", { paymentId, payerId })
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?error=missing_params`)
     }
 
-    const supabase = createClientComponentClient()
+    const supabase = createRouteHandlerClient({ cookies })
 
-    // Find the transaction by PayPal payment ID
-    const { data: transaction, error: transactionError } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("reference", paymentId)
-      .eq("status", "pending")
-      .single()
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    if (transactionError || !transaction) {
-      console.error("Transaction not found:", transactionError)
-      return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=transaction_not_found`)
+    if (authError || !user) {
+      console.error("Authentication error:", authError)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login?error=auth_required`)
     }
 
     try {
       // Execute the PayPal payment
-      const executedPayment = await paypalClient.executePayment(paymentId, payerId)
+      console.log("Executing PayPal payment...")
+      const payment = await paypalClient.executePayment(paymentId, payerId)
 
-      if (executedPayment.state !== "approved") {
-        console.error("Payment not approved:", executedPayment.state)
-
-        // Update transaction status to failed
-        await supabase.from("transactions").update({ status: "failed" }).eq("id", transaction.id)
-
-        return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=payment_not_approved`)
-      }
-
-      // Get user's current balance
-      const { data: userProfile, error: profileError } = await supabase
-        .from("users")
-        .select("account_balance")
-        .eq("id", transaction.user_id)
-        .single()
-
-      if (profileError) {
-        console.error("Error fetching user profile:", profileError)
-        return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=internal_error`)
-      }
-
-      // Update user balance
-      const newBalance = userProfile.account_balance + transaction.amount
-      const { error: balanceError } = await supabase
-        .from("users")
-        .update({ account_balance: newBalance })
-        .eq("id", transaction.user_id)
-
-      if (balanceError) {
-        console.error("Error updating balance:", balanceError)
-        return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=internal_error`)
-      }
-
-      // Update transaction status and balance
-      const { error: updateError } = await supabase
-        .from("transactions")
-        .update({
-          status: "completed",
-          balance_after: newBalance,
-          external_reference: executedPayment.id,
-        })
-        .eq("id", transaction.id)
-
-      if (updateError) {
-        console.error("Error updating transaction:", updateError)
-        // Balance was updated, so we don't rollback
-      }
-
-      console.log("PayPal payment completed successfully:", {
-        paymentId,
-        amount: transaction.amount,
-        newBalance,
+      console.log("PayPal payment executed:", {
+        id: payment.id,
+        state: payment.state,
+        amount: payment.transactions[0]?.amount?.total,
       })
 
-      return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?success=payment_completed`)
-    } catch (paymentError) {
-      console.error("Payment execution failed:", paymentError)
+      if (payment.state === "approved") {
+        // Get the transaction amount
+        const amount = Number.parseFloat(payment.transactions[0]?.amount?.total || "0")
+
+        // Get user profile to update balance
+        const { data: userProfile, error: profileError } = await supabase
+          .from("users")
+          .select("account_balance, account_no")
+          .eq("id", user.id)
+          .single()
+
+        if (profileError || !userProfile) {
+          console.error("Error fetching user profile:", profileError)
+          return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?error=profile_error`)
+        }
+
+        // Update user balance
+        const newBalance = userProfile.account_balance + amount
+        const { error: balanceError } = await supabase
+          .from("users")
+          .update({ account_balance: newBalance })
+          .eq("id", user.id)
+
+        if (balanceError) {
+          console.error("Error updating balance:", balanceError)
+          return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?error=balance_update`)
+        }
+
+        // Update transaction status
+        const { error: transactionError } = await supabase
+          .from("transactions")
+          .update({
+            status: "completed",
+            balance_after: newBalance,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("reference", paymentId)
+          .eq("user_id", user.id)
+
+        if (transactionError) {
+          console.error("Error updating transaction:", transactionError)
+          // Don't redirect on transaction update error since balance was already updated
+        }
+
+        console.log("PayPal payment completed successfully:", {
+          paymentId,
+          amount,
+          newBalance,
+        })
+
+        return NextResponse.redirect(
+          `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?success=payment_completed&amount=${amount}`,
+        )
+      } else {
+        console.error("PayPal payment not approved:", payment.state)
+        return NextResponse.redirect(
+          `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?error=payment_not_approved`,
+        )
+      }
+    } catch (executionError) {
+      console.error("Error executing PayPal payment:", executionError)
 
       // Update transaction status to failed
-      await supabase.from("transactions").update({ status: "failed" }).eq("id", transaction.id)
+      await supabase
+        .from("transactions")
+        .update({
+          status: "failed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("reference", paymentId)
+        .eq("user_id", user.id)
 
-      return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=payment_execution_failed`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?error=execution_failed`)
     }
   } catch (error) {
     console.error("PayPal success handler error:", error)
-    return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=internal_error`)
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?error=handler_error`)
   }
 }

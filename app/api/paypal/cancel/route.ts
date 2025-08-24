@@ -1,33 +1,51 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { PAYPAL_CONFIG } from "@/lib/paypal/config"
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 
 export async function GET(request: NextRequest) {
   try {
+    console.log("=== PayPal Cancel Handler ===")
+
     const { searchParams } = new URL(request.url)
-    const token = searchParams.get("token")
+    const paymentId = searchParams.get("paymentId")
 
-    console.log("PayPal payment cancelled:", { token })
+    console.log("PayPal cancel params:", { paymentId })
 
-    if (token) {
-      const supabase = createClientComponentClient()
+    const supabase = createRouteHandlerClient({ cookies })
 
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      console.error("Authentication error:", authError)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login?error=auth_required`)
+    }
+
+    if (paymentId) {
       // Update transaction status to cancelled
-      const { error } = await supabase
+      const { error: transactionError } = await supabase
         .from("transactions")
-        .update({ status: "cancelled" })
-        .eq("reference", token)
-        .eq("status", "pending")
+        .update({
+          status: "cancelled",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("reference", paymentId)
+        .eq("user_id", user.id)
 
-      if (error) {
-        console.error("Error updating cancelled transaction:", error)
-        return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=cancel_error`)
+      if (transactionError) {
+        console.error("Error updating transaction status:", transactionError)
+      } else {
+        console.log("Transaction marked as cancelled:", paymentId)
       }
     }
 
-    return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?cancelled=true`)
+    console.log("PayPal payment cancelled by user")
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?info=payment_cancelled`)
   } catch (error) {
     console.error("PayPal cancel handler error:", error)
-    return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=cancel_error`)
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/transfers?error=cancel_handler_error`)
   }
 }

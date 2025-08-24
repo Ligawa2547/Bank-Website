@@ -1,212 +1,80 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useToast } from "@/hooks/use-toast"
+import { ArrowUpRight, ArrowDownLeft, CreditCard, DollarSign, TrendingUp, Eye, EyeOff, RefreshCw } from "lucide-react"
 import { AccountDetailsCard } from "@/components/dashboard/account-details-card"
-import { PayPalPayment } from "@/components/paypal-payment"
-import {
-  ArrowUpRight,
-  ArrowDownLeft,
-  DollarSign,
-  TrendingUp,
-  CreditCard,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  Clock,
-  RefreshCw,
-} from "lucide-react"
-
-interface User {
-  id: string
-  email: string
-  first_name: string
-  last_name: string
-  account_no: string
-  account_balance: number
-  verification_status: string | null
-  created_at: string
-}
+import Link from "next/link"
+import { useProfile } from "@/hooks/use-profile"
 
 interface Transaction {
   id: string
-  user_id: string
-  account_no: string
   transaction_type: string
   amount: number
-  balance_after: number
   narration: string
-  reference: string
-  status: string
   created_at: string
-  sender_name?: string
-  recipient_name?: string
-}
-
-interface DashboardStats {
-  totalBalance: number
-  monthlyIncome: number
-  totalTransactions: number
-  pendingTransactions: number
+  status: string
+  payment_method?: string
 }
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null)
+  const { profile, loading: profileLoading, refreshProfile } = useProfile()
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [stats, setStats] = useState<DashboardStats>({
-    totalBalance: 0,
-    monthlyIncome: 0,
-    totalTransactions: 0,
-    pendingTransactions: 0,
-  })
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState("")
-  const { toast } = useToast()
-
-  const supabase = createClientComponentClient()
-
-  const fetchDashboardData = async () => {
-    try {
-      setError("")
-
-      // Get current user
-      const {
-        data: { user: authUser },
-        error: authError,
-      } = await supabase.auth.getUser()
-
-      if (authError || !authUser) {
-        throw new Error("Not authenticated")
-      }
-
-      // Get user profile
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", authUser.id)
-        .single()
-
-      if (userError) {
-        throw new Error(`Error fetching user data: ${userError.message}`)
-      }
-
-      setUser(userData)
-
-      // Get transactions
-      const { data: transactionData, error: transactionError } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", authUser.id)
-        .order("created_at", { ascending: false })
-        .limit(10)
-
-      if (transactionError) {
-        throw new Error(`Error fetching transactions: ${transactionError.message}`)
-      }
-
-      setTransactions(transactionData || [])
-
-      // Calculate stats from transaction data
-      const currentMonth = new Date().getMonth()
-      const currentYear = new Date().getFullYear()
-
-      const monthlyTransactions = transactionData?.filter((t) => {
-        const transactionDate = new Date(t.created_at)
-        return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear
-      })
-
-      const monthlyIncome =
-        monthlyTransactions
-          ?.filter((t) => t.transaction_type === "deposit" && t.status === "completed")
-          .reduce((sum, t) => sum + t.amount, 0) || 0
-
-      const pendingCount = transactionData?.filter((t) => t.status === "pending").length || 0
-
-      setStats({
-        totalBalance: userData.account_balance || 0,
-        monthlyIncome,
-        totalTransactions: transactionData?.length || 0,
-        pendingTransactions: pendingCount,
-      })
-    } catch (error) {
-      console.error("Dashboard data error:", error)
-      setError(error instanceof Error ? error.message : "Failed to load dashboard data")
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }
-
-  const handleRefresh = async () => {
-    setRefreshing(true)
-    await fetchDashboardData()
-    toast({
-      title: "Dashboard Refreshed",
-      description: "Your account data has been updated",
-    })
-  }
-
-  const handlePaymentSuccess = () => {
-    toast({
-      title: "Payment Successful",
-      description: "Your account balance will be updated shortly",
-    })
-    handleRefresh()
-  }
+  const [showBalance, setShowBalance] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
-    fetchDashboardData()
+    fetchRecentTransactions()
+  }, [refreshKey])
 
-    // Check for URL parameters (payment success/error)
-    const urlParams = new URLSearchParams(window.location.search)
-    const success = urlParams.get("success")
-    const error = urlParams.get("error")
-    const cancelled = urlParams.get("cancelled")
-
-    if (success === "payment_completed") {
-      toast({
-        title: "Payment Successful!",
-        description: "Your deposit has been completed successfully",
-      })
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname)
-    } else if (error) {
-      toast({
-        title: "Payment Error",
-        description: "There was an issue processing your payment",
-        variant: "destructive",
-      })
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname)
-    } else if (cancelled === "true") {
-      toast({
-        title: "Payment Cancelled",
-        description: "Your payment was cancelled",
-        variant: "destructive",
-      })
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname)
+  const fetchRecentTransactions = async () => {
+    try {
+      const response = await fetch("/api/transactions?limit=5")
+      if (response.ok) {
+        const data = await response.json()
+        setTransactions(data.transactions || [])
+      }
+    } catch (error) {
+      console.error("Error fetching transactions:", error)
+    } finally {
+      setLoading(false)
     }
-  }, [toast])
+  }
+
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1)
+    refreshProfile()
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount)
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
       case "deposit":
-        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
+        return <ArrowDownLeft className="h-4 w-4 text-green-500" />
       case "withdrawal":
-        return <ArrowUpRight className="h-4 w-4 text-red-600" />
-      case "transfer_in":
-        return <ArrowDownLeft className="h-4 w-4 text-blue-600" />
-      case "transfer_out":
-        return <ArrowUpRight className="h-4 w-4 text-orange-600" />
+        return <ArrowUpRight className="h-4 w-4 text-red-500" />
+      case "transfer":
+        return <ArrowUpRight className="h-4 w-4 text-blue-500" />
       default:
-        return <DollarSign className="h-4 w-4 text-gray-600" />
+        return <DollarSign className="h-4 w-4 text-gray-500" />
     }
   }
 
@@ -215,189 +83,180 @@ export default function DashboardPage() {
       case "completed":
         return (
           <Badge variant="default" className="bg-green-100 text-green-800">
-            <CheckCircle className="h-3 w-3 mr-1" />
             Completed
           </Badge>
         )
       case "pending":
-        return (
-          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-            <Clock className="h-3 w-3 mr-1" />
-            Pending
-          </Badge>
-        )
+        return <Badge variant="secondary">Pending</Badge>
       case "failed":
-        return (
-          <Badge variant="destructive" className="bg-red-100 text-red-800">
-            <XCircle className="h-3 w-3 mr-1" />
-            Failed
-          </Badge>
-        )
+        return <Badge variant="destructive">Failed</Badge>
       case "cancelled":
-        return (
-          <Badge variant="outline" className="bg-gray-100 text-gray-800">
-            <XCircle className="h-3 w-3 mr-1" />
-            Cancelled
-          </Badge>
-        )
+        return <Badge variant="outline">Cancelled</Badge>
       default:
-        return <Badge variant="outline">{status}</Badge>
+        return <Badge variant="secondary">{status}</Badge>
     }
   }
 
-  const formatAmount = (amount: number, type: string) => {
-    const isNegative = type === "withdrawal" || type === "transfer_out" || amount < 0
-    const absAmount = Math.abs(amount)
-    return `${isNegative ? "-" : "+"}$${absAmount.toFixed(2)}`
-  }
-
-  if (loading) {
+  if (profileLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading your dashboard...</p>
+      <div className="container mx-auto p-6">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+            ))}
+          </div>
         </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-        <Button onClick={handleRefresh} className="mt-4">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Try Again
-        </Button>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">
-            Welcome back, {user?.first_name} {user?.last_name}
-          </h1>
-          <p className="text-gray-600">Here's what's happening with your account today.</p>
+          <h1 className="text-3xl font-bold">Welcome back, {profile?.first_name || "User"}!</h1>
+          <p className="text-muted-foreground">Here's an overview of your account activity</p>
         </div>
-        <Button onClick={handleRefresh} disabled={refreshing} variant="outline">
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+        <Button onClick={handleRefresh} variant="outline" size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
       </div>
 
-      {/* Account Details */}
-      {user && <AccountDetailsCard user={user} onRefresh={handleRefresh} />}
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Account Overview Cards */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Account Balance</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setShowBalance(!showBalance)}>
+              {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats.totalBalance.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Current account balance</p>
+            <div className="text-2xl font-bold">
+              {showBalance ? formatCurrency(profile?.account_balance || 0) : "••••••"}
+            </div>
+            <p className="text-xs text-muted-foreground">Available balance</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Income</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${stats.monthlyIncome.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">This month's deposits</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Transactions</CardTitle>
+            <CardTitle className="text-sm font-medium">Account Number</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalTransactions}</div>
-            <p className="text-xs text-muted-foreground">All time transactions</p>
+            <div className="text-2xl font-bold">{profile?.account_no || "N/A"}</div>
+            <p className="text-xs text-muted-foreground">Your account number</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Recent Transactions</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingTransactions}</div>
-            <p className="text-xs text-muted-foreground">Pending transactions</p>
+            <div className="text-2xl font-bold">{transactions.length}</div>
+            <p className="text-xs text-muted-foreground">Last 5 transactions</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Link href="/dashboard/transfers">
+                <Button size="sm" className="w-full">
+                  Add Money
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Recent Transactions */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
+      {/* Account Details */}
+      <AccountDetailsCard />
+
+      {/* Recent Transactions */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
               <CardTitle>Recent Transactions</CardTitle>
               <CardDescription>Your latest account activity</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {transactions.length === 0 ? (
-                <div className="text-center py-8">
-                  <CreditCard className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-500">No transactions yet</p>
-                  <p className="text-sm text-gray-400">Your transaction history will appear here</p>
+            </div>
+            <Link href="/dashboard/transactions">
+              <Button variant="outline" size="sm">
+                View All
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="animate-pulse flex items-center space-x-4">
+                  <div className="rounded-full bg-gray-200 h-10 w-10"></div>
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-20"></div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {transactions.map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        {getTransactionIcon(transaction.transaction_type)}
-                        <div>
-                          <p className="font-medium">{transaction.narration}</p>
-                          <p className="text-sm text-gray-500">
-                            {new Date(transaction.created_at).toLocaleDateString()} •{" "}
-                            {transaction.transaction_type.replace("_", " ").toUpperCase()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={`font-semibold ${
-                            transaction.transaction_type === "deposit" || transaction.transaction_type === "transfer_in"
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {formatAmount(transaction.amount, transaction.transaction_type)}
-                        </p>
-                        {getStatusBadge(transaction.status)}
-                      </div>
+              ))}
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="text-center py-8">
+              <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium">No transactions yet</h3>
+              <p className="text-muted-foreground mb-4">Start by adding money to your account</p>
+              <Link href="/dashboard/transfers">
+                <Button>Add Money</Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {transactions.map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center space-x-4">
+                    {getTransactionIcon(transaction.transaction_type)}
+                    <div>
+                      <p className="font-medium">{transaction.narration}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDate(transaction.created_at)}
+                        {transaction.payment_method && (
+                          <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded">
+                            {transaction.payment_method}
+                          </span>
+                        )}
+                      </p>
                     </div>
-                  ))}
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p
+                      className={`font-medium ${
+                        transaction.transaction_type === "deposit" ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {transaction.transaction_type === "deposit" ? "+" : "-"}
+                      {formatCurrency(transaction.amount)}
+                    </p>
+                    {getStatusBadge(transaction.status)}
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* PayPal Payments */}
-        <div>
-          <PayPalPayment onSuccess={handlePaymentSuccess} />
-        </div>
-      </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
