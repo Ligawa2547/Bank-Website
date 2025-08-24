@@ -1,34 +1,33 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { PAYPAL_CONFIG } from "@/lib/paypal/config"
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
     const { searchParams } = new URL(request.url)
+    const token = searchParams.get("token")
 
-    const paymentId = searchParams.get("paymentId")
+    console.log("PayPal payment cancelled:", { token })
 
-    console.log("PayPal cancel callback:", { paymentId })
+    if (token) {
+      const supabase = createClientComponentClient()
 
-    if (paymentId) {
-      // Find and update the transaction status
-      const { error: updateError } = await supabase
+      // Update transaction status to cancelled
+      const { error } = await supabase
         .from("transactions")
-        .update({
-          status: "cancelled",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("reference", paymentId)
+        .update({ status: "cancelled" })
+        .eq("reference", token)
+        .eq("status", "pending")
 
-      if (updateError) {
-        console.error("Error updating cancelled transaction:", updateError)
+      if (error) {
+        console.error("Error updating cancelled transaction:", error)
+        return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=cancel_error`)
       }
     }
 
-    return NextResponse.redirect(`https://ebanking.iaenb.com/dashboard?cancelled=true`)
+    return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?cancelled=true`)
   } catch (error) {
     console.error("PayPal cancel handler error:", error)
-    return NextResponse.redirect(`https://ebanking.iaenb.com/dashboard?error=cancel_error`)
+    return NextResponse.redirect(`${PAYPAL_CONFIG.APP_URL}/dashboard?error=cancel_error`)
   }
 }

@@ -1,65 +1,58 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
     const body = await request.json()
+    console.log("PayPal webhook received:", body)
 
-    console.log("PayPal webhook received:", body.event_type)
+    const supabase = createClientComponentClient()
 
     // Handle different webhook events
     switch (body.event_type) {
       case "PAYMENT.SALE.COMPLETED":
-        const saleId = body.resource.id
+        // Handle completed payment
         const paymentId = body.resource.parent_payment
-
-        console.log("Payment sale completed:", { saleId, paymentId })
-
-        // Update transaction status if needed
-        await supabase
-          .from("transactions")
-          .update({
-            status: "completed",
-            metadata: { sale_id: saleId },
-          })
-          .eq("reference", paymentId)
-
+        if (paymentId) {
+          await supabase
+            .from("transactions")
+            .update({
+              status: "completed",
+              external_reference: body.resource.id,
+            })
+            .eq("reference", paymentId)
+        }
         break
 
       case "PAYMENT.SALE.DENIED":
-        const deniedPaymentId = body.resource.parent_payment
-
-        console.log("Payment sale denied:", deniedPaymentId)
-
-        await supabase.from("transactions").update({ status: "failed" }).eq("reference", deniedPaymentId)
-
+      case "PAYMENT.SALE.REFUNDED":
+        // Handle failed/refunded payment
+        const failedPaymentId = body.resource.parent_payment
+        if (failedPaymentId) {
+          await supabase.from("transactions").update({ status: "failed" }).eq("reference", failedPaymentId)
+        }
         break
 
-      case "PAYMENT.PAYOUTS-ITEM.SUCCEEDED":
-        const payoutItemId = body.resource.payout_item_id
-
-        console.log("Payout succeeded:", payoutItemId)
-
-        // Update withdrawal transaction status
-        await supabase
-          .from("transactions")
-          .update({
-            status: "completed",
-            metadata: { payout_item_id: payoutItemId },
-          })
-          .eq("reference", payoutItemId)
-
+      case "PAYOUTS.PAYOUT-ITEM.SUCCEEDED":
+        // Handle successful payout
+        const payoutBatchId = body.resource.payout_batch_id
+        if (payoutBatchId) {
+          await supabase
+            .from("transactions")
+            .update({
+              status: "completed",
+              external_reference: body.resource.payout_item_id,
+            })
+            .eq("reference", payoutBatchId)
+        }
         break
 
-      case "PAYMENT.PAYOUTS-ITEM.FAILED":
-        const failedPayoutItemId = body.resource.payout_item_id
-
-        console.log("Payout failed:", failedPayoutItemId)
-
-        await supabase.from("transactions").update({ status: "failed" }).eq("reference", failedPayoutItemId)
-
+      case "PAYOUTS.PAYOUT-ITEM.FAILED":
+        // Handle failed payout
+        const failedPayoutBatchId = body.resource.payout_batch_id
+        if (failedPayoutBatchId) {
+          await supabase.from("transactions").update({ status: "failed" }).eq("reference", failedPayoutBatchId)
+        }
         break
 
       default:

@@ -5,8 +5,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import PayPalPayment from "@/components/paypal-payment"
-import { PaystackPayment } from "@/components/paystack-payment"
+import { PayPalPayment } from "@/components/paypal-payment"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -36,7 +35,7 @@ interface Transaction {
 }
 
 interface UserProfile {
-  account_number: string
+  account_no: string
   account_balance: number
   first_name: string
   last_name: string
@@ -121,7 +120,7 @@ export default function TransfersPage() {
       // Fetch profile with actual account_balance
       const { data: profileData, error: profileError } = await supabase
         .from("users")
-        .select("account_number, account_balance, first_name, last_name")
+        .select("account_no, account_balance, first_name, last_name")
         .eq("id", user.id)
         .single()
 
@@ -328,18 +327,12 @@ export default function TransfersPage() {
         {/* Payment Methods */}
         <div>
           <Tabs defaultValue="paypal-deposit" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 gap-1 h-auto p-1">
+            <TabsList className="grid w-full grid-cols-2 gap-1 h-auto p-1">
               <TabsTrigger
                 value="paypal-deposit"
                 className="text-xs sm:text-sm px-2 py-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
               >
-                PayPal Deposit
-              </TabsTrigger>
-              <TabsTrigger
-                value="paypal-withdrawal"
-                className="text-xs sm:text-sm px-2 py-2 data-[state=active]:bg-red-600 data-[state=active]:text-white"
-              >
-                PayPal Withdrawal
+                PayPal Payments
               </TabsTrigger>
               <TabsTrigger
                 value="bank-transfer"
@@ -347,20 +340,10 @@ export default function TransfersPage() {
               >
                 Bank Transfer
               </TabsTrigger>
-              <TabsTrigger
-                value="paystack"
-                className="text-xs sm:text-sm px-2 py-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
-              >
-                Paystack
-              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="paypal-deposit" className="mt-4">
-              <PayPalPayment type="deposit" onSuccess={fetchData} />
-            </TabsContent>
-
-            <TabsContent value="paypal-withdrawal" className="mt-4">
-              <PayPalPayment type="withdrawal" onSuccess={fetchData} />
+              <PayPalPayment onSuccess={fetchData} />
             </TabsContent>
 
             <TabsContent value="bank-transfer" className="mt-4">
@@ -416,10 +399,6 @@ export default function TransfersPage() {
                   </Button>
                 </CardContent>
               </Card>
-            </TabsContent>
-
-            <TabsContent value="paystack" className="mt-4">
-              <PaystackPayment type="deposit" onSuccess={fetchData} />
             </TabsContent>
           </Tabs>
         </div>
