@@ -15,7 +15,10 @@ export async function GET(request: NextRequest) {
       // Find and update the transaction status
       const { error: updateError } = await supabase
         .from("transactions")
-        .update({ status: "cancelled" })
+        .update({
+          status: "cancelled",
+          completed_at: new Date().toISOString(),
+        })
         .eq("reference", paymentId)
 
       if (updateError) {
@@ -23,9 +26,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?cancelled=true`)
+    return NextResponse.redirect(`https://ebanking.iaenb.com/dashboard?cancelled=true`)
   } catch (error) {
     console.error("PayPal cancel handler error:", error)
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=cancel_error`)
+    return NextResponse.redirect(`https://ebanking.iaenb.com/dashboard?error=cancel_error`)
   }
 }

@@ -50,8 +50,16 @@ export function PayPalPayment({ onSuccess }: PayPalPaymentProps) {
       }
 
       if (data.approvalUrl) {
-        // Redirect to PayPal for payment approval
-        window.location.href = data.approvalUrl
+        // Show loading message
+        toast({
+          title: "Redirecting to PayPal",
+          description: "You will be redirected to PayPal to complete your payment",
+        })
+
+        // Small delay to show the toast, then redirect
+        setTimeout(() => {
+          window.location.href = data.approvalUrl
+        }, 1000)
       } else {
         throw new Error("No approval URL received")
       }

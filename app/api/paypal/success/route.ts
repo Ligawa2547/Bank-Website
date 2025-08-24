@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     if (!paymentId || !payerId) {
       console.error("Missing parameters:", { paymentId, payerId })
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=missing_parameters`)
+      return NextResponse.redirect(`https://ebanking.iaenb.com/dashboard?error=missing_parameters`)
     }
 
     // Find the transaction by PayPal payment ID
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     if (transactionError || !transaction) {
       console.error("Transaction not found:", transactionError)
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=transaction_not_found`)
+      return NextResponse.redirect(`https://ebanking.iaenb.com/dashboard?error=transaction_not_found`)
     }
 
     try {
@@ -36,7 +36,13 @@ export async function GET(request: NextRequest) {
 
       if (executedPayment.state === "approved") {
         // Update transaction status to completed
-        await supabase.from("transactions").update({ status: "completed" }).eq("id", transaction.id)
+        await supabase
+          .from("transactions")
+          .update({
+            status: "completed",
+            completed_at: new Date().toISOString(),
+          })
+          .eq("id", transaction.id)
 
         // Update user balance
         const { data: user, error: userError } = await supabase
@@ -52,15 +58,26 @@ export async function GET(request: NextRequest) {
             .eq("id", transaction.user_id)
         }
 
+        // Create notification
+        await supabase.from("notifications").insert({
+          user_id: transaction.user_id,
+          account_no: transaction.account_no,
+          title: "Deposit Successful",
+          message: `Your account has been credited with $${transaction.amount.toFixed(2)} via PayPal`,
+          type: "transaction",
+          is_read: false,
+          created_at: new Date().toISOString(),
+        })
+
         console.log("Payment completed successfully:", paymentId)
-        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=payment_completed`)
+        return NextResponse.redirect(`https://ebanking.iaenb.com/dashboard?success=payment_completed`)
       } else {
         console.error("Payment not approved:", executedPayment.state)
 
         // Update transaction status to failed
         await supabase.from("transactions").update({ status: "failed" }).eq("id", transaction.id)
 
-        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=payment_not_approved`)
+        return NextResponse.redirect(`https://ebanking.iaenb.com/dashboard?error=payment_not_approved`)
       }
     } catch (error) {
       console.error("PayPal execution error:", error)
@@ -68,10 +85,10 @@ export async function GET(request: NextRequest) {
       // Update transaction status to failed
       await supabase.from("transactions").update({ status: "failed" }).eq("id", transaction.id)
 
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=payment_execution_failed`)
+      return NextResponse.redirect(`https://ebanking.iaenb.com/dashboard?error=payment_execution_failed`)
     }
   } catch (error) {
     console.error("PayPal success handler error:", error)
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard?error=internal_error`)
+    return NextResponse.redirect(`https://ebanking.iaenb.com/dashboard?error=internal_error`)
   }
 }

@@ -1,7 +1,7 @@
 export const PAYPAL_CONFIG = {
   CLIENT_ID: process.env.PAYPAL_CLIENT_ID!,
   CLIENT_SECRET: process.env.PAYPAL_CLIENT_SECRET!,
-  BASE_URL: process.env.NODE_ENV === "production" ? "https://api.paypal.com" : "https://api.sandbox.paypal.com",
+  BASE_URL: process.env.NODE_ENV === "production" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com",
   WEB_URL: process.env.NODE_ENV === "production" ? "https://www.paypal.com" : "https://www.sandbox.paypal.com",
 }
 
