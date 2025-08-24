@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSupabase } from "@/providers/supabase-provider"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 
 export type Profile = {
   id: string
@@ -12,7 +12,7 @@ export type Profile = {
   phone?: string
   avatar_url?: string
   account_no?: string
-  balance?: number
+  account_balance?: number
   created_at?: string
   updated_at?: string
 }
@@ -96,10 +96,39 @@ export function useProfile() {
     }
   }
 
+  const refreshProfile = async () => {
+    if (!user) return
+
+    try {
+      setLoading(true)
+
+      const [usersResponse, profilesResponse] = await Promise.all([
+        supabase.from("users").select("*").eq("id", user.id).single(),
+        supabase.from("user_profiles").select("*").eq("id", user.id).single(),
+      ])
+
+      const userData = usersResponse.data || {}
+      const profileData = profilesResponse.data || {}
+
+      const combinedProfile = {
+        id: user.id,
+        ...userData,
+        ...profileData,
+      }
+
+      setProfile(combinedProfile as Profile)
+    } catch (err) {
+      console.error("Error refreshing profile:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return {
     profile,
     loading,
     error,
     updateProfile,
+    refreshProfile,
   }
 }

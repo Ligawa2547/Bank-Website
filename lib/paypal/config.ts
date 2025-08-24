@@ -1,54 +1,33 @@
 export const PAYPAL_CONFIG = {
+  // Your PayPal App Credentials
   CLIENT_ID:
     process.env.PAYPAL_CLIENT_ID || "AbX1lIfpj2F5GbIFGrqv7F5wq-q6Sgc0dMr-aB6nQMt6Us76etTJHQZtCgvq9omd63fSdCqnAoPQiFio",
   CLIENT_SECRET:
     process.env.PAYPAL_CLIENT_SECRET ||
     "EFn2M9xLcowxhYjkqGGz-o53ukuF6sNuYsZq5Aj5xSMjvzG2EJK1yu_Hp5SLevefQ78aCpVFfz7onFsZ",
-  APP_NAME: "Alghahim",
-  // We'll try both sandbox and production to see which works
+
+  // Environment URLs - we'll detect which one works
   SANDBOX_BASE_URL: "https://api-m.sandbox.paypal.com",
   PRODUCTION_BASE_URL: "https://api-m.paypal.com",
-  SANDBOX_WEB_URL: "https://www.sandbox.paypal.com",
-  PRODUCTION_WEB_URL: "https://www.paypal.com",
-  APP_URL: process.env.NEXT_PUBLIC_APP_URL || "https://ebanking.iaenb.com",
+
+  // App URLs
+  APP_URL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+
+  // Cache for environment detection
+  DETECTED_ENVIRONMENT: null as "sandbox" | "production" | null,
 }
 
-export function validatePayPalConfig() {
-  const errors: string[] = []
-
-  if (!PAYPAL_CONFIG.CLIENT_ID) {
-    errors.push("PAYPAL_CLIENT_ID is required")
+// Helper to get the correct base URL
+export function getPayPalBaseUrl(): string {
+  if (PAYPAL_CONFIG.DETECTED_ENVIRONMENT === "production") {
+    return PAYPAL_CONFIG.PRODUCTION_BASE_URL
   }
+  // Default to sandbox for initial attempts
+  return PAYPAL_CONFIG.SANDBOX_BASE_URL
+}
 
-  if (!PAYPAL_CONFIG.CLIENT_SECRET) {
-    errors.push("PAYPAL_CLIENT_SECRET is required")
-  }
-
-  if (!PAYPAL_CONFIG.APP_URL) {
-    errors.push("NEXT_PUBLIC_APP_URL is required")
-  }
-
-  // Validate credential format
-  if (PAYPAL_CONFIG.CLIENT_ID && !PAYPAL_CONFIG.CLIENT_ID.match(/^[A-Za-z0-9_-]+$/)) {
-    errors.push("PAYPAL_CLIENT_ID format appears invalid")
-  }
-
-  if (PAYPAL_CONFIG.CLIENT_SECRET && !PAYPAL_CONFIG.CLIENT_SECRET.match(/^[A-Za-z0-9_-]+$/)) {
-    errors.push("PAYPAL_CLIENT_SECRET format appears invalid")
-  }
-
-  if (errors.length > 0) {
-    throw new Error(`PayPal configuration errors: ${errors.join(", ")}`)
-  }
-
-  console.log("PayPal Config Validation:", {
-    appName: PAYPAL_CONFIG.APP_NAME,
-    appUrl: PAYPAL_CONFIG.APP_URL,
-    clientIdLength: PAYPAL_CONFIG.CLIENT_ID?.length || 0,
-    clientSecretLength: PAYPAL_CONFIG.CLIENT_SECRET?.length || 0,
-    clientIdPrefix: PAYPAL_CONFIG.CLIENT_ID?.substring(0, 10) || "none",
-    clientSecretPrefix: PAYPAL_CONFIG.CLIENT_SECRET?.substring(0, 10) || "none",
-    hasClientId: !!PAYPAL_CONFIG.CLIENT_ID,
-    hasClientSecret: !!PAYPAL_CONFIG.CLIENT_SECRET,
-  })
+// Helper to set detected environment
+export function setDetectedEnvironment(env: "sandbox" | "production") {
+  PAYPAL_CONFIG.DETECTED_ENVIRONMENT = env
+  console.log(`✅ PayPal environment detected: ${env}`)
 }
