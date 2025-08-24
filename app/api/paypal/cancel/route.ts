@@ -4,32 +4,30 @@ import { cookies } from "next/headers"
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
     const { searchParams } = new URL(request.url)
+    const reference = searchParams.get("reference")
+    const type = searchParams.get("type")
 
-    const paymentId = searchParams.get("paymentId")
+    console.log("PayPal cancel callback:", { reference, type })
 
-    console.log("PayPal cancel callback:", { paymentId })
+    if (reference) {
+      const supabase = createRouteHandlerClient({ cookies })
 
-    if (paymentId) {
-      // Mark the transaction as cancelled
-      const { error } = await supabase
+      // Update transaction status to cancelled
+      await supabase
         .from("transactions")
         .update({
           status: "cancelled",
-          updated_at: new Date().toISOString(),
+          narration: "PayPal payment cancelled by user",
         })
-        .eq("reference", paymentId)
-        .eq("status", "pending")
+        .eq("reference", reference)
 
-      if (error) {
-        console.error("Error updating cancelled transaction:", error)
-      }
+      console.log("Transaction marked as cancelled:", reference)
     }
 
-    return NextResponse.redirect(new URL("/dashboard/transfers?error=payment_cancelled", request.url))
+    return NextResponse.redirect(new URL("/dashboard?info=payment_cancelled", request.url))
   } catch (error: any) {
     console.error("PayPal cancel handler error:", error)
-    return NextResponse.redirect(new URL("/dashboard/transfers?error=payment_cancelled", request.url))
+    return NextResponse.redirect(new URL("/dashboard?error=cancel_error", request.url))
   }
 }

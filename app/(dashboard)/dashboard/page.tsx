@@ -1,26 +1,24 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { useAuth } from "@/lib/auth-provider"
+import { useEffect, useState } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AccountDetailsCard } from "@/components/dashboard/account-details-card"
+import { PayPalPayment } from "@/components/paypal-payment"
 import {
-  TrendingUp,
   ArrowUpRight,
   ArrowDownLeft,
-  Send,
-  Eye,
-  EyeOff,
-  Plus,
-  RefreshCw,
+  TrendingUp,
   CreditCard,
-  Wallet,
+  PiggyBank,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  X,
 } from "lucide-react"
-import Link from "next/link"
-import PayPalPayment from "@/components/paypal-payment"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/hooks/use-toast"
 
 interface Transaction {
   id: string
@@ -29,358 +27,362 @@ interface Transaction {
   status: string
   narration: string
   created_at: string
+  recipient_name?: string
+  recipient_account_number?: string
 }
 
-interface DashboardStats {
-  totalBalance: number
-  totalDeposits: number
-  totalWithdrawals: number
-  totalTransfers: number
-  recentTransactions: Transaction[]
+interface User {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+  account_no: string
+  account_balance: number
+  verification_status: string
 }
 
 export default function DashboardPage() {
-  const { user, profile, refreshUserProfile } = useAuth()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [balanceVisible, setBalanceVisible] = useState(true)
-  const [showAddMoney, setShowAddMoney] = useState(false)
-
+  const [user, setUser] = useState<User | null>(null)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
   const supabase = createClientComponentClient()
+  const { toast } = useToast()
 
   useEffect(() => {
-    if (user) {
-      fetchDashboardData()
+    fetchUserData()
+    fetchTransactions()
+
+    // Check for URL parameters (success/error messages)
+    const urlParams = new URLSearchParams(window.location.search)
+    const success = urlParams.get("success")
+    const errorParam = urlParams.get("error")
+    const info = urlParams.get("info")
+
+    if (success === "payment_completed") {
+      toast({
+        title: "Payment Successful",
+        description: "Your payment has been completed successfully.",
+      })
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+      // Refresh data
+      setTimeout(() => {
+        fetchUserData()
+        fetchTransactions()
+      }, 1000)
+    } else if (errorParam) {
+      const errorMessages: { [key: string]: string } = {
+        missing_parameters: "Payment failed due to missing parameters.",
+        transaction_not_found: "Transaction not found.",
+        payment_not_approved: "Payment was not approved.",
+        payment_execution_failed: "Payment execution failed.",
+        internal_error: "An internal error occurred.",
+        cancel_error: "Error processing payment cancellation.",
+      }
+
+      toast({
+        title: "Payment Error",
+        description: errorMessages[errorParam] || "An error occurred during payment.",
+        variant: "destructive",
+      })
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (info === "payment_cancelled") {
+      toast({
+        title: "Payment Cancelled",
+        description: "Your payment was cancelled.",
+        variant: "destructive",
+      })
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname)
     }
-  }, [user])
+  }, [toast])
 
-  const fetchDashboardData = async () => {
-    if (!user) return
-
+  const fetchUserData = async () => {
     try {
-      setLoading(true)
+      const {
+        data: { session },
+        error: authError,
+      } = await supabase.auth.getSession()
 
-      // Fetch recent transactions
-      const { data: transactions, error: transactionsError } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(5)
-
-      if (transactionsError) {
-        console.error("Error fetching transactions:", transactionsError)
+      if (authError || !session) {
+        setError("Please log in to view your dashboard")
         return
       }
 
-      // Calculate stats
-      const totalDeposits =
-        transactions
-          ?.filter((t) => t.transaction_type === "deposit" && t.status === "completed")
-          .reduce((sum, t) => sum + t.amount, 0) || 0
+      const { data, error: userError } = await supabase
+        .from("users")
+        .select("id, first_name, last_name, email, account_no, account_balance, verification_status")
+        .eq("id", session.user.id)
+        .single()
 
-      const totalWithdrawals =
-        transactions
-          ?.filter((t) => t.transaction_type === "withdrawal" && t.status === "completed")
-          .reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0
+      if (userError) {
+        console.error("Error fetching user data:", userError)
+        setError("Failed to load user data")
+        return
+      }
 
-      const totalTransfers =
-        transactions
-          ?.filter((t) => t.transaction_type.includes("transfer") && t.status === "completed")
-          .reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0
-
-      setStats({
-        totalBalance: profile?.balance || 0,
-        totalDeposits,
-        totalWithdrawals,
-        totalTransfers,
-        recentTransactions: transactions || [],
-      })
+      setUser(data)
     } catch (error) {
-      console.error("Error fetching dashboard data:", error)
+      console.error("Error in fetchUserData:", error)
+      setError("An error occurred while loading your data")
+    }
+  }
+
+  const fetchTransactions = async () => {
+    try {
+      const {
+        data: { session },
+        error: authError,
+      } = await supabase.auth.getSession()
+
+      if (authError || !session) return
+
+      const { data, error: transactionError } = await supabase
+        .from("transactions")
+        .select("id, transaction_type, amount, status, narration, created_at, recipient_name, recipient_account_number")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false })
+        .limit(10)
+
+      if (transactionError) {
+        console.error("Error fetching transactions:", transactionError)
+        return
+      }
+
+      setTransactions(data || [])
+    } catch (error) {
+      console.error("Error in fetchTransactions:", error)
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case "deposit":
-        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
-      case "withdrawal":
-        return <ArrowUpRight className="h-4 w-4 text-red-600" />
-      case "transfer_out":
-        return <Send className="h-4 w-4 text-blue-600" />
-      case "transfer_in":
-        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
-      default:
-        return <RefreshCw className="h-4 w-4 text-gray-600" />
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const getStatusIcon = (status: string) => {
+    switch (status.toLowerCase()) {
       case "completed":
-        return "bg-green-100 text-green-800"
+        return <CheckCircle className="h-4 w-4 text-green-500" />
       case "pending":
-        return "bg-yellow-100 text-yellow-800"
+        return <Clock className="h-4 w-4 text-yellow-500" />
       case "failed":
-        return "bg-red-100 text-red-800"
+        return <X className="h-4 w-4 text-red-500" />
+      case "cancelled":
+        return <X className="h-4 w-4 text-gray-500" />
       default:
-        return "bg-gray-100 text-gray-800"
+        return <Clock className="h-4 w-4 text-gray-500" />
     }
   }
 
-  if (loading) {
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "completed":
+        return "default"
+      case "pending":
+        return "secondary"
+      case "failed":
+        return "destructive"
+      case "cancelled":
+        return "outline"
+      default:
+        return "secondary"
+    }
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount)
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>User data not found. Please try refreshing the page.</AlertDescription>
+        </Alert>
       </div>
     )
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+    <div className="container mx-auto px-4 py-8 space-y-8">
       {/* Welcome Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Welcome back, {profile?.first_name || "User"}!</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">Here's an overview of your account activity</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Welcome back, {user.first_name} {user.last_name}
+          </h1>
+          <p className="text-gray-600 mt-1">Here's what's happening with your account today.</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Button onClick={() => setShowAddMoney(!showAddMoney)} className="bg-green-600 hover:bg-green-700">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Money
-          </Button>
-          <Link href="/dashboard/transfers">
-            <Button variant="outline" className="w-full sm:w-auto bg-transparent">
-              <Send className="mr-2 h-4 w-4" />
-              Transfer
-            </Button>
-          </Link>
-        </div>
+        {user.verification_status !== "verified" && (
+          <Alert className="max-w-md">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Your account is not fully verified. Complete your KYC to unlock all features.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
 
-      {/* Add Money Section */}
-      {showAddMoney && (
-        <Card className="border-green-200 bg-green-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-              <Plus className="h-5 w-5 text-green-600" />
-              Add Money to Your Account
-            </CardTitle>
-            <CardDescription className="text-sm">Choose your preferred payment method</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="paypal" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="paypal" className="text-xs sm:text-sm">
-                  <Wallet className="mr-2 h-4 w-4" />
-                  PayPal
-                </TabsTrigger>
-                <TabsTrigger value="card" className="text-xs sm:text-sm">
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Credit Card
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="paypal" className="mt-4">
-                <PayPalPayment
-                  type="deposit"
-                  onSuccess={() => {
-                    if (refreshUserProfile) {
-                      refreshUserProfile()
-                    }
-                    fetchDashboardData()
-                    setShowAddMoney(false)
-                  }}
-                />
-              </TabsContent>
-
-              <TabsContent value="card" className="mt-4">
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="text-center space-y-4">
-                      <CreditCard className="h-12 w-12 mx-auto text-blue-600" />
-                      <div>
-                        <h3 className="font-semibold text-sm sm:text-base">Credit Card Payments</h3>
-                        <p className="text-xs sm:text-sm text-muted-foreground">
-                          Pay securely with your credit or debit card via PayPal
-                        </p>
-                      </div>
-                      <Button onClick={() => {}} disabled={loading} className="w-full">
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Pay with Card
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Balance Card */}
-      <Card className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm">Available Balance</p>
-              <div className="flex items-center gap-2">
-                <p className="text-2xl sm:text-3xl font-bold">
-                  {balanceVisible ? `$${stats?.totalBalance.toFixed(2) || "0.00"}` : "••••••"}
-                </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setBalanceVisible(!balanceVisible)}
-                  className="text-white hover:bg-blue-500 p-1"
-                >
-                  {balanceVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-blue-100 text-xs sm:text-sm">Account Number</p>
-              <p className="font-mono text-sm sm:text-base">{profile?.account_number || "Loading..."}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Deposits</CardTitle>
-            <ArrowDownLeft className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-green-600">
-              ${stats?.totalDeposits.toFixed(2) || "0.00"}
-            </div>
-            <p className="text-xs text-muted-foreground">Money added to account</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Withdrawals</CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-red-600">
-              ${stats?.totalWithdrawals.toFixed(2) || "0.00"}
-            </div>
-            <p className="text-xs text-muted-foreground">Money withdrawn</p>
-          </CardContent>
-        </Card>
-
-        <Card className="sm:col-span-2 lg:col-span-1">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Transfers</CardTitle>
-            <Send className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-blue-600">
-              ${stats?.totalTransfers.toFixed(2) || "0.00"}
-            </div>
-            <p className="text-xs text-muted-foreground">Money transferred</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Account Details */}
+      <AccountDetailsCard user={user} onRefresh={fetchUserData} />
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg sm:text-xl">Quick Actions</CardTitle>
-          <CardDescription className="text-sm">Common banking operations</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <Button
-              onClick={() => setShowAddMoney(true)}
-              variant="outline"
-              className="flex flex-col items-center gap-2 h-auto py-4"
-            >
-              <Plus className="h-5 w-5 text-green-600" />
-              <span className="text-xs sm:text-sm">Add Money</span>
-            </Button>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Quick Transfer</CardTitle>
+            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Send Money</div>
+            <p className="text-xs text-muted-foreground">Transfer to other accounts</p>
+          </CardContent>
+        </Card>
 
-            <Link href="/dashboard/transfers" className="w-full">
-              <Button variant="outline" className="flex flex-col items-center gap-2 h-auto py-4 w-full bg-transparent">
-                <Send className="h-5 w-5 text-blue-600" />
-                <span className="text-xs sm:text-sm">Transfer</span>
-              </Button>
-            </Link>
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pay Bills</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Bill Pay</div>
+            <p className="text-xs text-muted-foreground">Pay your bills online</p>
+          </CardContent>
+        </Card>
 
-            <Link href="/dashboard/statements" className="w-full">
-              <Button variant="outline" className="flex flex-col items-center gap-2 h-auto py-4 w-full bg-transparent">
-                <TrendingUp className="h-5 w-5 text-purple-600" />
-                <span className="text-xs sm:text-sm">Statements</span>
-              </Button>
-            </Link>
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Savings</CardTitle>
+            <PiggyBank className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Save More</div>
+            <p className="text-xs text-muted-foreground">Open savings account</p>
+          </CardContent>
+        </Card>
 
-            <Link href="/dashboard/transactions" className="w-full">
-              <Button variant="outline" className="flex flex-col items-center gap-2 h-auto py-4 w-full bg-transparent">
-                <RefreshCw className="h-5 w-5 text-orange-600" />
-                <span className="text-xs sm:text-sm">History</span>
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Investments</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Invest</div>
+            <p className="text-xs text-muted-foreground">Grow your wealth</p>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Recent Transactions */}
-      <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <CardTitle className="text-lg sm:text-xl">Recent Transactions</CardTitle>
-            <CardDescription className="text-sm">Your latest account activity</CardDescription>
-          </div>
-          <Link href="/dashboard/transactions">
-            <Button variant="outline" size="sm">
-              View All
-            </Button>
-          </Link>
-        </CardHeader>
-        <CardContent>
-          {stats?.recentTransactions.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground text-sm">No recent transactions</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {stats?.recentTransactions.map((transaction) => (
-                <div
-                  key={transaction.id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-3"
-                >
-                  <div className="flex items-center gap-3">
-                    {getTransactionIcon(transaction.transaction_type)}
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm sm:text-base capitalize truncate">
-                        {transaction.transaction_type.replace("_", " ")}
-                      </p>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{transaction.narration}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(transaction.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2">
-                    <p className="font-medium text-sm sm:text-base">
-                      {transaction.amount > 0 ? "+" : ""}${Math.abs(transaction.amount).toFixed(2)}
-                    </p>
-                    <Badge className={`${getStatusColor(transaction.status)} text-xs`}>{transaction.status}</Badge>
-                  </div>
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Transactions */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ArrowDownLeft className="h-5 w-5" />
+                Recent Transactions
+              </CardTitle>
+              <CardDescription>Your latest account activity</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {transactions.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No transactions yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">Your transaction history will appear here</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              ) : (
+                <div className="space-y-4">
+                  {transactions.map((transaction) => (
+                    <div
+                      key={transaction.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-gray-100 rounded-full">
+                          {transaction.transaction_type === "deposit" ? (
+                            <ArrowDownLeft className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <ArrowUpRight className="h-4 w-4 text-red-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium">{transaction.narration}</p>
+                          <p className="text-sm text-muted-foreground">{formatDate(transaction.created_at)}</p>
+                          {transaction.recipient_name && (
+                            <p className="text-sm text-muted-foreground">To: {transaction.recipient_name}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right flex items-center gap-2">
+                        <div>
+                          <p
+                            className={`font-semibold ${
+                              transaction.transaction_type === "deposit" ? "text-green-600" : "text-red-600"
+                            }`}
+                          >
+                            {transaction.transaction_type === "deposit" ? "+" : "-"}
+                            {formatCurrency(transaction.amount)}
+                          </p>
+                          <div className="flex items-center gap-1">
+                            {getStatusIcon(transaction.status)}
+                            <Badge variant={getStatusBadgeVariant(transaction.status)} className="text-xs">
+                              {transaction.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* PayPal Payment */}
+        <div>
+          <PayPalPayment
+            onSuccess={() => {
+              fetchUserData()
+              fetchTransactions()
+            }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

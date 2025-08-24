@@ -5,168 +5,169 @@ import { paypalClient } from "@/lib/paypal/client"
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("PayPal initialize route called")
+
+    // Verify authentication
     const supabase = createRouteHandlerClient({ cookies })
-
-    // Get authenticated user
     const {
-      data: { user },
+      data: { session },
       error: authError,
-    } = await supabase.auth.getUser()
+    } = await supabase.auth.getSession()
 
-    if (authError || !user) {
+    if (authError || !session) {
+      console.error("Authentication error:", authError)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { amount, type, description } = await request.json()
+    const body = await request.json()
+    const { amount, type, paymentMethod, email } = body
 
-    console.log("PayPal initialize request:", { amount, type, description, userId: user.id })
+    console.log("PayPal initialize request body:", body)
 
-    // Validate amount
+    // Validate input
     if (!amount || amount <= 0) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 })
     }
 
-    // Validate type
-    if (!["deposit", "withdrawal"].includes(type)) {
+    if (!type || !["deposit", "withdrawal"].includes(type)) {
       return NextResponse.json({ error: "Invalid transaction type" }, { status: 400 })
     }
 
-    // Get user profile from users table with correct column name
+    if (type === "withdrawal" && !email) {
+      return NextResponse.json({ error: "Email required for withdrawal" }, { status: 400 })
+    }
+
+    // Get user profile
     const { data: profile, error: profileError } = await supabase
       .from("users")
-      .select("account_number, first_name, last_name, email, account_balance")
-      .eq("id", user.id)
+      .select("account_no, account_balance, first_name, last_name")
+      .eq("id", session.user.id)
       .single()
 
     if (profileError || !profile) {
       console.error("Profile error:", profileError)
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 })
+      return NextResponse.json({ error: "User profile not found" }, { status: 404 })
     }
 
-    console.log("User profile found:", {
-      accountNumber: profile.account_number,
-      email: profile.email,
-      balance: profile.account_balance,
+    console.log("User profile found:", { account_no: profile.account_no, balance: profile.account_balance })
+
+    // For withdrawals, check if user has sufficient balance
+    if (type === "withdrawal" && profile.account_balance < amount) {
+      return NextResponse.json({ error: "Insufficient balance" }, { status: 400 })
+    }
+
+    // Generate unique reference
+    const reference = `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    // Create transaction record
+    const { error: transactionError } = await supabase.from("transactions").insert({
+      user_id: session.user.id,
+      account_no: profile.account_no,
+      transaction_type: type,
+      amount: amount,
+      status: "pending",
+      reference: reference,
+      narration:
+        type === "deposit" ? `PayPal Deposit - ${paymentMethod === "card" ? "Card" : "Account"}` : "PayPal Withdrawal",
+      recipient_account_number: type === "deposit" ? profile.account_no : null,
+      recipient_name: type === "deposit" ? `${profile.first_name} ${profile.last_name}` : null,
     })
 
-    let paypalResponse
+    if (transactionError) {
+      console.error("Transaction creation error:", transactionError)
+      return NextResponse.json({ error: "Failed to create transaction" }, { status: 500 })
+    }
+
+    console.log("Transaction created with reference:", reference)
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    const returnUrl = `${baseUrl}/api/paypal/success?reference=${reference}&type=${type}&paymentMethod=${paymentMethod}`
+    const cancelUrl = `${baseUrl}/api/paypal/cancel?reference=${reference}&type=${type}`
 
     if (type === "deposit") {
-      // Create PayPal payment for deposit
-      paypalResponse = await paypalClient.createPayment(
-        amount,
-        "USD",
-        description || `Deposit to account ${profile.account_number}`,
-      )
+      try {
+        console.log("Creating PayPal payment for deposit...")
 
-      // Store pending transaction
-      const { error: transactionError } = await supabase.from("transactions").insert({
-        user_id: user.id,
-        account_no: profile.account_number,
-        transaction_type: "deposit",
-        amount: amount,
-        status: "pending",
-        reference: paypalResponse.id,
-        narration: description || `PayPal deposit to account ${profile.account_number}`,
-        created_at: new Date().toISOString(),
-      })
-
-      if (transactionError) {
-        console.error("Error creating transaction record:", transactionError)
-        return NextResponse.json({ error: "Failed to create transaction record" }, { status: 500 })
-      }
-
-      // Find approval URL
-      const approvalUrl = paypalResponse.links.find((link: any) => link.rel === "approval_url")?.href
-
-      console.log("PayPal payment created, approval URL:", approvalUrl)
-
-      return NextResponse.json({
-        success: true,
-        paymentId: paypalResponse.id,
-        approvalUrl: approvalUrl,
-        amount: amount,
-        type: type,
-      })
-    } else if (type === "withdrawal") {
-      // For withdrawals, we need the user's PayPal email
-      // Using account email as PayPal email for now
-      const paypalEmail = profile.email
-
-      // Check if user has sufficient balance using correct column name
-      const currentBalance = Number.parseFloat(profile.account_balance?.toString() || "0")
-
-      console.log("Withdrawal request:", { currentBalance, requestedAmount: amount })
-
-      if (currentBalance < amount) {
-        return NextResponse.json(
-          {
-            error: "Insufficient balance",
-            currentBalance: currentBalance,
-            requestedAmount: amount,
-          },
-          { status: 400 },
+        // Create PayPal payment with proper payment method
+        const payment = await paypalClient.createPayment(
+          amount,
+          `${paymentMethod === "card" ? "Card" : "PayPal"} Deposit to account ${profile.account_no}`,
+          returnUrl,
+          cancelUrl,
+          paymentMethod,
         )
-      }
 
-      // Create PayPal payout for withdrawal
-      paypalResponse = await paypalClient.createPayout(
-        paypalEmail,
-        amount,
-        "USD",
-        description || `Withdrawal from account ${profile.account_number}`,
-      )
+        const approvalUrl = paypalClient.getApprovalUrl(payment)
 
-      // Update user balance immediately for withdrawal using correct column name
-      const newBalance = currentBalance - amount
-      const { error: balanceError } = await supabase
-        .from("users")
-        .update({
-          account_balance: newBalance,
-          updated_at: new Date().toISOString(),
+        if (!approvalUrl) {
+          console.error("No approval URL found in PayPal response")
+          return NextResponse.json({ error: "Failed to get PayPal approval URL" }, { status: 500 })
+        }
+
+        // Store payment ID for later execution
+        await supabase
+          .from("transactions")
+          .update({
+            narration: `PayPal Deposit - ${paymentMethod === "card" ? "Card" : "Account"} Payment ID: ${payment.id}`,
+          })
+          .eq("reference", reference)
+
+        console.log("PayPal payment created successfully:", { paymentId: payment.id, approvalUrl })
+
+        return NextResponse.json({
+          approvalUrl,
+          paymentId: payment.id,
+          reference,
+          paymentMethod,
         })
-        .eq("id", user.id)
+      } catch (error: any) {
+        console.error("PayPal payment creation error:", error)
 
-      if (balanceError) {
-        console.error("Error updating balance:", balanceError)
-        return NextResponse.json({ error: "Failed to update balance" }, { status: 500 })
+        // Update transaction status to failed
+        await supabase.from("transactions").update({ status: "failed" }).eq("reference", reference)
+
+        return NextResponse.json({ error: error.message || "Failed to create PayPal payment" }, { status: 500 })
       }
+    } else {
+      // Handle withdrawal - create payout
+      try {
+        console.log("Creating PayPal payout for withdrawal...")
 
-      // Store completed transaction for withdrawal
-      const { error: transactionError } = await supabase.from("transactions").insert({
-        user_id: user.id,
-        account_no: profile.account_number,
-        transaction_type: "withdrawal",
-        amount: amount,
-        status: "completed",
-        reference: paypalResponse.batch_header.payout_batch_id,
-        narration: description || `PayPal withdrawal from account ${profile.account_number}`,
-        created_at: new Date().toISOString(),
-      })
+        const payout = await paypalClient.createPayout(amount, email, `Withdrawal from account ${profile.account_no}`)
 
-      if (transactionError) {
-        console.error("Error creating transaction record:", transactionError)
-        // Don't fail the withdrawal if transaction record fails
+        // Update transaction with payout details
+        await supabase
+          .from("transactions")
+          .update({
+            status: "completed",
+            narration: `PayPal Withdrawal - Batch ID: ${payout.batch_header.payout_batch_id}`,
+          })
+          .eq("reference", reference)
+
+        // Update user balance
+        await supabase
+          .from("users")
+          .update({ account_balance: profile.account_balance - amount })
+          .eq("id", session.user.id)
+
+        console.log("PayPal payout created successfully")
+
+        return NextResponse.json({
+          success: true,
+          message: "Withdrawal initiated successfully",
+          batchId: payout.batch_header.payout_batch_id,
+        })
+      } catch (error: any) {
+        console.error("PayPal payout error:", error)
+
+        // Update transaction status to failed
+        await supabase.from("transactions").update({ status: "failed" }).eq("reference", reference)
+
+        return NextResponse.json({ error: error.message || "Failed to process withdrawal" }, { status: 500 })
       }
-
-      console.log("PayPal payout created successfully")
-
-      return NextResponse.json({
-        success: true,
-        payoutId: paypalResponse.batch_header.payout_batch_id,
-        amount: amount,
-        type: type,
-        status: "completed",
-      })
     }
   } catch (error: any) {
     console.error("PayPal initialization error:", error)
-    return NextResponse.json(
-      {
-        error: "Payment initialization failed",
-        details: error.message,
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
   }
 }

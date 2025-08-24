@@ -4,102 +4,63 @@ import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
     const body = await request.json()
-
-    console.log("PayPal webhook received:", body.event_type, body.resource?.id)
+    console.log("PayPal webhook received:", JSON.stringify(body, null, 2))
 
     const eventType = body.event_type
     const resource = body.resource
 
+    if (!eventType || !resource) {
+      return NextResponse.json({ error: "Invalid webhook payload" }, { status: 400 })
+    }
+
+    const supabase = createRouteHandlerClient({ cookies })
+
     switch (eventType) {
       case "PAYMENT.SALE.COMPLETED":
-        // Handle completed payment (deposit)
-        if (resource?.parent_payment) {
-          const { error } = await supabase
+        console.log("Payment sale completed:", resource.id)
+
+        // Find transaction by payment ID
+        const { data: transaction, error: transactionError } = await supabase
+          .from("transactions")
+          .select("*")
+          .ilike("narration", `%${resource.parent_payment}%`)
+          .single()
+
+        if (!transactionError && transaction) {
+          await supabase
             .from("transactions")
             .update({
               status: "completed",
-              updated_at: new Date().toISOString(),
+              narration: `${transaction.narration} - Webhook confirmed`,
             })
-            .eq("reference", resource.parent_payment)
-            .eq("status", "pending")
+            .eq("id", transaction.id)
 
-          if (error) {
-            console.error("Error updating completed payment:", error)
-          } else {
-            console.log("Payment marked as completed:", resource.parent_payment)
-          }
+          console.log("Transaction updated via webhook:", transaction.id)
         }
         break
 
       case "PAYMENT.SALE.DENIED":
       case "PAYMENT.SALE.REFUNDED":
-        // Handle failed/refunded payment
-        if (resource?.parent_payment) {
-          const { error } = await supabase
+        console.log("Payment denied or refunded:", resource.id)
+
+        // Find and update transaction
+        const { data: failedTransaction, error: failedError } = await supabase
+          .from("transactions")
+          .select("*")
+          .ilike("narration", `%${resource.parent_payment}%`)
+          .single()
+
+        if (!failedError && failedTransaction) {
+          await supabase
             .from("transactions")
             .update({
               status: "failed",
-              updated_at: new Date().toISOString(),
+              narration: `${failedTransaction.narration} - ${eventType}`,
             })
-            .eq("reference", resource.parent_payment)
+            .eq("id", failedTransaction.id)
 
-          if (error) {
-            console.error("Error updating failed payment:", error)
-          } else {
-            console.log("Payment marked as failed:", resource.parent_payment)
-          }
-        }
-        break
-
-      case "PAYOUTS.PAYOUT-ITEM.SUCCEEDED":
-        // Handle successful payout (withdrawal)
-        console.log("Payout succeeded:", resource?.payout_item_id)
-        break
-
-      case "PAYOUTS.PAYOUT-ITEM.FAILED":
-        // Handle failed payout - refund user balance
-        if (resource?.payout_batch_id) {
-          const { data: transaction } = await supabase
-            .from("transactions")
-            .select("user_id, amount")
-            .eq("reference", resource.payout_batch_id)
-            .eq("transaction_type", "withdrawal")
-            .single()
-
-          if (transaction) {
-            // Refund the user's balance
-            const { data: userData } = await supabase
-              .from("users")
-              .select("account_balance")
-              .eq("id", transaction.user_id)
-              .single()
-
-            if (userData) {
-              const currentBalance = Number.parseFloat(userData.account_balance?.toString() || "0")
-              const refundedBalance = currentBalance + transaction.amount
-
-              await supabase
-                .from("users")
-                .update({
-                  account_balance: refundedBalance,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("id", transaction.user_id)
-
-              // Update transaction status
-              await supabase
-                .from("transactions")
-                .update({
-                  status: "failed",
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("reference", resource.payout_batch_id)
-
-              console.log("Payout failed, balance refunded:", transaction.user_id)
-            }
-          }
+          console.log("Transaction marked as failed via webhook:", failedTransaction.id)
         }
         break
 

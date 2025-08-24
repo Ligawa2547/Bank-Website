@@ -1,40 +1,48 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, CreditCard, ArrowUpRight, ArrowDownLeft, Wallet } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, CreditCard, Wallet, DollarSign } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface PayPalPaymentProps {
-  type: "deposit" | "withdrawal"
   onSuccess?: () => void
 }
 
-export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
+export function PayPalPayment({ onSuccess }: PayPalPaymentProps) {
   const [amount, setAmount] = useState("")
-  const [description, setDescription] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
-  const [paymentMethod, setPaymentMethod] = useState("paypal")
-
   const { toast } = useToast()
 
-  const handlePayment = async (method: string = paymentMethod) => {
+  const handlePayPalPayment = async (type: "deposit" | "withdrawal", paymentMethod: "paypal" | "card") => {
     if (!amount || Number.parseFloat(amount) <= 0) {
       setError("Please enter a valid amount")
       return
     }
 
-    setLoading(true)
+    if (Number.parseFloat(amount) < 1) {
+      setError("Minimum amount is $1.00")
+      return
+    }
+
+    if (type === "withdrawal" && !email) {
+      setError("Please enter your PayPal email for withdrawal")
+      return
+    }
+
+    setIsLoading(true)
     setError("")
 
     try {
+      console.log("Initiating PayPal payment:", { amount, type, paymentMethod, email })
+
       const response = await fetch("/api/paypal/initialize", {
         method: "POST",
         headers: {
@@ -43,168 +51,166 @@ export function PayPalPayment({ type, onSuccess }: PayPalPaymentProps) {
         body: JSON.stringify({
           amount: Number.parseFloat(amount),
           type,
-          description: description || `PayPal ${type}`,
-          paymentMethod: method,
+          paymentMethod,
+          email: type === "withdrawal" ? email : undefined,
         }),
       })
 
       const data = await response.json()
+      console.log("PayPal initialize response:", data)
 
       if (!response.ok) {
-        throw new Error(data.error || `${type} initialization failed`)
+        throw new Error(data.error || "Failed to initialize payment")
       }
 
       if (type === "deposit" && data.approvalUrl) {
-        // Redirect to PayPal for approval
+        // Redirect to PayPal for payment
+        console.log("Redirecting to PayPal:", data.approvalUrl)
         window.location.href = data.approvalUrl
       } else if (type === "withdrawal" && data.success) {
-        // Withdrawal completed immediately
         toast({
-          title: "Withdrawal Successful",
-          description: `$${amount} has been sent to your PayPal account.`,
+          title: "Withdrawal Initiated",
+          description: "Your withdrawal has been processed and will arrive within 1-3 business days.",
         })
-
         setAmount("")
-        setDescription("")
-
-        if (onSuccess) {
-          onSuccess()
-        }
+        setEmail("")
+        onSuccess?.()
       }
     } catch (error: any) {
-      console.error("Payment error:", error)
-      setError(error.message)
+      console.error("PayPal payment error:", error)
+      setError(error.message || "Payment failed. Please try again.")
       toast({
         title: "Payment Error",
-        description: error.message,
+        description: error.message || "Payment failed. Please try again.",
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const isDeposit = type === "deposit"
-
   return (
-    <Card>
+    <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-          {isDeposit ? (
-            <>
-              <ArrowDownLeft className="h-5 w-5 text-green-600" />
-              Add Money
-            </>
-          ) : (
-            <>
-              <ArrowUpRight className="h-5 w-5 text-blue-600" />
-              Withdraw Money
-            </>
-          )}
+        <CardTitle className="flex items-center gap-2">
+          <Wallet className="h-5 w-5" />
+          PayPal Payments
         </CardTitle>
-        <CardDescription className="text-sm">
-          {isDeposit ? "Add money to your account using PayPal or card" : "Withdraw money to your PayPal account"}
-        </CardDescription>
+        <CardDescription>Deposit or withdraw funds using PayPal</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription className="text-sm">{error}</AlertDescription>
-          </Alert>
-        )}
+      <CardContent>
+        <Tabs defaultValue="deposit" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="deposit">Deposit</TabsTrigger>
+            <TabsTrigger value="withdrawal">Withdraw</TabsTrigger>
+          </TabsList>
 
-        {isDeposit && (
-          <Tabs value={paymentMethod} onValueChange={setPaymentMethod} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="paypal" className="text-xs sm:text-sm">
-                PayPal
-              </TabsTrigger>
-              <TabsTrigger value="card" className="text-xs sm:text-sm">
-                Credit Card
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="paypal" className="space-y-4 mt-4">
-              <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-                <Wallet className="h-5 w-5 text-blue-600" />
-                <p className="text-sm text-blue-800">Pay securely with your PayPal account</p>
+          <TabsContent value="deposit" className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="deposit-amount">Amount (USD)</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="deposit-amount"
+                  type="number"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="pl-10"
+                  min="1"
+                  step="0.01"
+                />
               </div>
-            </TabsContent>
+              <p className="text-sm text-muted-foreground">Minimum: $1.00</p>
+            </div>
 
-            <TabsContent value="card" className="space-y-4 mt-4">
-              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
-                <CreditCard className="h-5 w-5 text-green-600" />
-                <p className="text-sm text-green-800">Pay with credit or debit card via PayPal</p>
-              </div>
-            </TabsContent>
-          </Tabs>
-        )}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-        <div className="space-y-2">
-          <Label htmlFor={`${type}-amount`} className="text-sm">
-            Amount (USD)
-          </Label>
-          <Input
-            id={`${type}-amount`}
-            type="number"
-            placeholder="0.00"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            min="0.01"
-            step="0.01"
-            disabled={loading}
-            className="text-sm"
-          />
-        </div>
+            <div className="space-y-3">
+              <Button
+                onClick={() => handlePayPalPayment("deposit", "paypal")}
+                disabled={isLoading}
+                className="w-full bg-[#0070ba] hover:bg-[#005ea6] text-white"
+              >
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wallet className="mr-2 h-4 w-4" />}
+                Pay with PayPal
+              </Button>
 
-        <div className="space-y-2">
-          <Label htmlFor={`${type}-description`} className="text-sm">
-            Description (Optional)
-          </Label>
-          <Textarea
-            id={`${type}-description`}
-            placeholder={`Enter ${type} description...`}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={loading}
-            rows={3}
-            className="text-sm resize-none"
-          />
-        </div>
+              <Button
+                onClick={() => handlePayPalPayment("deposit", "card")}
+                disabled={isLoading}
+                variant="outline"
+                className="w-full border-[#0070ba] text-[#0070ba] hover:bg-[#0070ba] hover:text-white"
+              >
+                {isLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CreditCard className="mr-2 h-4 w-4" />
+                )}
+                Pay with Card
+              </Button>
+            </div>
 
-        <Button
-          onClick={() => handlePayment(paymentMethod)}
-          disabled={loading || !amount || Number.parseFloat(amount) <= 0}
-          className="w-full"
-          size="lg"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            <>
-              {paymentMethod === "card" ? <CreditCard className="mr-2 h-4 w-4" /> : <Wallet className="mr-2 h-4 w-4" />}
-              {isDeposit ? `${paymentMethod === "card" ? "Pay with Card" : "Pay with PayPal"}` : "Withdraw to PayPal"}
-            </>
-          )}
-        </Button>
-
-        <div className="text-center text-xs sm:text-sm text-muted-foreground">
-          {isDeposit ? (
-            <p>
-              {paymentMethod === "card"
-                ? "You will be redirected to PayPal to enter your card details securely"
-                : "You will be redirected to PayPal to complete your deposit"}
+            <p className="text-xs text-muted-foreground text-center">
+              Card payments are processed securely through PayPal. No PayPal account required.
             </p>
-          ) : (
-            <p>Funds will be sent to your PayPal account email</p>
-          )}
-        </div>
+          </TabsContent>
+
+          <TabsContent value="withdrawal" className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="withdrawal-amount">Amount (USD)</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="withdrawal-amount"
+                  type="number"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="pl-10"
+                  min="1"
+                  step="0.01"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paypal-email">PayPal Email</Label>
+              <Input
+                id="paypal-email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <p className="text-sm text-muted-foreground">Funds will be sent to this PayPal email address</p>
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              onClick={() => handlePayPalPayment("withdrawal", "paypal")}
+              disabled={isLoading}
+              className="w-full bg-[#0070ba] hover:bg-[#005ea6] text-white"
+            >
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wallet className="mr-2 h-4 w-4" />}
+              Withdraw to PayPal
+            </Button>
+
+            <p className="text-xs text-muted-foreground text-center">
+              Withdrawals typically arrive within 1-3 business days
+            </p>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   )
 }
-
-export default PayPalPayment
