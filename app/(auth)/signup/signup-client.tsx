@@ -8,106 +8,114 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
-import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/lib/auth-provider"
+import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle } from "lucide-react"
+import Image from "next/image"
 
 export default function SignupClient() {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
+    phone: "",
     password: "",
     confirmPassword: "",
-    phone: "",
-    agreeToTerms: false,
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [acceptTerms, setAcceptTerms] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
   const router = useRouter()
-  const { toast } = useToast()
-  const supabase = createClient()
+  const { signUp } = useAuth()
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
+  const validateForm = () => {
+    if (!formData.firstName.trim()) return "First name is required"
+    if (!formData.lastName.trim()) return "Last name is required"
+    if (!formData.email.trim()) return "Email is required"
+    if (!formData.phone.trim()) return "Phone number is required"
+    if (formData.password.length < 8) return "Password must be at least 8 characters"
+    if (formData.password !== formData.confirmPassword) return "Passwords do not match"
+    if (!acceptTerms) return "You must accept the terms and conditions"
+    return null
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
     setError("")
 
-    // Validation
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match")
-      setIsLoading(false)
+    const validationError = validateForm()
+    if (validationError) {
+      setError(validationError)
       return
     }
 
-    if (formData.password.length < 8) {
-      setError("Password must be at least 8 characters long")
-      setIsLoading(false)
-      return
-    }
-
-    if (!formData.agreeToTerms) {
-      setError("You must agree to the terms and conditions")
-      setIsLoading(false)
-      return
-    }
+    setIsLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            phone: formData.phone,
-          },
-        },
+      await signUp(formData.email, formData.password, {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone,
       })
 
-      if (error) {
-        setError(error.message)
-        return
-      }
-
-      if (data.user) {
-        toast({
-          title: "Account created successfully",
-          description: "Please check your email to verify your account.",
-        })
-        router.push("/login")
-      }
-    } catch (error) {
-      setError("An unexpected error occurred. Please try again.")
+      setSuccess(true)
+      setTimeout(() => {
+        router.push("/onboarding")
+      }, 2000)
+    } catch (error: any) {
+      setError(error.message || "An error occurred during registration")
     } finally {
       setIsLoading(false)
     }
   }
 
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
+              <h2 className="text-2xl font-bold text-green-700">Account Created!</h2>
+              <p className="text-gray-600">
+                Your account has been successfully created. Redirecting to complete your profile...
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Create Account</CardTitle>
-          <CardDescription className="text-center">Join IAE Bank and start your banking journey</CardDescription>
+        <CardHeader className="space-y-1 text-center">
+          <div className="flex justify-center mb-4">
+            <Image src="/images/iae-logo.png" alt="IAE Bank Logo" width={80} height={80} className="rounded-lg" />
+          </div>
+          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
+          <CardDescription>Join IAE Bank and start managing your finances securely</CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name</Label>
@@ -136,8 +144,9 @@ export default function SignupClient() {
                 />
               </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email Address</Label>
               <Input
                 id="email"
                 name="email"
@@ -149,6 +158,7 @@ export default function SignupClient() {
                 disabled={isLoading}
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
               <Input
@@ -162,6 +172,7 @@ export default function SignupClient() {
                 disabled={isLoading}
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -187,6 +198,7 @@ export default function SignupClient() {
                 </Button>
               </div>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <div className="relative">
@@ -212,14 +224,10 @@ export default function SignupClient() {
                 </Button>
               </div>
             </div>
+
             <div className="flex items-center space-x-2">
-              <Checkbox
-                id="agreeToTerms"
-                checked={formData.agreeToTerms}
-                onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, agreeToTerms: checked as boolean }))}
-                disabled={isLoading}
-              />
-              <Label htmlFor="agreeToTerms" className="text-sm">
+              <Checkbox id="terms" checked={acceptTerms} onCheckedChange={setAcceptTerms} disabled={isLoading} />
+              <Label htmlFor="terms" className="text-sm">
                 I agree to the{" "}
                 <Link href="/terms" className="text-blue-600 hover:text-blue-500">
                   Terms of Service
@@ -230,26 +238,28 @@ export default function SignupClient() {
                 </Link>
               </Label>
             </div>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+
+            <Button type="submit" className="w-full bg-[#0A3D62] hover:bg-[#0F5585]" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating account...
+                  Creating Account...
                 </>
               ) : (
                 "Create Account"
               )}
             </Button>
-            <p className="text-center text-sm text-gray-600">
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
               Already have an account?{" "}
-              <Link href="/login" className="text-blue-600 hover:text-blue-500 font-medium">
-                Sign in
+              <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+                Sign in here
               </Link>
             </p>
-          </CardFooter>
-        </form>
+          </div>
+        </CardContent>
       </Card>
     </div>
   )

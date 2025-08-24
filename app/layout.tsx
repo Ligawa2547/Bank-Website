@@ -8,27 +8,23 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://ebanking.iaenb.com"),
   title: {
     default: "IAE Bank - Secure Online Banking",
     template: "%s | IAE Bank",
   },
   description:
-    "Experience secure and convenient online banking with IAE Bank. Manage your accounts, transfer funds, pay bills, and access financial services 24/7.",
+    "Experience secure and convenient online banking with IAE Bank. Manage your accounts, transfer money, apply for loans, and more with our comprehensive digital banking platform.",
   keywords: [
     "online banking",
     "digital banking",
     "secure banking",
+    "money transfer",
+    "loans",
+    "savings account",
     "IAE Bank",
     "financial services",
-    "money transfer",
-    "account management",
     "mobile banking",
-    "internet banking",
-    "bank account",
-    "savings account",
-    "checking account",
-    "loans",
-    "credit cards",
   ],
   authors: [{ name: "IAE Bank" }],
   creator: "IAE Bank",
@@ -38,18 +34,14 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL("https://ebanking.iaenb.com"),
-  alternates: {
-    canonical: "/",
-  },
   openGraph: {
     type: "website",
     locale: "en_US",
     url: "https://ebanking.iaenb.com",
+    siteName: "IAE Bank",
     title: "IAE Bank - Secure Online Banking",
     description:
-      "Experience secure and convenient online banking with IAE Bank. Manage your accounts, transfer funds, pay bills, and access financial services 24/7.",
-    siteName: "IAE Bank",
+      "Experience secure and convenient online banking with IAE Bank. Manage your accounts, transfer money, apply for loans, and more.",
     images: [
       {
         url: "/images/iae-logo.png",
@@ -62,8 +54,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "IAE Bank - Secure Online Banking",
-    description:
-      "Experience secure and convenient online banking with IAE Bank. Manage your accounts, transfer funds, pay bills, and access financial services 24/7.",
+    description: "Experience secure and convenient online banking with IAE Bank.",
     images: ["/images/iae-logo.png"],
     creator: "@iaebank",
   },
@@ -81,7 +72,9 @@ export const metadata: Metadata = {
   verification: {
     google: "google35bf1cdf0bb83eed",
   },
-  category: "finance",
+  alternates: {
+    canonical: "https://ebanking.iaenb.com",
+  },
     generator: 'v0.app'
 }
 
@@ -91,15 +84,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <head>
         <meta name="google-site-verification" content="google35bf1cdf0bb83eed" />
         <link rel="canonical" href="https://ebanking.iaenb.com" />
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/images/iae-logo.png" />
-        <meta name="theme-color" content="#1e40af" />
-        <meta name="msapplication-TileColor" content="#1e40af" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className={inter.className}>
         <Providers>

@@ -2,32 +2,17 @@ import type { Metadata } from "next"
 import SignupClient from "./signup-client"
 
 export const metadata: Metadata = {
-  title: "Sign Up - Open Your Account Today",
+  title: "Sign Up - Create Your Account",
   description:
-    "Join IAE Bank today and open your new account. Enjoy secure online banking, competitive rates, and exceptional customer service.",
-  keywords: [
-    "sign up",
-    "create account",
-    "open account",
-    "new customer",
-    "bank account registration",
-    "IAE Bank signup",
-    "online account opening",
-    "banking registration",
-  ],
+    "Join IAE Bank today and enjoy secure online banking, easy money transfers, competitive loan rates, and comprehensive financial services.",
+  keywords: ["sign up", "create account", "register", "new account", "join bank"],
   openGraph: {
     title: "Sign Up - IAE Bank",
-    description:
-      "Join IAE Bank today and open your new account. Enjoy secure online banking, competitive rates, and exceptional customer service.",
+    description: "Create your secure IAE Bank account today",
     url: "https://ebanking.iaenb.com/signup",
   },
-  twitter: {
-    title: "Sign Up - IAE Bank",
-    description:
-      "Join IAE Bank today and open your new account. Enjoy secure online banking, competitive rates, and exceptional customer service.",
-  },
   alternates: {
-    canonical: "/signup",
+    canonical: "https://ebanking.iaenb.com/signup",
   },
 }
 

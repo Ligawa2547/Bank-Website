@@ -2,32 +2,17 @@ import type { Metadata } from "next"
 import LoginClient from "./login-client"
 
 export const metadata: Metadata = {
-  title: "Login - Secure Access to Your Account",
+  title: "Login - Access Your Account",
   description:
-    "Securely log in to your IAE Bank account to access your finances, view balances, transfer money, and manage your banking needs online.",
-  keywords: [
-    "login",
-    "sign in",
-    "account access",
-    "secure login",
-    "online banking login",
-    "IAE Bank login",
-    "banking portal",
-    "customer portal",
-  ],
+    "Securely log in to your IAE Bank account to manage your finances, view transactions, and access all banking services.",
+  keywords: ["login", "sign in", "account access", "secure login", "banking login"],
   openGraph: {
     title: "Login - IAE Bank",
-    description:
-      "Securely log in to your IAE Bank account to access your finances, view balances, transfer money, and manage your banking needs online.",
+    description: "Securely access your IAE Bank account",
     url: "https://ebanking.iaenb.com/login",
   },
-  twitter: {
-    title: "Login - IAE Bank",
-    description:
-      "Securely log in to your IAE Bank account to access your finances, view balances, transfer money, and manage your banking needs online.",
-  },
   alternates: {
-    canonical: "/login",
+    canonical: "https://ebanking.iaenb.com/login",
   },
 }
 

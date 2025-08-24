@@ -3,22 +3,22 @@ Allow: /
 Allow: /login
 Allow: /signup
 Allow: /forgot-password
+Allow: /google35bf1cdf0bb83eed.html
 
 # Disallow sensitive areas
 Disallow: /dashboard/
 Disallow: /admin/
 Disallow: /api/
 Disallow: /auth/
+Disallow: /_next/
 Disallow: /onboarding/
 Disallow: /reset-password/
-Disallow: /_next/
-Disallow: /scripts/
 
-# Allow important files
-Allow: /sitemap.xml
-Allow: /robots.txt
+# Allow static assets
+Allow: /images/
+Allow: /icons/
 Allow: /favicon.ico
-Allow: /google35bf1cdf0bb83eed.html
+Allow: /sitemap.xml
 
 # Sitemap location
 Sitemap: https://ebanking.iaenb.com/sitemap.xml

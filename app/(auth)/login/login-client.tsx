@@ -8,11 +8,11 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
-import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/lib/auth-provider"
+import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react"
+import Image from "next/image"
 
 export default function LoginClient() {
   const [email, setEmail] = useState("")
@@ -21,8 +21,7 @@ export default function LoginClient() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
-  const { toast } = useToast()
-  const supabase = createClient()
+  const { signIn } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,55 +29,36 @@ export default function LoginClient() {
     setError("")
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) {
-        setError(error.message)
-        return
-      }
-
-      if (data.user) {
-        // Check if user is admin
-        const isAdmin = email.endsWith("@iaenb.com")
-
-        toast({
-          title: "Login successful",
-          description: "Welcome back!",
-        })
-
-        // Redirect based on user type
-        if (isAdmin) {
-          router.push("/admin")
-        } else {
-          router.push("/dashboard")
-        }
-      }
-    } catch (error) {
-      setError("An unexpected error occurred. Please try again.")
+      await signIn(email, password)
+      router.push("/dashboard")
+    } catch (error: any) {
+      setError(error.message || "An error occurred during login")
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Welcome Back</CardTitle>
-          <CardDescription className="text-center">Sign in to your IAE Bank account</CardDescription>
+        <CardHeader className="space-y-1 text-center">
+          <div className="flex justify-center mb-4">
+            <Image src="/images/iae-logo.png" alt="IAE Bank Logo" width={80} height={80} className="rounded-lg" />
+          </div>
+          <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+          <CardDescription>Sign in to your IAE Bank account to access your dashboard</CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email Address</Label>
               <Input
                 id="email"
                 type="email"
@@ -89,6 +69,7 @@ export default function LoginClient() {
                 disabled={isLoading}
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -113,14 +94,14 @@ export default function LoginClient() {
                 </Button>
               </div>
             </div>
+
             <div className="flex items-center justify-between">
               <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
                 Forgot password?
               </Link>
             </div>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+
+            <Button type="submit" className="w-full bg-[#0A3D62] hover:bg-[#0F5585]" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -130,14 +111,17 @@ export default function LoginClient() {
                 "Sign In"
               )}
             </Button>
-            <p className="text-center text-sm text-gray-600">
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
               Don't have an account?{" "}
-              <Link href="/signup" className="text-blue-600 hover:text-blue-500 font-medium">
-                Sign up
+              <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
+                Sign up here
               </Link>
             </p>
-          </CardFooter>
-        </form>
+          </div>
+        </CardContent>
       </Card>
     </div>
   )
