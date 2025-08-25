@@ -1,33 +1,44 @@
+// PayPal Configuration
 export const PAYPAL_CONFIG = {
-  // Your PayPal App Credentials
+  // Your provided credentials as fallbacks
   CLIENT_ID:
     process.env.PAYPAL_CLIENT_ID || "AbX1lIfpj2F5GbIFGrqv7F5wq-q6Sgc0dMr-aB6nQMt6Us76etTJHQZtCgvq9omd63fSdCqnAoPQiFio",
   CLIENT_SECRET:
     process.env.PAYPAL_CLIENT_SECRET ||
     "EFn2M9xLcowxhYjkqGGz-o53ukuF6sNuYsZq5Aj5xSMjvzG2EJK1yu_Hp5SLevefQ78aCpVFfz7onFsZ",
 
-  // Environment URLs - we'll detect which one works
+  // Environment URLs
   SANDBOX_BASE_URL: "https://api-m.sandbox.paypal.com",
   PRODUCTION_BASE_URL: "https://api-m.paypal.com",
 
-  // App URLs
+  // App configuration
   APP_URL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  APP_NAME: "IAE National Bank",
 
-  // Cache for environment detection
+  // Runtime detected environment
   DETECTED_ENVIRONMENT: null as "sandbox" | "production" | null,
 }
 
-// Helper to get the correct base URL
-export function getPayPalBaseUrl(): string {
-  if (PAYPAL_CONFIG.DETECTED_ENVIRONMENT === "production") {
-    return PAYPAL_CONFIG.PRODUCTION_BASE_URL
+export function validatePayPalConfig() {
+  if (!PAYPAL_CONFIG.CLIENT_ID || !PAYPAL_CONFIG.CLIENT_SECRET) {
+    throw new Error("PayPal CLIENT_ID and CLIENT_SECRET are required")
   }
-  // Default to sandbox for initial attempts
-  return PAYPAL_CONFIG.SANDBOX_BASE_URL
+
+  if (PAYPAL_CONFIG.CLIENT_ID.length < 50) {
+    throw new Error("PayPal CLIENT_ID appears to be invalid (too short)")
+  }
+
+  if (PAYPAL_CONFIG.CLIENT_SECRET.length < 50) {
+    throw new Error("PayPal CLIENT_SECRET appears to be invalid (too short)")
+  }
 }
 
-// Helper to set detected environment
+export function getPayPalBaseUrl(): string {
+  return PAYPAL_CONFIG.DETECTED_ENVIRONMENT === "production"
+    ? PAYPAL_CONFIG.PRODUCTION_BASE_URL
+    : PAYPAL_CONFIG.SANDBOX_BASE_URL
+}
+
 export function setDetectedEnvironment(env: "sandbox" | "production") {
   PAYPAL_CONFIG.DETECTED_ENVIRONMENT = env
-  console.log(`✅ PayPal environment detected: ${env}`)
 }

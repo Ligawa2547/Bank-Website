@@ -1,51 +1,43 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest) {
   try {
-    const payload = await request.json()
-    console.log("🔔 PayPal webhook received:", payload.event_type)
+    console.log("🔔 PayPal webhook received")
 
-    const supabase = createRouteHandlerClient({ cookies })
+    const body = await request.json()
+    const eventType = body.event_type
+    const resource = body.resource
+
+    console.log(`📨 Webhook event: ${eventType}`)
 
     // Handle different webhook events
-    switch (payload.event_type) {
+    switch (eventType) {
       case "CHECKOUT.ORDER.APPROVED":
-        console.log("✅ PayPal order approved:", payload.resource.id)
+        console.log("✅ Order approved:", resource.id)
+        break
+
+      case "CHECKOUT.ORDER.COMPLETED":
+        console.log("✅ Order completed:", resource.id)
+        // Additional processing if needed
         break
 
       case "PAYMENT.CAPTURE.COMPLETED":
-        const captureId = payload.resource.id
-        const orderId = payload.resource.supplementary_data?.related_ids?.order_id
-
-        console.log("💰 PayPal capture completed:", { captureId, orderId })
-
-        if (orderId) {
-          await supabase
-            .from("transactions")
-            .update({
-              status: "completed",
-              metadata: {
-                webhook_capture_id: captureId,
-                webhook_received_at: new Date().toISOString(),
-              },
-            })
-            .eq("reference", orderId)
-        }
+        console.log("💰 Payment captured:", resource.id)
+        // Update transaction status if needed
         break
 
       case "PAYMENT.CAPTURE.DENIED":
-        console.log("❌ PayPal capture denied:", payload.resource.id)
+        console.log("❌ Payment denied:", resource.id)
+        // Handle denied payment
         break
 
       default:
-        console.log("ℹ️ Unhandled PayPal webhook event:", payload.event_type)
+        console.log(`ℹ️ Unhandled webhook event: ${eventType}`)
     }
 
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error("❌ PayPal webhook error:", error)
+    console.error("❌ Webhook processing error:", error)
     return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 })
   }
 }

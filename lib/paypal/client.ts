@@ -89,11 +89,11 @@ export class PayPalClient {
     return this.accessToken
   }
 
-  async createOrder(amount: number, currency = "USD"): Promise<any> {
+  async createOrder(amount: number, paymentMethod: "paypal" | "card" = "paypal", currency = "USD"): Promise<any> {
     const accessToken = await this.getAccessToken()
     const baseUrl = getPayPalBaseUrl()
 
-    console.log(`💳 Creating PayPal order for ${currency} ${amount}`)
+    console.log(`💳 Creating PayPal order for ${currency} ${amount} via ${paymentMethod}`)
 
     const orderData = {
       intent: "CAPTURE",
@@ -103,23 +103,39 @@ export class PayPalClient {
             currency_code: currency,
             value: amount.toFixed(2),
           },
-          description: "Bank Account Deposit",
+          description: `${PAYPAL_CONFIG.APP_NAME} Account Deposit`,
         },
       ],
-      payment_source: {
-        paypal: {
-          experience_context: {
-            payment_method_preference: "UNRESTRICTED",
-            brand_name: "IAE Bank",
-            locale: "en-US",
-            landing_page: "LOGIN",
-            shipping_preference: "NO_SHIPPING",
-            user_action: "PAY_NOW",
-            return_url: `${PAYPAL_CONFIG.APP_URL}/api/paypal/success`,
-            cancel_url: `${PAYPAL_CONFIG.APP_URL}/api/paypal/cancel`,
-          },
-        },
-      },
+      payment_source:
+        paymentMethod === "card"
+          ? {
+              card: {
+                experience_context: {
+                  payment_method_preference: "IMMEDIATE_PAYMENT_REQUIRED",
+                  brand_name: PAYPAL_CONFIG.APP_NAME,
+                  locale: "en-US",
+                  landing_page: "NO_PREFERENCE",
+                  shipping_preference: "NO_SHIPPING",
+                  user_action: "PAY_NOW",
+                  return_url: `${PAYPAL_CONFIG.APP_URL}/api/paypal/success`,
+                  cancel_url: `${PAYPAL_CONFIG.APP_URL}/api/paypal/cancel`,
+                },
+              },
+            }
+          : {
+              paypal: {
+                experience_context: {
+                  payment_method_preference: "UNRESTRICTED",
+                  brand_name: PAYPAL_CONFIG.APP_NAME,
+                  locale: "en-US",
+                  landing_page: "LOGIN",
+                  shipping_preference: "NO_SHIPPING",
+                  user_action: "PAY_NOW",
+                  return_url: `${PAYPAL_CONFIG.APP_URL}/api/paypal/success`,
+                  cancel_url: `${PAYPAL_CONFIG.APP_URL}/api/paypal/cancel`,
+                },
+              },
+            },
     }
 
     const response = await fetch(`${baseUrl}/v2/checkout/orders`, {

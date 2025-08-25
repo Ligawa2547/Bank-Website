@@ -7,10 +7,14 @@ export async function POST(request: NextRequest) {
   try {
     console.log("🚀 PayPal payment initialization started")
 
-    const { amount } = await request.json()
+    const { amount, paymentMethod = "paypal" } = await request.json()
 
     if (!amount || amount <= 0) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 })
+    }
+
+    if (!["paypal", "card"].includes(paymentMethod)) {
+      return NextResponse.json({ error: "Invalid payment method" }, { status: 400 })
     }
 
     // Verify user authentication
@@ -25,10 +29,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 })
     }
 
-    console.log(`👤 User ${user.id} requesting PayPal payment for $${amount}`)
+    console.log(`👤 User ${user.id} requesting ${paymentMethod} payment for $${amount}`)
 
-    // Create PayPal order
-    const order = await paypalClient.createOrder(amount)
+    // Create PayPal order with specified payment method
+    const order = await paypalClient.createOrder(amount, paymentMethod)
 
     // Store pending transaction in database
     const { error: dbError } = await supabase.from("transactions").insert({
@@ -36,12 +40,13 @@ export async function POST(request: NextRequest) {
       transaction_type: "deposit",
       amount: amount,
       status: "pending",
-      payment_method: "paypal",
-      narration: `PayPal deposit of $${amount}`,
+      payment_method: paymentMethod === "card" ? "paypal_card" : "paypal",
+      narration: `${paymentMethod === "card" ? "Card" : "PayPal"} deposit of $${amount}`,
       reference: order.id,
       metadata: {
         paypal_order_id: order.id,
         paypal_status: order.status,
+        payment_method: paymentMethod,
       },
     })
 
@@ -58,13 +63,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "PayPal approval URL not found" }, { status: 500 })
     }
 
-    console.log("✅ PayPal order created successfully:", order.id)
+    console.log(`✅ PayPal ${paymentMethod} order created successfully:`, order.id)
 
     return NextResponse.json({
       success: true,
       orderId: order.id,
       approvalUrl: approvalUrl,
       amount: amount,
+      paymentMethod: paymentMethod,
     })
   } catch (error) {
     console.error("❌ PayPal initialization error:", error)

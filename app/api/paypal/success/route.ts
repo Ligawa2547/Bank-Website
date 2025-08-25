@@ -5,43 +5,75 @@ import { cookies } from "next/headers"
 
 export async function GET(request: NextRequest) {
   try {
+    console.log("🎉 PayPal success callback received")
+
     const { searchParams } = new URL(request.url)
-    const token = searchParams.get("token") // PayPal order ID
+    const orderId = searchParams.get("token")
     const payerId = searchParams.get("PayerID")
 
-    console.log("🎉 PayPal success callback received:", { token, payerId })
-
-    if (!token) {
-      return NextResponse.redirect(new URL("/dashboard/transfers?error=missing_token", request.url))
+    if (!orderId || !payerId) {
+      console.error("❌ Missing required parameters:", { orderId, payerId })
+      return NextResponse.redirect(new URL("/dashboard/transfers?error=missing_payment_params", request.url))
     }
 
-    // Capture the PayPal order
-    const captureResult = await paypalClient.captureOrder(token)
-    console.log("💰 PayPal capture result:", captureResult.status)
+    console.log(`💰 Processing PayPal order: ${orderId} for payer: ${payerId}`)
 
-    if (captureResult.status !== "COMPLETED") {
-      console.error("❌ PayPal capture not completed:", captureResult.status)
-      return NextResponse.redirect(new URL("/dashboard/transfers?error=capture_failed", request.url))
-    }
-
-    // Get payment details
-    const captureDetails = captureResult.purchase_units[0].payments.captures[0]
-    const amount = Number.parseFloat(captureDetails.amount.value)
-
-    // Update database
+    // Verify user authentication
     const supabase = createRouteHandlerClient({ cookies })
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      console.error("❌ Authentication failed:", authError)
+      return NextResponse.redirect(new URL("/dashboard/transfers?error=auth_required", request.url))
+    }
 
     // Get the pending transaction
-    const { data: transaction, error: fetchError } = await supabase
+    const { data: transaction, error: transactionError } = await supabase
       .from("transactions")
       .select("*")
-      .eq("reference", token)
+      .eq("reference", orderId)
+      .eq("user_id", user.id)
       .eq("status", "pending")
       .single()
 
-    if (fetchError || !transaction) {
-      console.error("❌ Transaction not found:", fetchError)
+    if (transactionError || !transaction) {
+      console.error("❌ Transaction not found:", transactionError)
       return NextResponse.redirect(new URL("/dashboard/transfers?error=transaction_not_found", request.url))
+    }
+
+    // Capture the PayPal order
+    const captureResult = await paypalClient.captureOrder(orderId)
+
+    if (captureResult.status !== "COMPLETED") {
+      console.error("❌ PayPal capture not completed:", captureResult.status)
+      return NextResponse.redirect(new URL("/dashboard/transfers?error=payment_not_completed", request.url))
+    }
+
+    // Get user's current balance
+    const { data: userProfile, error: profileError } = await supabase
+      .from("users")
+      .select("account_balance")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError) {
+      console.error("❌ Error fetching user profile:", profileError)
+      return NextResponse.redirect(new URL("/dashboard/transfers?error=profile_error", request.url))
+    }
+
+    // Update user balance
+    const newBalance = (userProfile.account_balance || 0) + transaction.amount
+    const { error: balanceError } = await supabase
+      .from("users")
+      .update({ account_balance: newBalance })
+      .eq("id", user.id)
+
+    if (balanceError) {
+      console.error("❌ Error updating balance:", balanceError)
+      return NextResponse.redirect(new URL("/dashboard/transfers?error=balance_update", request.url))
     }
 
     // Update transaction status
@@ -49,9 +81,10 @@ export async function GET(request: NextRequest) {
       .from("transactions")
       .update({
         status: "completed",
+        balance_after: newBalance,
         metadata: {
           ...transaction.metadata,
-          paypal_capture_id: captureDetails.id,
+          paypal_capture_id: captureResult.id,
           paypal_payer_id: payerId,
           completed_at: new Date().toISOString(),
         },
@@ -59,41 +92,17 @@ export async function GET(request: NextRequest) {
       .eq("id", transaction.id)
 
     if (updateError) {
-      console.error("❌ Failed to update transaction:", updateError)
-      return NextResponse.redirect(new URL("/dashboard/transfers?error=update_failed", request.url))
+      console.error("❌ Error updating transaction:", updateError)
+      // Don't redirect to error since balance was already updated
     }
 
-    // Update user balance
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("account_balance")
-      .eq("id", transaction.user_id)
-      .single()
+    console.log(`✅ Payment completed successfully! New balance: $${newBalance}`)
 
-    if (userError) {
-      console.error("❌ Failed to get user balance:", userError)
-      return NextResponse.redirect(new URL("/dashboard/transfers?error=balance_update_failed", request.url))
-    }
-
-    const newBalance = (user.account_balance || 0) + amount
-
-    const { error: balanceError } = await supabase
-      .from("users")
-      .update({ account_balance: newBalance })
-      .eq("id", transaction.user_id)
-
-    if (balanceError) {
-      console.error("❌ Failed to update balance:", balanceError)
-      return NextResponse.redirect(new URL("/dashboard/transfers?error=balance_update_failed", request.url))
-    }
-
-    // Update transaction with final balance
-    await supabase.from("transactions").update({ balance_after: newBalance }).eq("id", transaction.id)
-
-    console.log("✅ PayPal payment completed successfully")
-    return NextResponse.redirect(new URL("/dashboard?success=payment_completed", request.url))
+    return NextResponse.redirect(
+      new URL(`/dashboard/transfers?success=payment_completed&amount=${transaction.amount}`, request.url),
+    )
   } catch (error) {
     console.error("❌ PayPal success handler error:", error)
-    return NextResponse.redirect(new URL("/dashboard/transfers?error=processing_failed", request.url))
+    return NextResponse.redirect(new URL("/dashboard/transfers?error=handler_error", request.url))
   }
 }

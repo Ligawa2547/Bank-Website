@@ -2,18 +2,29 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { ArrowUpRight, ArrowDownLeft, RefreshCw, CheckCircle, XCircle, Info } from "lucide-react"
+import { ArrowDownLeft, RefreshCw, CheckCircle, XCircle, Info, DollarSign, Eye, EyeOff } from "lucide-react"
 import { PayPalPayment } from "@/components/paypal-payment"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
+import { useSupabase } from "@/providers/supabase-provider"
 
 export default function TransfersPage() {
   const [refreshKey, setRefreshKey] = useState(0)
+  const [accountBalance, setAccountBalance] = useState<number>(0)
+  const [isLoadingBalance, setIsLoadingBalance] = useState(true)
+  const [showBalance, setShowBalance] = useState(true)
+  const [userProfile, setUserProfile] = useState<any>(null)
   const { toast } = useToast()
   const searchParams = useSearchParams()
+  const { supabase, user } = useSupabase()
+
+  useEffect(() => {
+    if (user) {
+      fetchAccountBalance()
+    }
+  }, [user, refreshKey])
 
   useEffect(() => {
     // Handle URL parameters from PayPal redirects
@@ -35,7 +46,7 @@ export default function TransfersPage() {
       let errorMessage = "An error occurred during payment processing"
 
       switch (error) {
-        case "missing_params":
+        case "missing_payment_params":
           errorMessage = "Missing payment parameters"
           break
         case "auth_required":
@@ -87,6 +98,45 @@ export default function TransfersPage() {
     }
   }, [searchParams, toast])
 
+  const fetchAccountBalance = async () => {
+    if (!user) return
+
+    try {
+      setIsLoadingBalance(true)
+
+      // Fetch user profile and balance from users table
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("account_balance, first_name, last_name, account_no")
+        .eq("id", user.id)
+        .single()
+
+      if (userError) {
+        console.error("Error fetching user data:", userError)
+        toast({
+          title: "Error",
+          description: "Failed to load account balance",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (userData) {
+        setAccountBalance(userData.account_balance || 0)
+        setUserProfile(userData)
+      }
+    } catch (error) {
+      console.error("Error fetching account balance:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load account information",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingBalance(false)
+    }
+  }
+
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1)
     toast({
@@ -98,6 +148,17 @@ export default function TransfersPage() {
   const handlePaymentSuccess = () => {
     // Trigger a refresh when payment is successful
     setRefreshKey((prev) => prev + 1)
+    toast({
+      title: "Payment Successful",
+      description: "Your account balance has been updated",
+    })
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount)
   }
 
   return (
@@ -105,7 +166,7 @@ export default function TransfersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Transfers</h1>
-          <p className="text-muted-foreground">Add money to your account or transfer funds</p>
+          <p className="text-muted-foreground">Add money to your account using PayPal or card payments</p>
         </div>
         <Button onClick={handleRefresh} variant="outline" size="sm">
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -114,28 +175,48 @@ export default function TransfersPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Quick Stats */}
+        {/* Account Balance Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowBalance(!showBalance)}>
+                {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" key={refreshKey}>
-              Loading...
+            <div className="text-2xl font-bold">
+              {isLoadingBalance ? (
+                <div className="animate-pulse bg-gray-200 h-8 w-32 rounded"></div>
+              ) : showBalance ? (
+                formatCurrency(accountBalance)
+              ) : (
+                "••••••"
+              )}
             </div>
-            <p className="text-xs text-muted-foreground">Available for transfers and payments</p>
+            <p className="text-xs text-muted-foreground">
+              Available for transfers and payments
+              {userProfile?.account_no && <span className="block mt-1">Account: {userProfile.account_no}</span>}
+            </p>
           </CardContent>
         </Card>
 
+        {/* Account Info Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+            <CardTitle className="text-sm font-medium">Account Information</CardTitle>
             <ArrowDownLeft className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">View Transactions</div>
-            <p className="text-xs text-muted-foreground">Check your recent transfers and payments</p>
+            <div className="space-y-2">
+              <div className="text-lg font-medium">
+                {userProfile?.first_name} {userProfile?.last_name}
+              </div>
+              <p className="text-sm text-muted-foreground">Account Number: {userProfile?.account_no || "Loading..."}</p>
+              <p className="text-xs text-muted-foreground">Last updated: {new Date().toLocaleString()}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -144,19 +225,46 @@ export default function TransfersPage() {
       <div className="grid gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Add Money</CardTitle>
-            <CardDescription>Choose your preferred payment method to add funds to your account</CardDescription>
+            <CardTitle>Add Money to Your Account</CardTitle>
+            <CardDescription>
+              Choose between PayPal account payment or direct card payment. Both options are secure and processed
+              through PayPal.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="paypal" className="w-full">
-              <TabsList className="grid w-full grid-cols-1">
-                <TabsTrigger value="paypal">PayPal</TabsTrigger>
-              </TabsList>
+            <PayPalPayment onSuccess={handlePaymentSuccess} />
+          </CardContent>
+        </Card>
 
-              <TabsContent value="paypal" className="mt-6">
-                <PayPalPayment onSuccess={handlePaymentSuccess} />
-              </TabsContent>
-            </Tabs>
+        {/* Payment Methods Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Payment Methods</CardTitle>
+            <CardDescription>Understanding your payment options</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <DollarSign className="h-4 w-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium">PayPal Account</p>
+                <p className="text-sm text-muted-foreground">
+                  Pay using your PayPal balance, linked bank account, or cards saved in PayPal. Requires PayPal login.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </div>
+              <div>
+                <p className="font-medium">Debit/Credit Card</p>
+                <p className="text-sm text-muted-foreground">
+                  Pay directly with your card without needing a PayPal account. Still processed securely through PayPal.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -171,14 +279,14 @@ export default function TransfersPage() {
               <CheckCircle className="h-5 w-5 text-green-500" />
               <div>
                 <p className="font-medium">Completed</p>
-                <p className="text-sm text-muted-foreground">Payment processed successfully</p>
+                <p className="text-sm text-muted-foreground">Payment processed successfully and balance updated</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <RefreshCw className="h-5 w-5 text-yellow-500" />
               <div>
                 <p className="font-medium">Pending</p>
-                <p className="text-sm text-muted-foreground">Payment is being processed</p>
+                <p className="text-sm text-muted-foreground">Payment is being processed by PayPal</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -199,13 +307,13 @@ export default function TransfersPage() {
         </Card>
       </div>
 
-      {/* Environment Information */}
+      {/* Important Information */}
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>PayPal Integration Active:</strong> You can now add money using PayPal or withdraw funds to your
-          PayPal account. The system will automatically detect whether to use sandbox or production environment based on
-          your credentials.
+          <strong>Secure Payments:</strong> Both PayPal and card payments are processed through PayPal's secure payment
+          system. Card payments don't require a PayPal account but still benefit from PayPal's fraud protection and
+          security measures.
         </AlertDescription>
       </Alert>
     </div>
