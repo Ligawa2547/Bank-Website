@@ -12,15 +12,19 @@ import { useToast } from "@/hooks/use-toast"
 
 interface Transaction {
   id: string
-  amount: number
-  type: string
-  status: string
-  description: string
-  sender_account: string
-  receiver_account: string
-  created_at: string
-  updated_at: string
   user_id: string
+  account_no: string
+  transaction_type: "deposit" | "withdrawal" | "transfer_in" | "transfer_out" | "loan_disbursement" | "loan_repayment"
+  amount: number
+  status: "pending" | "completed" | "failed"
+  reference: string
+  narration: string
+  recipient_account_number?: string
+  recipient_name?: string
+  sender_account_number?: string
+  sender_name?: string
+  created_at: string
+  updated_at?: string
 }
 
 interface TransactionStats {
@@ -64,7 +68,7 @@ export default function TransactionManagement() {
       }
 
       if (typeFilter !== "all") {
-        query = query.eq("type", typeFilter)
+        query = query.eq("transaction_type", typeFilter)
       }
 
       const { data, error } = await query
@@ -86,7 +90,7 @@ export default function TransactionManagement() {
 
   const fetchStats = async () => {
     try {
-      const { data, error } = await supabase.from("transactions").select("amount, status, type")
+      const { data, error } = await supabase.from("transactions").select("amount, status, transaction_type")
 
       if (error) throw error
 
@@ -143,16 +147,16 @@ export default function TransactionManagement() {
 
   const exportTransactions = () => {
     const csvContent = [
-      ["ID", "Amount", "Type", "Status", "Sender", "Receiver", "Description", "Date"].join(","),
+      ["ID", "Amount", "Type", "Status", "Account", "Reference", "Description", "Date"].join(","),
       ...filteredTransactions.map((t) =>
         [
-          t.id,
-          t.amount,
-          t.type,
-          t.status,
-          t.sender_account,
-          t.receiver_account,
-          t.description,
+          t.id || "",
+          t.amount || 0,
+          t.transaction_type || "",
+          t.status || "",
+          t.account_no || "",
+          t.reference || "",
+          `"${(t.narration || "").replace(/"/g, '""')}"`,
           new Date(t.created_at).toLocaleString(),
         ].join(","),
       ),
@@ -168,11 +172,17 @@ export default function TransactionManagement() {
   }
 
   const filteredTransactions = transactions.filter((transaction) => {
+    if (!searchTerm) return true
+
+    const searchLower = searchTerm.toLowerCase()
     const matchesSearch =
-      transaction.sender_account?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.receiver_account?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.id.toLowerCase().includes(searchTerm.toLowerCase())
+      (transaction.account_no && transaction.account_no.toLowerCase().includes(searchLower)) ||
+      (transaction.recipient_account_number &&
+        transaction.recipient_account_number.toLowerCase().includes(searchLower)) ||
+      (transaction.sender_account_number && transaction.sender_account_number.toLowerCase().includes(searchLower)) ||
+      (transaction.narration && transaction.narration.toLowerCase().includes(searchLower)) ||
+      (transaction.reference && transaction.reference.toLowerCase().includes(searchLower)) ||
+      (transaction.id && transaction.id.toString().toLowerCase().includes(searchLower))
 
     return matchesSearch
   })
@@ -187,11 +197,11 @@ export default function TransactionManagement() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
-        return <Badge className="bg-green-100 text-green-800">Completed</Badge>
+        return <Badge className="bg-green-100 text-green-800 border-green-200">Completed</Badge>
       case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>
       case "failed":
-        return <Badge className="bg-red-100 text-red-800">Failed</Badge>
+        return <Badge className="bg-red-100 text-red-800 border-red-200">Failed</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
@@ -203,10 +213,35 @@ export default function TransactionManagement() {
         return <TrendingUp className="h-4 w-4 text-green-600" />
       case "withdrawal":
         return <TrendingDown className="h-4 w-4 text-red-600" />
-      case "transfer":
+      case "transfer_in":
         return <DollarSign className="h-4 w-4 text-blue-600" />
+      case "transfer_out":
+        return <DollarSign className="h-4 w-4 text-orange-600" />
+      case "loan_disbursement":
+        return <TrendingUp className="h-4 w-4 text-purple-600" />
+      case "loan_repayment":
+        return <TrendingDown className="h-4 w-4 text-indigo-600" />
       default:
         return <DollarSign className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  const getTypeBadge = (type: string) => {
+    switch (type) {
+      case "deposit":
+        return <Badge className="bg-green-50 text-green-700 border-green-200">Deposit</Badge>
+      case "withdrawal":
+        return <Badge className="bg-red-50 text-red-700 border-red-200">Withdrawal</Badge>
+      case "transfer_in":
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Transfer In</Badge>
+      case "transfer_out":
+        return <Badge className="bg-orange-50 text-orange-700 border-orange-200">Transfer Out</Badge>
+      case "loan_disbursement":
+        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Loan Disbursement</Badge>
+      case "loan_repayment":
+        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Loan Repayment</Badge>
+      default:
+        return <Badge variant="outline">{type}</Badge>
     }
   }
 
@@ -283,7 +318,7 @@ export default function TransactionManagement() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
-            placeholder="Search by account, description, or ID..."
+            placeholder="Search by account, reference, or description..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -308,42 +343,55 @@ export default function TransactionManagement() {
             <SelectItem value="all">All Types</SelectItem>
             <SelectItem value="deposit">Deposit</SelectItem>
             <SelectItem value="withdrawal">Withdrawal</SelectItem>
-            <SelectItem value="transfer">Transfer</SelectItem>
+            <SelectItem value="transfer_in">Transfer In</SelectItem>
+            <SelectItem value="transfer_out">Transfer Out</SelectItem>
+            <SelectItem value="loan_disbursement">Loan Disbursement</SelectItem>
+            <SelectItem value="loan_repayment">Loan Repayment</SelectItem>
           </SelectContent>
         </Select>
         <Button onClick={exportTransactions} variant="outline">
           <Download className="h-4 w-4 mr-2" />
           Export CSV
         </Button>
-        <Badge variant="secondary">{filteredTransactions.length} transactions</Badge>
+        <Badge variant="secondary" className="flex items-center">
+          {filteredTransactions.length} transactions
+        </Badge>
       </div>
 
       {/* Transactions List */}
       <div className="grid gap-4">
         {filteredTransactions.length > 0 ? (
           filteredTransactions.map((transaction) => (
-            <Card key={transaction.id}>
+            <Card key={transaction.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    {getTypeIcon(transaction.type)}
+                    {getTypeIcon(transaction.transaction_type)}
                     <div>
-                      <p className="font-medium text-lg">{formatCurrency(transaction.amount)}</p>
-                      <p className="text-sm text-gray-600">{transaction.description}</p>
-                      <p className="text-xs text-gray-400">
-                        {transaction.sender_account} → {transaction.receiver_account}
-                      </p>
+                      <div className="flex items-center space-x-2 mb-1">
+                        <p className="font-semibold text-lg">{formatCurrency(transaction.amount)}</p>
+                        {getTypeBadge(transaction.transaction_type)}
+                      </div>
+                      <p className="text-sm text-gray-600 mb-1">{transaction.narration}</p>
+                      <div className="flex items-center space-x-4 text-xs text-gray-500">
+                        <span>Account: {transaction.account_no}</span>
+                        <span>Ref: {transaction.reference}</span>
+                        {transaction.recipient_account_number && (
+                          <span>To: {transaction.recipient_account_number}</span>
+                        )}
+                        {transaction.sender_account_number && <span>From: {transaction.sender_account_number}</span>}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
                     <div className="text-right">
-                      <div className="flex items-center space-x-2 mb-1">
-                        {getStatusBadge(transaction.status)}
-                        <Badge variant="outline" className="text-xs">
-                          {transaction.type}
-                        </Badge>
-                      </div>
+                      <div className="flex items-center space-x-2 mb-1">{getStatusBadge(transaction.status)}</div>
                       <p className="text-xs text-gray-500">{new Date(transaction.created_at).toLocaleString()}</p>
+                      {transaction.updated_at && transaction.updated_at !== transaction.created_at && (
+                        <p className="text-xs text-gray-400">
+                          Updated: {new Date(transaction.updated_at).toLocaleString()}
+                        </p>
+                      )}
                     </div>
                     {transaction.status === "pending" && (
                       <div className="flex space-x-2">
