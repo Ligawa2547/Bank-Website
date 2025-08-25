@@ -143,16 +143,16 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-gray-600">Overview of your banking system</p>
+    <div className="space-y-4 lg:space-y-6 max-w-full">
+      <div className="px-2 lg:px-0">
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+        <p className="text-sm lg:text-base text-gray-600">Overview of your banking system</p>
       </div>
 
       {/* Debug Info */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="pt-6">
-          <p className="text-sm text-blue-800">
+      <Card className="bg-blue-50 border-blue-200 mx-2 lg:mx-0">
+        <CardContent className="pt-4 lg:pt-6">
+          <p className="text-xs lg:text-sm text-blue-800">
             <strong>System Status:</strong> Found {stats.totalUsers} users and {recentTransactions.length} recent
             transactions
           </p>
@@ -160,105 +160,105 @@ export default function AdminDashboard() {
       </Card>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+      <div className="grid gap-3 lg:gap-4 grid-cols-2 lg:grid-cols-4 px-2 lg:px-0">
+        <Card className="p-3 lg:p-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 lg:p-6">
+            <CardTitle className="text-xs lg:text-sm font-medium">Total Users</CardTitle>
+            <Users className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers.toLocaleString()}</div>
+          <CardContent className="p-3 lg:p-6 pt-0">
+            <div className="text-lg lg:text-2xl font-bold">{stats.totalUsers.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Registered accounts</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending KYC</CardTitle>
-            <FileCheck className="h-4 w-4 text-muted-foreground" />
+        <Card className="p-3 lg:p-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 lg:p-6">
+            <CardTitle className="text-xs lg:text-sm font-medium">Pending KYC</CardTitle>
+            <FileCheck className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.pendingKyc}</div>
+          <CardContent className="p-3 lg:p-6 pt-0">
+            <div className="text-lg lg:text-2xl font-bold text-yellow-600">{stats.pendingKyc}</div>
             <p className="text-xs text-muted-foreground">Awaiting verification</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Suspended Accounts</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+        <Card className="p-3 lg:p-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 lg:p-6">
+            <CardTitle className="text-xs lg:text-sm font-medium">Suspended</CardTitle>
+            <AlertTriangle className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.suspendedAccounts}</div>
+          <CardContent className="p-3 lg:p-6 pt-0">
+            <div className="text-lg lg:text-2xl font-bold text-red-600">{stats.suspendedAccounts}</div>
             <p className="text-xs text-muted-foreground">Requires attention</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+        <Card className="p-3 lg:p-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 lg:p-6">
+            <CardTitle className="text-xs lg:text-sm font-medium">Total Balance</CardTitle>
+            <DollarSign className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalBalance)}</div>
+          <CardContent className="p-3 lg:p-6 pt-0">
+            <div className="text-sm lg:text-2xl font-bold">{formatCurrency(stats.totalBalance)}</div>
             <p className="text-xs text-muted-foreground">System-wide balance</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Today's Activity */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 lg:gap-4 md:grid-cols-2 px-2 lg:px-0">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 lg:p-6">
             <CardTitle className="text-sm font-medium">Today's Transactions</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.todayTransactions}</div>
+          <CardContent className="p-4 lg:p-6 pt-0">
+            <div className="text-xl lg:text-2xl font-bold text-green-600">{stats.todayTransactions}</div>
             <p className="text-xs text-muted-foreground">Successful transactions today</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 lg:p-6">
             <CardTitle className="text-sm font-medium">Failed Transactions</CardTitle>
             <XCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.failedTransactions}</div>
+          <CardContent className="p-4 lg:p-6 pt-0">
+            <div className="text-xl lg:text-2xl font-bold text-red-600">{stats.failedTransactions}</div>
             <p className="text-xs text-muted-foreground">Failed transactions today</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common administrative tasks</CardDescription>
+      <Card className="mx-2 lg:mx-0">
+        <CardHeader className="p-4 lg:p-6">
+          <CardTitle className="text-lg lg:text-xl">Quick Actions</CardTitle>
+          <CardDescription className="text-sm">Common administrative tasks</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <Button asChild className="h-20 flex-col bg-yellow-600 hover:bg-yellow-700">
+        <CardContent className="p-4 lg:p-6 pt-0">
+          <div className="grid gap-3 lg:gap-4 grid-cols-1 md:grid-cols-3">
+            <Button asChild className="h-16 lg:h-20 flex-col bg-yellow-600 hover:bg-yellow-700 text-sm">
               <Link href="/admin/kyc/pending">
-                <FileCheck className="h-6 w-6 mb-2" />
+                <FileCheck className="h-5 w-5 lg:h-6 lg:w-6 mb-2" />
                 Review KYC Applications
                 {stats.pendingKyc > 0 && (
-                  <Badge className="mt-1 bg-white text-yellow-600">{stats.pendingKyc} pending</Badge>
+                  <Badge className="mt-1 bg-white text-yellow-600 text-xs">{stats.pendingKyc} pending</Badge>
                 )}
               </Link>
             </Button>
 
-            <Button asChild variant="outline" className="h-20 flex-col bg-transparent">
+            <Button asChild variant="outline" className="h-16 lg:h-20 flex-col bg-transparent text-sm">
               <Link href="/admin/users">
-                <Users className="h-6 w-6 mb-2" />
+                <Users className="h-5 w-5 lg:h-6 lg:w-6 mb-2" />
                 Manage Users
               </Link>
             </Button>
 
-            <Button asChild variant="outline" className="h-20 flex-col bg-transparent">
+            <Button asChild variant="outline" className="h-16 lg:h-20 flex-col bg-transparent text-sm">
               <Link href="/admin/transactions">
-                <CreditCard className="h-6 w-6 mb-2" />
+                <CreditCard className="h-5 w-5 lg:h-6 lg:w-6 mb-2" />
                 View Transactions
               </Link>
             </Button>
@@ -267,31 +267,34 @@ export default function AdminDashboard() {
       </Card>
 
       {/* Recent Transactions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
-          <CardDescription>Latest system transactions</CardDescription>
+      <Card className="mx-2 lg:mx-0">
+        <CardHeader className="p-4 lg:p-6">
+          <CardTitle className="text-lg lg:text-xl">Recent Transactions</CardTitle>
+          <CardDescription className="text-sm">Latest system transactions</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
+        <CardContent className="p-4 lg:p-6 pt-0">
+          <div className="space-y-3 lg:space-y-4">
             {recentTransactions.length === 0 ? (
-              <p className="text-center text-gray-500 py-4">No recent transactions</p>
+              <p className="text-center text-gray-500 py-4 text-sm">No recent transactions</p>
             ) : (
               recentTransactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="p-2 bg-gray-100 rounded-full">
-                      <CreditCard className="h-4 w-4" />
+                <div
+                  key={transaction.id}
+                  className="flex flex-col lg:flex-row lg:items-center justify-between p-3 lg:p-4 border rounded-lg space-y-2 lg:space-y-0"
+                >
+                  <div className="flex items-center space-x-3 lg:space-x-4">
+                    <div className="p-2 bg-gray-100 rounded-full flex-shrink-0">
+                      <CreditCard className="h-3 w-3 lg:h-4 lg:w-4" />
                     </div>
-                    <div>
-                      <p className="font-medium">{formatCurrency(transaction.amount)}</p>
-                      <p className="text-sm text-gray-500">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm lg:text-base">{formatCurrency(transaction.amount)}</p>
+                      <p className="text-xs lg:text-sm text-gray-500 truncate">
                         {transaction.account_no} → {transaction.recipient_account_number || "N/A"}
                       </p>
                       <p className="text-xs text-gray-400">{new Date(transaction.created_at).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-shrink-0">
                     {getStatusBadge(transaction.status)}
                     <Badge variant="outline" className="text-xs">
                       {transaction.transaction_type}
