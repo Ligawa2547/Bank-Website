@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Search, UserX, UserCheck, Mail, Phone, Calendar, Shield, CheckCircle, XCircle, Clock } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { sendAccountStatusNotification } from "@/lib/notifications/handler"
 import {
   Dialog,
   DialogContent,
@@ -126,26 +127,16 @@ export default function UserManagement() {
 
       if (error) throw error
 
-      // Send notification to user using account_no
-      const notificationMessage =
-        newStatus === "suspended"
-          ? "Your account has been suspended. Please contact support for assistance."
-          : newStatus === "active"
-            ? "Your account has been reactivated. You now have full access to all features."
-            : `Your account status has been updated to ${newStatus}.`
-
-      await supabase.from("notifications").insert({
-        account_no: user.account_no,
-        title: `Account ${newStatus === "active" ? "Activated" : "Status Updated"}`,
-        message: notificationMessage,
-        type: newStatus === "suspended" ? "warning" : "info",
-        is_read: false,
-        created_at: new Date().toISOString(),
-      })
+      // Send notification with email
+      await sendAccountStatusNotification(
+        userId,
+        newStatus,
+        newStatus === "suspended" ? "Account suspended by administrator" : undefined,
+      )
 
       toast({
         title: "Success",
-        description: `User status updated to ${newStatus}`,
+        description: `User status updated to ${newStatus} and email notification sent`,
       })
 
       fetchUsers()
@@ -179,27 +170,16 @@ export default function UserManagement() {
 
       if (error) throw error
 
-      // Send notification to user using account_no
-      const notificationMessage =
-        newVerificationStatus === "verified"
-          ? "Congratulations! Your account has been verified. You now have full access to all banking features."
-          : newVerificationStatus === "rejected"
-            ? "Your account verification has been rejected. Please contact support for more information."
-            : `Your account verification status has been updated to ${newVerificationStatus}.`
-
-      await supabase.from("notifications").insert({
-        account_no: user.account_no,
-        title: `Account ${newVerificationStatus === "verified" ? "Verified" : "Verification Status Updated"}`,
-        message: notificationMessage,
-        type:
-          newVerificationStatus === "verified" ? "success" : newVerificationStatus === "rejected" ? "warning" : "info",
-        is_read: false,
-        created_at: new Date().toISOString(),
-      })
+      // Send notification with email
+      await sendAccountStatusNotification(
+        userId,
+        newVerificationStatus,
+        newVerificationStatus === "rejected" ? "Verification rejected by administrator" : undefined,
+      )
 
       toast({
         title: "Success",
-        description: `Verification status updated to ${newVerificationStatus}`,
+        description: `Verification status updated to ${newVerificationStatus} and email notification sent`,
       })
 
       fetchUsers()
@@ -225,6 +205,28 @@ export default function UserManagement() {
       const user = users.find((u) => u.id === userId)
       if (!user) throw new Error("User not found")
 
+      // Send notification with email using the notification handler
+      const response = await fetch("/api/notifications/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "general",
+          accountNumber: user.account_no,
+          notificationData: {
+            title: "Message from Admin",
+            message: message,
+            type: "info",
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to send notification")
+      }
+
+      // Also insert into notifications table
       await supabase.from("notifications").insert({
         account_no: user.account_no,
         title: "Message from Admin",
@@ -236,7 +238,7 @@ export default function UserManagement() {
 
       toast({
         title: "Success",
-        description: `Notification sent to ${userEmail}`,
+        description: `Notification sent to ${userEmail} via email and dashboard`,
       })
     } catch (error) {
       console.error("Error sending notification:", error)

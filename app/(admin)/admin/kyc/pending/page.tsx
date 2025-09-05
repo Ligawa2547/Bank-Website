@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Search, CheckCircle, XCircle, Eye, Calendar, User, Phone } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { sendKYCStatusNotification } from "@/lib/notifications/handler"
 import {
   Dialog,
   DialogContent,
@@ -91,23 +92,12 @@ export default function KYCManagement() {
 
       if (error) throw error
 
-      // Send notification to user
-      const notificationMessage =
-        newStatus === "approved"
-          ? "Congratulations! Your KYC verification has been approved. You now have full access to all banking features."
-          : `Your KYC verification has been ${newStatus}. ${reason ? `Reason: ${reason}` : "Please contact support for more information."}`
-
-      await supabase.from("notifications").insert({
-        user_id: userId,
-        title: `KYC ${newStatus === "approved" ? "Approved" : "Status Updated"}`,
-        message: notificationMessage,
-        type: newStatus === "approved" ? "success" : "warning",
-        created_at: new Date().toISOString(),
-      })
+      // Send notification with email using the notification handler
+      await sendKYCStatusNotification(userId, newStatus, reason)
 
       toast({
         title: "Success",
-        description: `KYC status updated to ${newStatus}`,
+        description: `KYC status updated to ${newStatus} and email notification sent`,
       })
 
       fetchApplications()
