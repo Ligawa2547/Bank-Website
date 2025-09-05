@@ -1,48 +1,39 @@
 "use client"
 
-import { createClientComponentClient } from "@supabase/supabase-js"
+import { sendKYCNotification } from "@/lib/notifications/handler"
+import { toast } from "@/components/ui/use-toast"
+import { supabase } from "@/lib/supabase"
 import { useState } from "react"
-import { toast } from "react-toastify"
-import { sendKYCStatusNotification } from "@/lib/notifications/handler"
-
-const supabase = createClientComponentClient()
 
 const PendingKYCPage = () => {
-  const [pendingKYC, setPendingKYC] = useState([])
-  const [isUpdating, setIsUpdating] = useState(false)
+  const [processing, setProcessing] = useState<string | null>(null)
 
   const fetchPendingKYC = async () => {
-    const { data, error } = await supabase.from("users").select("*").eq("verification_status", "pending")
-
-    if (error) {
-      console.error("Error fetching pending KYC:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch pending KYC",
-        variant: "destructive",
-      })
-    } else {
-      setPendingKYC(data)
-    }
+    // Fetch pending KYC requests from the database
   }
 
-  const handleApprove = async (userId: string) => {
+  const handleApprove = async (accountNo: string) => {
     try {
-      setIsUpdating(true)
+      setProcessing(accountNo)
 
-      const { error } = await supabase.from("users").update({ verification_status: "approved" }).eq("id", userId)
+      const { error } = await supabase
+        .from("users")
+        .update({
+          verification_status: "verified",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("account_no", accountNo)
 
       if (error) throw error
 
       // Send notification and email
-      await sendKYCStatusNotification(userId, "approved")
+      await sendKYCNotification(accountNo, "approved")
 
       toast({
         title: "Success",
-        description: "KYC approved successfully",
+        description: "KYC approved successfully and user notified",
       })
 
-      // Refresh the data
       fetchPendingKYC()
     } catch (error) {
       console.error("Error approving KYC:", error)
@@ -52,27 +43,35 @@ const PendingKYCPage = () => {
         variant: "destructive",
       })
     } finally {
-      setIsUpdating(false)
+      setProcessing(null)
     }
   }
 
-  const handleReject = async (userId: string, reason: string) => {
-    try {
-      setIsUpdating(true)
+  const handleReject = async (accountNo: string) => {
+    const reason = prompt("Please provide a reason for rejection:")
+    if (!reason) return
 
-      const { error } = await supabase.from("users").update({ verification_status: "rejected" }).eq("id", userId)
+    try {
+      setProcessing(accountNo)
+
+      const { error } = await supabase
+        .from("users")
+        .update({
+          verification_status: "rejected",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("account_no", accountNo)
 
       if (error) throw error
 
       // Send notification and email
-      await sendKYCStatusNotification(userId, "rejected", reason)
+      await sendKYCNotification(accountNo, "rejected", reason)
 
       toast({
         title: "Success",
-        description: "KYC rejected successfully",
+        description: "KYC rejected and user notified with reason",
       })
 
-      // Refresh the data
       fetchPendingKYC()
     } catch (error) {
       console.error("Error rejecting KYC:", error)
@@ -82,22 +81,15 @@ const PendingKYCPage = () => {
         variant: "destructive",
       })
     } finally {
-      setIsUpdating(false)
+      setProcessing(null)
     }
   }
 
+  // Render the pending KYC requests and buttons for approval/rejection
   return (
     <div>
-      <h1>Pending KYC</h1>
-      <ul>
-        {pendingKYC.map((user) => (
-          <li key={user.id}>
-            {user.name}
-            <button onClick={() => handleApprove(user.id)}>Approve</button>
-            <button onClick={() => handleReject(user.id, "Reason for rejection")}>Reject</button>
-          </li>
-        ))}
-      </ul>
+      {/* List of pending KYC requests */}
+      {/* Buttons for approval/rejection */}
     </div>
   )
 }
