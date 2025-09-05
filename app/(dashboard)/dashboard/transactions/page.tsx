@@ -19,7 +19,6 @@ import { useAuth } from "@/lib/auth-provider"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Transaction } from "@/types/user"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/components/ui/use-toast"
 import { Badge } from "@/components/ui/badge"
 
 export default function TransactionsPage() {
@@ -33,7 +32,6 @@ export default function TransactionsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 15
   const supabase = createClientComponentClient()
-  const { toast } = useToast()
 
   useEffect(() => {
     if (!user || !profile?.account_number) {
@@ -58,11 +56,6 @@ export default function TransactionsPage() {
 
         if (error) {
           console.error("Error fetching transactions:", error)
-          toast({
-            title: "Error",
-            description: "Failed to load transactions. Please try again.",
-            variant: "destructive",
-          })
           setTransactions([])
           setFilteredTransactions([])
           return
@@ -96,11 +89,6 @@ export default function TransactionsPage() {
         }
       } catch (err) {
         console.error("Unexpected error fetching transactions:", err)
-        toast({
-          title: "Error",
-          description: "An unexpected error occurred while loading transactions.",
-          variant: "destructive",
-        })
         setTransactions([])
         setFilteredTransactions([])
       } finally {
@@ -109,7 +97,7 @@ export default function TransactionsPage() {
     }
 
     fetchTransactions()
-  }, [user, profile, supabase, toast])
+  }, [user, profile, supabase])
 
   useEffect(() => {
     // Apply filters
@@ -299,55 +287,52 @@ export default function TransactionsPage() {
   // Handle export transactions
   const handleExportTransactions = () => {
     if (filteredTransactions.length === 0) {
-      toast({
-        title: "No Data",
-        description: "No transactions to export",
-        variant: "destructive",
-      })
+      console.log("No transactions to export")
       return
     }
 
-    // Create CSV content
-    let csvContent = "Date,Type,Description,Reference,Status,Amount,Balance Impact\n"
+    try {
+      // Create CSV content
+      let csvContent = "Date,Type,Description,Reference,Status,Amount,Balance Impact\n"
 
-    filteredTransactions.forEach((transaction) => {
-      const date = new Date(transaction.created_at).toLocaleDateString()
-      const type = getTransactionTypeLabel(transaction.transaction_type)
-      const description = getTransactionDescription(transaction)
-      const status = transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)
+      filteredTransactions.forEach((transaction) => {
+        const date = new Date(transaction.created_at).toLocaleDateString()
+        const type = getTransactionTypeLabel(transaction.transaction_type)
+        const description = getTransactionDescription(transaction)
+        const status = transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)
 
-      const amount = transaction.amount
-      let balanceImpact = "+"
-      if (
-        transaction.transaction_type === "withdrawal" ||
-        transaction.transaction_type === "transfer_out" ||
-        transaction.transaction_type === "loan_repayment"
-      ) {
-        balanceImpact = "-"
-      }
+        const amount = transaction.amount
+        let balanceImpact = "+"
+        if (
+          transaction.transaction_type === "withdrawal" ||
+          transaction.transaction_type === "transfer_out" ||
+          transaction.transaction_type === "loan_repayment"
+        ) {
+          balanceImpact = "-"
+        }
 
-      // Escape quotes in description
-      const escapedDescription = description.replace(/"/g, '""')
+        // Escape quotes in description
+        const escapedDescription = description.replace(/"/g, '""')
 
-      csvContent += `"${date}","${type}","${escapedDescription}","${transaction.reference}","${status}",${amount},"${balanceImpact}${amount}"\n`
-    })
+        csvContent += `"${date}","${type}","${escapedDescription}","${transaction.reference}","${status}",${amount},"${balanceImpact}${amount}"\n`
+      })
 
-    // Create download link
-    const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent)
-    const link = document.createElement("a")
-    link.setAttribute("href", encodedUri)
-    link.setAttribute(
-      "download",
-      `transactions_${profile.account_number}_${new Date().toISOString().split("T")[0]}.csv`,
-    )
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+      // Create download link
+      const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent)
+      const link = document.createElement("a")
+      link.setAttribute("href", encodedUri)
+      link.setAttribute(
+        "download",
+        `transactions_${profile?.account_number}_${new Date().toISOString().split("T")[0]}.csv`,
+      )
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
 
-    toast({
-      title: "Export Successful",
-      description: "Your transactions have been exported to CSV",
-    })
+      console.log("Export successful")
+    } catch (error) {
+      console.error("Export failed:", error)
+    }
   }
 
   if (!user || !profile) {
