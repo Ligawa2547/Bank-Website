@@ -1,13 +1,12 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, CreditCard, AlertCircle, CheckCircle, Wallet } from "lucide-react"
+import { Loader2, AlertCircle, CheckCircle, Wallet } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 
 interface PayPalPaymentProps {
@@ -15,85 +14,231 @@ interface PayPalPaymentProps {
   onError?: (error: string) => void
 }
 
+declare global {
+  interface Window {
+    paypal?: any
+  }
+}
+
 export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
   const [amount, setAmount] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [paypalLoaded, setPaypalLoaded] = useState(false)
+  const paypalRef = useRef<HTMLDivElement>(null)
+  const cardPaypalRef = useRef<HTMLDivElement>(null)
 
-  const handlePayment = async (paymentMethod: "paypal" | "card") => {
+  useEffect(() => {
+    // Check if PayPal SDK is loaded
+    const checkPayPal = () => {
+      if (window.paypal) {
+        setPaypalLoaded(true)
+        renderPayPalButtons()
+      } else {
+        setTimeout(checkPayPal, 100)
+      }
+    }
+    checkPayPal()
+  }, [amount])
+
+  const renderPayPalButtons = () => {
     const paymentAmount = Number.parseFloat(amount)
 
-    if (!paymentAmount || paymentAmount <= 0) {
-      setError("Please enter a valid amount")
+    if (!paymentAmount || paymentAmount <= 0 || !window.paypal) {
       return
     }
 
-    if (paymentAmount < 1) {
-      setError("Minimum deposit amount is $1.00")
-      return
+    // Clear existing buttons
+    if (paypalRef.current) {
+      paypalRef.current.innerHTML = ""
+    }
+    if (cardPaypalRef.current) {
+      cardPaypalRef.current.innerHTML = ""
     }
 
-    if (paymentAmount > 10000) {
-      setError("Maximum deposit amount is $10,000.00")
-      return
-    }
+    // PayPal Account Button
+    if (paypalRef.current) {
+      window.paypal
+        .Buttons({
+          style: {
+            layout: "vertical",
+            color: "blue",
+            shape: "rect",
+            label: "paypal",
+            height: 40,
+          },
+          fundingSource: window.paypal.FUNDING.PAYPAL,
+          createOrder: async (data: any, actions: any) => {
+            try {
+              setLoading(true)
+              setError("")
 
-    try {
-      setLoading(true)
-      setError("")
+              const response = await fetch("/api/paypal/initialize", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  amount: paymentAmount,
+                  paymentMethod: "paypal",
+                }),
+              })
 
-      console.log(`🚀 Initiating ${paymentMethod} payment for $${paymentAmount}`)
+              const orderData = await response.json()
 
-      const response = await fetch("/api/paypal/initialize", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          amount: paymentAmount,
-          paymentMethod: paymentMethod,
-        }),
-      })
+              if (!response.ok) {
+                throw new Error(orderData.error || "Payment initialization failed")
+              }
 
-      const data = await response.json()
+              return orderData.orderId
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : "Payment failed"
+              setError(errorMessage)
+              onError?.(errorMessage)
+              throw err
+            }
+          },
+          onApprove: async (data: any, actions: any) => {
+            try {
+              const response = await fetch(`/api/paypal/success?token=${data.orderID}&PayerID=${data.payerID}`)
+              const result = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || "Payment initialization failed")
-      }
-
-      console.log(`✅ ${paymentMethod} payment initialized:`, data.orderId)
-
-      // Redirect to PayPal for payment
-      if (data.approvalUrl) {
-        toast({
-          title: `Redirecting to ${paymentMethod === "card" ? "Card Payment" : "PayPal"}`,
-          description: `You will be redirected to complete your $${paymentAmount} payment`,
+              if (response.ok && result.success) {
+                toast({
+                  title: "Payment Successful!",
+                  description: `$${paymentAmount} has been added to your account`,
+                })
+                onSuccess?.()
+                setAmount("")
+              } else {
+                throw new Error(result.error || "Payment processing failed")
+              }
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : "Payment processing failed"
+              setError(errorMessage)
+              onError?.(errorMessage)
+              toast({
+                title: "Payment Failed",
+                description: errorMessage,
+                variant: "destructive",
+              })
+            } finally {
+              setLoading(false)
+            }
+          },
+          onError: (err: any) => {
+            console.error("PayPal error:", err)
+            setError("PayPal payment failed")
+            onError?.("PayPal payment failed")
+            setLoading(false)
+          },
+          onCancel: (data: any) => {
+            toast({
+              title: "Payment Cancelled",
+              description: "Your PayPal payment was cancelled",
+            })
+            setLoading(false)
+          },
         })
+        .render(paypalRef.current)
+    }
 
-        // Redirect to PayPal
-        window.location.href = data.approvalUrl
-      } else {
-        throw new Error("Payment approval URL not received")
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Payment failed"
-      console.error(`❌ ${paymentMethod} payment error:`, errorMessage)
-      setError(errorMessage)
-      onError?.(errorMessage)
+    // Card Payment Button
+    if (cardPaypalRef.current) {
+      window.paypal
+        .Buttons({
+          style: {
+            layout: "vertical",
+            color: "white",
+            shape: "rect",
+            label: "pay",
+            height: 40,
+          },
+          fundingSource: window.paypal.FUNDING.CARD,
+          createOrder: async (data: any, actions: any) => {
+            try {
+              setLoading(true)
+              setError("")
 
-      toast({
-        title: "Payment Failed",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
+              const response = await fetch("/api/paypal/initialize", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  amount: paymentAmount,
+                  paymentMethod: "card",
+                }),
+              })
+
+              const orderData = await response.json()
+
+              if (!response.ok) {
+                throw new Error(orderData.error || "Payment initialization failed")
+              }
+
+              return orderData.orderId
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : "Payment failed"
+              setError(errorMessage)
+              onError?.(errorMessage)
+              throw err
+            }
+          },
+          onApprove: async (data: any, actions: any) => {
+            try {
+              const response = await fetch(`/api/paypal/success?token=${data.orderID}&PayerID=${data.payerID}`)
+              const result = await response.json()
+
+              if (response.ok && result.success) {
+                toast({
+                  title: "Payment Successful!",
+                  description: `$${paymentAmount} has been added to your account`,
+                })
+                onSuccess?.()
+                setAmount("")
+              } else {
+                throw new Error(result.error || "Payment processing failed")
+              }
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : "Payment processing failed"
+              setError(errorMessage)
+              onError?.(errorMessage)
+              toast({
+                title: "Payment Failed",
+                description: errorMessage,
+                variant: "destructive",
+              })
+            } finally {
+              setLoading(false)
+            }
+          },
+          onError: (err: any) => {
+            console.error("PayPal Card error:", err)
+            setError("Card payment failed")
+            onError?.("Card payment failed")
+            setLoading(false)
+          },
+          onCancel: (data: any) => {
+            toast({
+              title: "Payment Cancelled",
+              description: "Your card payment was cancelled",
+            })
+            setLoading(false)
+          },
+        })
+        .render(cardPaypalRef.current)
     }
   }
 
   const formatCurrency = (value: string) => {
     const num = Number.parseFloat(value)
     return isNaN(num) ? "$0.00" : `$${num.toFixed(2)}`
+  }
+
+  const isValidAmount = () => {
+    const paymentAmount = Number.parseFloat(amount)
+    return paymentAmount && paymentAmount >= 1 && paymentAmount <= 10000
   }
 
   return (
@@ -130,64 +275,53 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
             </Alert>
           )}
 
-          <Tabs defaultValue="paypal" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="paypal">PayPal Account</TabsTrigger>
-              <TabsTrigger value="card">Debit/Credit Card</TabsTrigger>
-            </TabsList>
+          {!paypalLoaded && (
+            <Alert>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <AlertDescription>Loading PayPal payment options...</AlertDescription>
+            </Alert>
+          )}
 
-            <TabsContent value="paypal" className="space-y-3 mt-4">
-              <div className="text-sm text-muted-foreground space-y-1">
-                <p>• Pay using your PayPal account balance</p>
-                <p>• Link your bank account or card to PayPal</p>
-                <p>• Secure PayPal login required</p>
-              </div>
+          {paypalLoaded && (
+            <Tabs defaultValue="paypal" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="paypal">PayPal Account</TabsTrigger>
+                <TabsTrigger value="card">Debit/Credit Card</TabsTrigger>
+              </TabsList>
 
-              <Button
-                onClick={() => handlePayment("paypal")}
-                disabled={loading || !amount}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
+              <TabsContent value="paypal" className="space-y-3 mt-4">
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>• Pay using your PayPal account balance</p>
+                  <p>• Link your bank account or card to PayPal</p>
+                  <p>• Secure PayPal login required</p>
+                </div>
+
+                {isValidAmount() ? (
+                  <div ref={paypalRef} className="w-full"></div>
                 ) : (
-                  <>
-                    <Wallet className="mr-2 h-4 w-4" />
-                    Pay with PayPal
-                  </>
+                  <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-sm text-muted-foreground">
+                    Enter an amount between $1.00 and $10,000.00 to see PayPal button
+                  </div>
                 )}
-              </Button>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="card" className="space-y-3 mt-4">
-              <div className="text-sm text-muted-foreground space-y-1">
-                <p>• Pay directly with your debit or credit card</p>
-                <p>• No PayPal account required</p>
-                <p>• Processed securely through PayPal</p>
-              </div>
+              <TabsContent value="card" className="space-y-3 mt-4">
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>• Pay directly with your debit or credit card</p>
+                  <p>• No PayPal account required</p>
+                  <p>• Processed securely through PayPal</p>
+                </div>
 
-              <Button
-                onClick={() => handlePayment("card")}
-                disabled={loading || !amount}
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
+                {isValidAmount() ? (
+                  <div ref={cardPaypalRef} className="w-full"></div>
                 ) : (
-                  <>
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Pay with Card
-                  </>
+                  <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-sm text-muted-foreground">
+                    Enter an amount between $1.00 and $10,000.00 to see card payment button
+                  </div>
                 )}
-              </Button>
-            </TabsContent>
-          </Tabs>
+              </TabsContent>
+            </Tabs>
+          )}
 
           <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
             <p>• Minimum deposit: $1.00</p>

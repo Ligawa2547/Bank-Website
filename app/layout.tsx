@@ -4,28 +4,15 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/toaster"
+import Script from "next/script"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://ebanking.iaenb.com"),
-  title: {
-    default: "IAE Bank - Secure Online Banking",
-    template: "%s | IAE Bank",
-  },
+  title: "IAE Bank - Your Trusted Banking Partner",
   description:
-    "Experience secure and convenient online banking with IAE Bank. Manage your accounts, transfer money, apply for loans, and more with our comprehensive digital banking platform.",
-  keywords: [
-    "online banking",
-    "digital banking",
-    "secure banking",
-    "money transfer",
-    "loans",
-    "savings account",
-    "IAE Bank",
-    "financial services",
-    "mobile banking",
-  ],
+    "Experience secure and convenient banking with IAE Bank. Manage your finances, transfer money, and access banking services 24/7.",
+  keywords: "banking, finance, money transfer, savings, loans, credit cards, online banking",
   authors: [{ name: "IAE Bank" }],
   creator: "IAE Bank",
   publisher: "IAE Bank",
@@ -34,14 +21,16 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://iae-bank.vercel.app"),
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
-    type: "website",
-    locale: "en_US",
-    url: "https://ebanking.iaenb.com",
-    siteName: "IAE Bank",
-    title: "IAE Bank - Secure Online Banking",
+    title: "IAE Bank - Your Trusted Banking Partner",
     description:
-      "Experience secure and convenient online banking with IAE Bank. Manage your accounts, transfer money, apply for loans, and more.",
+      "Experience secure and convenient banking with IAE Bank. Manage your finances, transfer money, and access banking services 24/7.",
+    url: process.env.NEXT_PUBLIC_APP_URL || "https://iae-bank.vercel.app",
+    siteName: "IAE Bank",
     images: [
       {
         url: "/images/iae-logo.png",
@@ -50,13 +39,15 @@ export const metadata: Metadata = {
         alt: "IAE Bank Logo",
       },
     ],
+    locale: "en_US",
+    type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "IAE Bank - Secure Online Banking",
-    description: "Experience secure and convenient online banking with IAE Bank.",
+    title: "IAE Bank - Your Trusted Banking Partner",
+    description:
+      "Experience secure and convenient banking with IAE Bank. Manage your finances, transfer money, and access banking services 24/7.",
     images: ["/images/iae-logo.png"],
-    creator: "@iaebank",
   },
   robots: {
     index: true,
@@ -70,10 +61,7 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: "google35bf1cdf0bb83eed",
-  },
-  alternates: {
-    canonical: "https://ebanking.iaenb.com",
+    google: "35bf1cdf0bb83eed",
   },
     generator: 'v0.app'
 }
@@ -84,16 +72,25 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="google-site-verification" content="google35bf1cdf0bb83eed" />
-        <link rel="canonical" href="https://ebanking.iaenb.com" />
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/images/iae-logo.png" />
+        <meta name="theme-color" content="#1f2937" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </head>
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
         <Providers>
           {children}
           <Toaster />
         </Providers>
+
+        {/* PayPal SDK for hosted buttons */}
+        <Script
+          src="https://www.paypal.com/sdk/js?client-id=BAABv-fGmOQt6xgFrkcz7hkUA6wLY2wP8AtoYUTZ6hR73ZfqKMrdwtROZkStnxTXLNLmd8FPyByLRX1Tdo&components=hosted-buttons&disable-funding=venmo&currency=USD"
+          strategy="lazyOnload"
+          crossOrigin="anonymous"
+        />
       </body>
     </html>
   )
