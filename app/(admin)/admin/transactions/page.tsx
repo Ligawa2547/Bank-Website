@@ -17,6 +17,7 @@ import {
   TrendingUp,
   TrendingDown,
   Filter,
+  User,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -359,7 +360,7 @@ export default function TransactionManagement() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
-            placeholder="Search transactions..."
+            placeholder="Search by account number, reference, or description..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 text-sm"
@@ -451,13 +452,27 @@ export default function TransactionManagement() {
                     {getStatusBadge(transaction.status)}
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <p className="text-sm text-gray-600 line-clamp-2">{transaction.narration}</p>
-                    <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                      <span>Account: {transaction.account_no}</span>
-                      <span>•</span>
-                      <span>Ref: {transaction.reference}</span>
+
+                    {/* Account Information - More Prominent */}
+                    <div className="bg-gray-50 p-2 rounded-md">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <User className="h-4 w-4 text-gray-500" />
+                        <span className="text-xs font-medium text-gray-700">Account:</span>
+                        <span className="text-sm font-semibold text-gray-900">{transaction.account_no}</span>
+                      </div>
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <div>Reference: {transaction.reference}</div>
+                        {transaction.recipient_account_number && (
+                          <div>To Account: {transaction.recipient_account_number}</div>
+                        )}
+                        {transaction.sender_account_number && (
+                          <div>From Account: {transaction.sender_account_number}</div>
+                        )}
+                      </div>
                     </div>
+
                     <p className="text-xs text-gray-400">{new Date(transaction.created_at).toLocaleString()}</p>
                   </div>
 
@@ -497,12 +512,25 @@ export default function TransactionManagement() {
                       </div>
                       <p className="text-sm text-gray-600 mb-1">{transaction.narration}</p>
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
-                        <span>Account: {transaction.account_no}</span>
+                        <div className="flex items-center space-x-1">
+                          <User className="h-3 w-3" />
+                          <span className="font-medium">Account:</span>
+                          <span className="font-semibold text-gray-700">{transaction.account_no}</span>
+                        </div>
+                        <span>•</span>
                         <span>Ref: {transaction.reference}</span>
                         {transaction.recipient_account_number && (
-                          <span>To: {transaction.recipient_account_number}</span>
+                          <>
+                            <span>•</span>
+                            <span>To: {transaction.recipient_account_number}</span>
+                          </>
                         )}
-                        {transaction.sender_account_number && <span>From: {transaction.sender_account_number}</span>}
+                        {transaction.sender_account_number && (
+                          <>
+                            <span>•</span>
+                            <span>From: {transaction.sender_account_number}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
