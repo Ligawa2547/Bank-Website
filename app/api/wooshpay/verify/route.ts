@@ -1,34 +1,160 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { verifyTransaction } from "@/lib/wooshpay/transaction"
-import { sendTransactionNotification } from "@/lib/notifications/handler"
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+import { NextResponse } from "next/server"
+import { wooshPayClient, isWooshPayConfigured } from "@/lib/wooshpay/client"
 
-export async function POST(request: NextRequest) {
-  const body = await request.json()
-  const { reference } = body
+export async function GET(request: Request) {
+  console.log("WooshPay verify endpoint called")
 
   try {
-    const updatedTransaction = await verifyTransaction(reference)
-
-    if (updatedTransaction) {
-      // Send notification and email
-      await sendTransactionNotification(
-        updatedTransaction.account_no,
-        updatedTransaction.transaction_type,
-        updatedTransaction.amount,
-        "completed",
-        updatedTransaction.reference,
-        updatedTransaction.description || "WooshPay deposit",
-      )
-
+    // Check if WooshPay is configured
+    if (!isWooshPayConfigured()) {
       return NextResponse.json(
-        { message: "Transaction verified and notification sent", transaction: updatedTransaction },
-        { status: 200 },
+        {
+          message: "Payment service is not configured",
+          error: "WOOSHPAY_NOT_CONFIGURED",
+        },
+        { status: 503 },
       )
-    } else {
-      return NextResponse.json({ message: "Transaction not found" }, { status: 404 })
     }
-  } catch (error) {
-    console.error("Error verifying transaction:", error)
-    return NextResponse.json({ message: "Error verifying transaction" }, { status: 500 })
+
+    // Get reference from URL
+    const url = new URL(request.url)
+    const reference = url.searchParams.get("reference")
+
+    console.log("Verifying reference:", reference)
+
+    if (!reference) {
+      return NextResponse.json({ message: "Reference is required" }, { status: 400 })
+    }
+
+    // Check if WooshPay client is ready
+    if (!wooshPayClient.isReady()) {
+      return NextResponse.json(
+        {
+          message: "Payment service is temporarily unavailable",
+          error: "SERVICE_UNAVAILABLE",
+        },
+        { status: 503 },
+      )
+    }
+
+    // Verify WooshPay transaction
+    const wooshPayResponse = await wooshPayClient.verifyPayment(reference)
+
+    console.log("WooshPay verification response:", wooshPayResponse)
+
+    if (!wooshPayResponse.status) {
+      return NextResponse.json(
+        {
+          message: wooshPayResponse.message || "Verification failed",
+        },
+        { status: 400 },
+      )
+    }
+
+    // If payment is successful, update transaction status
+    if (wooshPayResponse.data?.status === "success") {
+      console.log("Payment verified as successful, updating database")
+
+      const supabase = createRouteHandlerClient({ cookies })
+
+      // Get transaction details
+      const { data: transactionData, error: transactionError } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("reference", reference)
+        .single()
+
+      if (transactionError || !transactionData) {
+        console.error("Transaction not found:", transactionError)
+        return NextResponse.json({ message: "Transaction not found" }, { status: 404 })
+      }
+
+      console.log("Found transaction:", transactionData)
+
+      // Update transaction status
+      await supabase
+        .from("transactions")
+        .update({
+          status: "completed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("reference", reference)
+
+      // Get user data
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("account_no", transactionData.account_no)
+        .single()
+
+      if (userError || !userData) {
+        console.error("User not found:", userError)
+        return NextResponse.json({ message: "User not found" }, { status: 404 })
+      }
+
+      console.log("Found user:", userData.account_no)
+
+      // Update user's balance
+      const newBalance = (userData.account_balance || 0) + transactionData.amount
+      await supabase
+        .from("users")
+        .update({
+          account_balance: newBalance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("account_no", transactionData.account_no)
+
+      console.log(`Updated balance from ${userData.account_balance || 0} to ${newBalance}`)
+
+      // Create notification
+      await supabase.from("notifications").insert({
+        account_no: transactionData.account_no,
+        title: "Deposit Successful",
+        message: `Your account has been credited with USD ${transactionData.amount.toFixed(2)}`,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      })
+
+      // Send email notification
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/notifications/send`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "transaction",
+            accountNo: transactionData.account_no,
+            transactionType: transactionData.transaction_type || "Deposit",
+            amount: transactionData.amount,
+            status: "completed",
+            reference: reference,
+            description: "WooshPay deposit",
+          }),
+        })
+      } catch (emailError) {
+        console.error("Failed to send email notification:", emailError)
+        // Don't fail the transaction if email fails
+      }
+
+      console.log("Created notification and attempted to send email")
+    }
+
+    return NextResponse.json({
+      status: wooshPayResponse.data?.status || "unknown",
+      message: wooshPayResponse.message,
+      data: wooshPayResponse.data,
+    })
+  } catch (error: any) {
+    console.error("WooshPay verification error:", error)
+    return NextResponse.json(
+      {
+        message: error.message || "Internal server error",
+        details: process.env.NODE_ENV === "development" ? error.toString() : "Payment verification error",
+      },
+      { status: 500 },
+    )
   }
 }

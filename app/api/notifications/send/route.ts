@@ -1,84 +1,110 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
+import { sendEmail } from "@/lib/resend/client"
 import {
-  sendTransactionEmail,
-  sendKYCStatusEmail,
-  sendAccountStatusEmail,
-  sendGeneralNotificationEmail,
-  getUserByAccountNumber,
-  getUserById,
-} from "@/lib/email/notifications"
+  getTransactionEmailTemplate,
+  getKYCEmailTemplate,
+  getAccountStatusEmailTemplate,
+  getGeneralNotificationEmailTemplate,
+} from "@/lib/email/templates"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
     const body = await request.json()
+    const { type, accountNo, ...data } = body
 
-    const { type, accountNumber, userId, transactionData, kycData, accountStatusData, notificationData } = body
-
-    let user = null
+    const supabase = createRouteHandlerClient({ cookies })
 
     // Get user details
-    if (accountNumber) {
-      user = await getUserByAccountNumber(accountNumber)
-    } else if (userId) {
-      user = await getUserById(userId)
-    }
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("email, first_name, last_name")
+      .eq("account_no", accountNo)
+      .single()
 
-    if (!user) {
+    if (userError || !user) {
+      console.error("User not found:", userError)
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const userName = `${user.first_name} ${user.last_name}`
+    let notificationTitle = ""
+    let notificationMessage = ""
+    let emailTemplate = ""
 
-    // Send appropriate email based on type
+    // Handle different notification types
     switch (type) {
       case "transaction":
-        if (transactionData) {
-          await sendTransactionEmail(
-            user.email,
-            userName,
-            transactionData.transactionType,
-            transactionData.amount,
-            transactionData.status,
-            transactionData.reference,
-            transactionData.description,
-          )
-        }
+        const { transactionType, amount, status, reference, description } = data
+        notificationTitle = `Transaction ${status === "completed" ? "Completed" : status === "pending" ? "Pending" : "Failed"}`
+        notificationMessage = `Your ${transactionType.toLowerCase()} of $${amount.toFixed(2)} has been ${status}.`
+        emailTemplate = getTransactionEmailTemplate(transactionType, amount, status, reference, description)
         break
 
       case "kyc":
-        if (kycData) {
-          await sendKYCStatusEmail(user.email, userName, kycData.status, kycData.rejectionReason)
-        }
+        const { status: kycStatus, reason: kycReason } = data
+        notificationTitle = `KYC ${kycStatus === "approved" ? "Approved" : "Update"}`
+        notificationMessage =
+          kycStatus === "approved"
+            ? "Your KYC verification has been approved. You now have full access to all features."
+            : `Your KYC status has been updated to ${kycStatus}.${kycReason ? ` Reason: ${kycReason}` : ""}`
+        emailTemplate = getKYCEmailTemplate(kycStatus, kycReason)
         break
 
       case "account_status":
-        if (accountStatusData) {
-          await sendAccountStatusEmail(user.email, userName, accountStatusData.status, accountStatusData.reason)
-        }
+        const { status: accountStatus, reason: accountReason } = data
+        notificationTitle = `Account ${accountStatus === "active" ? "Activated" : "Status Update"}`
+        notificationMessage =
+          accountStatus === "active"
+            ? "Your account has been activated. Welcome to IAE Bank!"
+            : `Your account status has been updated to ${accountStatus}.${accountReason ? ` Reason: ${accountReason}` : ""}`
+        emailTemplate = getAccountStatusEmailTemplate(accountStatus, accountReason)
         break
 
       case "general":
-        if (notificationData) {
-          await sendGeneralNotificationEmail(
-            user.email,
-            userName,
-            notificationData.title,
-            notificationData.message,
-            notificationData.type || "info",
-          )
-        }
+        const { title, message } = data
+        notificationTitle = title
+        notificationMessage = message
+        emailTemplate = getGeneralNotificationEmailTemplate(title, message)
         break
 
       default:
         return NextResponse.json({ error: "Invalid notification type" }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true, message: "Email sent successfully" })
+    // Create database notification
+    const { error: notificationError } = await supabase.from("notifications").insert({
+      account_no: accountNo,
+      title: notificationTitle,
+      message: notificationMessage,
+      is_read: false,
+      created_at: new Date().toISOString(),
+    })
+
+    if (notificationError) {
+      console.error("Error creating notification:", notificationError)
+    }
+
+    // Send email notification
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: `IAE Bank - ${notificationTitle}`,
+        html: emailTemplate,
+      })
+      console.log(`Email sent successfully to ${user.email}`)
+    } catch (emailError) {
+      console.error("Failed to send email:", emailError)
+      // Don't fail the entire request if email fails
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Notification sent successfully",
+      notificationCreated: !notificationError,
+    })
   } catch (error) {
-    console.error("Error sending notification email:", error)
-    return NextResponse.json({ error: "Failed to send email" }, { status: 500 })
+    console.error("Error in notification handler:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
