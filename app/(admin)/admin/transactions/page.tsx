@@ -21,7 +21,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react"
-import { useSupabase } from "@/providers/supabase-provider"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
 interface Transaction {
@@ -34,8 +34,8 @@ interface Transaction {
   narration: string
   reference: string
   created_at: string
-  account_no: string
-  user_name: string
+  account_no?: string
+  user_name?: string
 }
 
 interface TransactionStats {
@@ -61,8 +61,9 @@ export default function AdminTransactionsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const { supabase } = useSupabase()
   const { toast } = useToast()
+
+  const supabase = createClient()
 
   useEffect(() => {
     fetchTransactions()
@@ -103,15 +104,17 @@ export default function AdminTransactionsPage() {
       const transformedTransactions =
         transactionsData?.map((transaction: any) => ({
           ...transaction,
-          account_no: transaction.users.account_no,
-          user_name: `${transaction.users.first_name} ${transaction.users.last_name}`,
+          account_no: transaction.users?.account_no || "N/A",
+          user_name: transaction.users
+            ? `${transaction.users.first_name} ${transaction.users.last_name}`
+            : "Unknown User",
         })) || []
 
       setTransactions(transformedTransactions)
 
       // Calculate stats
       const totalTransactions = transformedTransactions.length
-      const totalAmount = transformedTransactions.reduce((sum: number, t: Transaction) => sum + t.amount, 0)
+      const totalAmount = transformedTransactions.reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0)
       const pendingTransactions = transformedTransactions.filter((t: Transaction) => t.status === "pending").length
       const completedTransactions = transformedTransactions.filter((t: Transaction) => t.status === "completed").length
       const failedTransactions = transformedTransactions.filter((t: Transaction) => t.status === "failed").length
@@ -178,14 +181,14 @@ export default function AdminTransactionsPage() {
 
     const csvData = filteredTransactions.map((transaction) => [
       new Date(transaction.created_at).toLocaleDateString(),
-      transaction.account_no,
-      transaction.user_name,
+      transaction.account_no || "N/A",
+      transaction.user_name || "Unknown User",
       transaction.transaction_type,
-      transaction.amount,
+      transaction.amount || 0,
       transaction.status,
-      transaction.payment_method,
-      transaction.reference,
-      transaction.narration,
+      transaction.payment_method || "N/A",
+      transaction.reference || "N/A",
+      transaction.narration || "N/A",
     ])
 
     const csvContent = [headers, ...csvData].map((row) => row.map((field) => `"${field}"`).join(",")).join("\n")
@@ -205,13 +208,6 @@ export default function AdminTransactionsPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    const variants = {
-      completed: "default",
-      pending: "secondary",
-      failed: "destructive",
-      cancelled: "outline",
-    } as const
-
     const colors = {
       completed: "text-green-700 bg-green-100",
       pending: "text-yellow-700 bg-yellow-100",
@@ -220,7 +216,7 @@ export default function AdminTransactionsPage() {
     } as const
 
     return (
-      <Badge className={`${colors[status as keyof typeof colors]} text-xs`}>
+      <Badge className={`${colors[status as keyof typeof colors] || colors.cancelled} text-xs`}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     )
@@ -243,17 +239,21 @@ export default function AdminTransactionsPage() {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-    }).format(amount)
+    }).format(amount || 0)
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+    try {
+      return new Date(dateString).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    } catch (error) {
+      return "Invalid Date"
+    }
   }
 
   if (loading) {
@@ -450,16 +450,16 @@ export default function AdminTransactionsPage() {
 
                       <div className="space-y-2 text-sm text-muted-foreground">
                         <div>
-                          <strong>Method:</strong> {transaction.payment_method}
+                          <strong>Method:</strong> {transaction.payment_method || "N/A"}
                         </div>
                         <div>
-                          <strong>Reference:</strong> {transaction.reference}
+                          <strong>Reference:</strong> {transaction.reference || "N/A"}
                         </div>
                         <div>
                           <strong>Date:</strong> {formatDate(transaction.created_at)}
                         </div>
                         <div>
-                          <strong>Description:</strong> {transaction.narration}
+                          <strong>Description:</strong> {transaction.narration || "N/A"}
                         </div>
                       </div>
                     </div>
@@ -503,10 +503,10 @@ export default function AdminTransactionsPage() {
                         </td>
                         <td className="p-2 font-medium">{formatCurrency(transaction.amount)}</td>
                         <td className="p-2">{getStatusBadge(transaction.status)}</td>
-                        <td className="p-2 text-sm">{transaction.payment_method}</td>
-                        <td className="p-2 text-sm font-mono">{transaction.reference}</td>
-                        <td className="p-2 text-sm max-w-xs truncate" title={transaction.narration}>
-                          {transaction.narration}
+                        <td className="p-2 text-sm">{transaction.payment_method || "N/A"}</td>
+                        <td className="p-2 text-sm font-mono">{transaction.reference || "N/A"}</td>
+                        <td className="p-2 text-sm max-w-xs truncate" title={transaction.narration || "N/A"}>
+                          {transaction.narration || "N/A"}
                         </td>
                       </tr>
                     ))}

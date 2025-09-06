@@ -12,32 +12,51 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { type, accountNo, ...data } = body
+    const { type, accountNo, userId, ...data } = body
 
     const supabase = createRouteHandlerClient({ cookies })
 
-    // Get user details
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("email, first_name, last_name")
-      .eq("account_no", accountNo)
-      .single()
+    // Get user details - try by account number first, then by user ID
+    let user = null
+    if (accountNo) {
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("id, email, first_name, last_name, account_no")
+        .eq("account_no", accountNo)
+        .single()
 
-    if (userError || !user) {
-      console.error("User not found:", userError)
+      if (!userError && userData) {
+        user = userData
+      }
+    } else if (userId) {
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("id, email, first_name, last_name, account_no")
+        .eq("id", userId)
+        .single()
+
+      if (!userError && userData) {
+        user = userData
+      }
+    }
+
+    if (!user) {
+      console.error("User not found for notification")
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     let notificationTitle = ""
     let notificationMessage = ""
     let emailTemplate = ""
+    let notificationType = "info"
 
     // Handle different notification types
     switch (type) {
       case "transaction":
         const { transactionType, amount, status, reference, description } = data
         notificationTitle = `Transaction ${status === "completed" ? "Completed" : status === "pending" ? "Pending" : "Failed"}`
-        notificationMessage = `Your ${transactionType.toLowerCase()} of $${amount.toFixed(2)} has been ${status}.`
+        notificationMessage = `Your ${transactionType.toLowerCase().replace("_", " ")} of $${amount.toFixed(2)} has been ${status}. Reference: ${reference}`
+        notificationType = status === "completed" ? "success" : status === "failed" ? "error" : "info"
         emailTemplate = getTransactionEmailTemplate(transactionType, amount, status, reference, description)
         break
 
@@ -46,8 +65,9 @@ export async function POST(request: NextRequest) {
         notificationTitle = `KYC ${kycStatus === "approved" ? "Approved" : "Update"}`
         notificationMessage =
           kycStatus === "approved"
-            ? "Your KYC verification has been approved. You now have full access to all features."
+            ? "Congratulations! Your KYC verification has been approved. You now have full access to all banking features."
             : `Your KYC status has been updated to ${kycStatus}.${kycReason ? ` Reason: ${kycReason}` : ""}`
+        notificationType = kycStatus === "approved" ? "success" : "warning"
         emailTemplate = getKYCEmailTemplate(kycStatus, kycReason)
         break
 
@@ -58,6 +78,7 @@ export async function POST(request: NextRequest) {
           accountStatus === "active"
             ? "Your account has been activated. Welcome to IAE Bank!"
             : `Your account status has been updated to ${accountStatus}.${accountReason ? ` Reason: ${accountReason}` : ""}`
+        notificationType = accountStatus === "active" ? "success" : "warning"
         emailTemplate = getAccountStatusEmailTemplate(accountStatus, accountReason)
         break
 
@@ -65,6 +86,7 @@ export async function POST(request: NextRequest) {
         const { title, message } = data
         notificationTitle = title
         notificationMessage = message
+        notificationType = "info"
         emailTemplate = getGeneralNotificationEmailTemplate(title, message)
         break
 
@@ -74,9 +96,10 @@ export async function POST(request: NextRequest) {
 
     // Create database notification
     const { error: notificationError } = await supabase.from("notifications").insert({
-      account_no: accountNo,
+      account_no: user.account_no,
       title: notificationTitle,
       message: notificationMessage,
+      type: notificationType,
       is_read: false,
       created_at: new Date().toISOString(),
     })
@@ -86,12 +109,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Send email notification
+    let emailSent = false
     try {
       await sendEmail({
         to: user.email,
         subject: `IAE Bank - ${notificationTitle}`,
         html: emailTemplate,
       })
+      emailSent = true
       console.log(`Email sent successfully to ${user.email}`)
     } catch (emailError) {
       console.error("Failed to send email:", emailError)
@@ -100,8 +125,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Notification sent successfully",
+      message: "Notification processed successfully",
       notificationCreated: !notificationError,
+      emailSent,
     })
   } catch (error) {
     console.error("Error in notification handler:", error)
