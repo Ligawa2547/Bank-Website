@@ -5,218 +5,327 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Search,
+  Download,
+  Eye,
+  Send,
   DollarSign,
   TrendingUp,
-  TrendingDown,
-  Clock,
+  AlertCircle,
   CheckCircle,
-  XCircle,
-  Download,
-  Search,
-  Filter,
-  User,
-  ChevronDown,
-  ChevronUp,
+  RefreshCw,
+  Bell,
+  ArrowUpRight,
+  ArrowDownLeft,
+  CreditCard,
+  Building2,
+  Banknote,
 } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
-import { useToast } from "@/hooks/use-toast"
 
 interface Transaction {
   id: string
   user_id: string
-  transaction_type: "deposit" | "withdrawal" | "transfer"
+  account_no: string
+  transaction_type: "deposit" | "withdrawal" | "transfer_in" | "transfer_out" | "loan_disbursement" | "loan_repayment"
   amount: number
   status: "pending" | "completed" | "failed" | "cancelled"
-  payment_method: string
-  narration: string
   reference: string
+  narration: string
+  recipient_account_number?: string
+  recipient_name?: string
+  sender_account_number?: string
+  sender_name?: string
+  payment_method?: string
   created_at: string
-  account_no?: string
-  user_name?: string
+  updated_at?: string
+  metadata?: any
+  users?: {
+    id: string
+    email: string
+    first_name: string
+    last_name: string
+    phone_number: string
+    account_number: string
+  }
 }
 
 interface TransactionStats {
-  total_transactions: number
-  total_amount: number
-  pending_transactions: number
-  completed_transactions: number
-  failed_transactions: number
+  totalTransactions: number
+  totalAmount: number
+  pendingCount: number
+  completedCount: number
+  failedCount: number
+  todayTransactions: number
+  todayAmount: number
+  paypalTransactions: number
+  paypalAmount: number
 }
 
 export default function AdminTransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([])
   const [stats, setStats] = useState<TransactionStats>({
-    total_transactions: 0,
-    total_amount: 0,
-    pending_transactions: 0,
-    completed_transactions: 0,
-    failed_transactions: 0,
+    totalTransactions: 0,
+    totalAmount: 0,
+    pendingCount: 0,
+    completedCount: 0,
+    failedCount: 0,
+    todayTransactions: 0,
+    todayAmount: 0,
+    paypalTransactions: 0,
+    paypalAmount: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [typeFilter, setTypeFilter] = useState("all")
-  const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const { toast } = useToast()
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [typeFilter, setTypeFilter] = useState<string>("all")
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  const [notificationLoading, setNotificationLoading] = useState(false)
+  const [notificationForm, setNotificationForm] = useState({
+    title: "",
+    message: "",
+    type: "info" as "info" | "success" | "warning" | "error",
+  })
 
   const supabase = createClient()
 
   useEffect(() => {
     fetchTransactions()
+    fetchStats()
   }, [])
-
-  useEffect(() => {
-    filterTransactions()
-  }, [transactions, searchTerm, statusFilter, typeFilter])
 
   const fetchTransactions = async () => {
     try {
       setLoading(true)
+      setError("")
 
-      // Fetch transactions with user details
+      // Fetch all transactions with user information
       const { data: transactionsData, error: transactionsError } = await supabase
         .from("transactions")
         .select(`
           *,
-          users!inner(
-            account_no,
+          users!transactions_account_no_fkey (
+            id,
+            email,
             first_name,
-            last_name
+            last_name,
+            phone_number,
+            account_number
           )
         `)
         .order("created_at", { ascending: false })
+        .limit(500) // Increased limit to get more transactions
 
       if (transactionsError) {
-        console.error("Error fetching transactions:", transactionsError)
-        toast({
-          title: "Error",
-          description: "Failed to load transactions",
-          variant: "destructive",
-        })
-        return
+        console.error("Transactions query error:", transactionsError)
+        throw transactionsError
       }
 
-      // Transform the data to include user info
-      const transformedTransactions =
-        transactionsData?.map((transaction: any) => ({
-          ...transaction,
-          account_no: transaction.users?.account_no || "N/A",
-          user_name: transaction.users
-            ? `${transaction.users.first_name} ${transaction.users.last_name}`
-            : "Unknown User",
-        })) || []
+      console.log(`Fetched ${transactionsData?.length || 0} transactions`)
 
-      setTransactions(transformedTransactions)
+      // Process transactions to ensure we have all data
+      const processedTransactions = (transactionsData || []).map((transaction) => ({
+        ...transaction,
+        users: transaction.users || {
+          id: "",
+          email: "N/A",
+          first_name: "Unknown",
+          last_name: "User",
+          phone_number: "N/A",
+          account_number: transaction.account_no || "N/A",
+        },
+      }))
 
-      // Calculate stats
-      const totalTransactions = transformedTransactions.length
-      const totalAmount = transformedTransactions.reduce((sum: number, t: Transaction) => sum + (t.amount || 0), 0)
-      const pendingTransactions = transformedTransactions.filter((t: Transaction) => t.status === "pending").length
-      const completedTransactions = transformedTransactions.filter((t: Transaction) => t.status === "completed").length
-      const failedTransactions = transformedTransactions.filter((t: Transaction) => t.status === "failed").length
-
-      setStats({
-        total_transactions: totalTransactions,
-        total_amount: totalAmount,
-        pending_transactions: pendingTransactions,
-        completed_transactions: completedTransactions,
-        failed_transactions: failedTransactions,
-      })
-    } catch (error) {
-      console.error("Error fetching transactions:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load transactions",
-        variant: "destructive",
-      })
+      setTransactions(processedTransactions)
+    } catch (err) {
+      console.error("Error fetching transactions:", err)
+      setError(err instanceof Error ? err.message : "Failed to fetch transactions")
+      setTransactions([])
     } finally {
       setLoading(false)
     }
   }
 
-  const filterTransactions = () => {
-    let filtered = transactions
+  const fetchStats = async () => {
+    try {
+      const { data: transactionsData, error } = await supabase
+        .from("transactions")
+        .select("amount, status, created_at, payment_method, transaction_type")
 
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (transaction) =>
-          transaction.account_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          transaction.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          transaction.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          transaction.narration?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          transaction.payment_method?.toLowerCase().includes(searchTerm.toLowerCase()),
+      if (error) {
+        throw error
+      }
+
+      if (!transactionsData) {
+        return
+      }
+
+      const today = new Date().toISOString().split("T")[0]
+      const todayTransactions = transactionsData.filter((t) => t.created_at?.startsWith(today))
+      const paypalTransactions = transactionsData.filter(
+        (t) =>
+          t.payment_method === "paypal" ||
+          t.payment_method === "paypal_card" ||
+          (t.narration && t.narration.toLowerCase().includes("paypal")),
       )
-    }
 
-    // Status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((transaction) => transaction.status === statusFilter)
-    }
+      const stats: TransactionStats = {
+        totalTransactions: transactionsData.length,
+        totalAmount: transactionsData.reduce((sum, t) => sum + (Number(t.amount) || 0), 0),
+        pendingCount: transactionsData.filter((t) => t.status === "pending").length,
+        completedCount: transactionsData.filter((t) => t.status === "completed").length,
+        failedCount: transactionsData.filter((t) => t.status === "failed").length,
+        todayTransactions: todayTransactions.length,
+        todayAmount: todayTransactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0),
+        paypalTransactions: paypalTransactions.length,
+        paypalAmount: paypalTransactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0),
+      }
 
-    // Type filter
-    if (typeFilter !== "all") {
-      filtered = filtered.filter((transaction) => transaction.transaction_type === typeFilter)
+      setStats(stats)
+    } catch (err) {
+      console.error("Error fetching stats:", err)
     }
-
-    setFilteredTransactions(filtered)
   }
 
-  const exportToCSV = () => {
-    const headers = [
-      "Date",
-      "Account Number",
-      "User Name",
-      "Type",
-      "Amount",
-      "Status",
-      "Payment Method",
-      "Reference",
-      "Description",
-    ]
+  const sendNotification = async (userId: string) => {
+    if (!notificationForm.title.trim() || !notificationForm.message.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in both title and message",
+        variant: "destructive",
+      })
+      return
+    }
 
-    const csvData = filteredTransactions.map((transaction) => [
-      new Date(transaction.created_at).toLocaleDateString(),
-      transaction.account_no || "N/A",
-      transaction.user_name || "Unknown User",
-      transaction.transaction_type,
-      transaction.amount || 0,
-      transaction.status,
-      transaction.payment_method || "N/A",
-      transaction.reference || "N/A",
-      transaction.narration || "N/A",
-    ])
+    try {
+      setNotificationLoading(true)
 
-    const csvContent = [headers, ...csvData].map((row) => row.map((field) => `"${field}"`).join(",")).join("\n")
+      const response = await fetch("/api/notifications/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId,
+          title: notificationForm.title,
+          message: notificationForm.message,
+          type: notificationForm.type,
+          sendEmail: true,
+        }),
+      })
 
-    const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `transactions-${new Date().toISOString().split("T")[0]}.csv`
-    a.click()
-    window.URL.revokeObjectURL(url)
+      const result = await response.json()
 
-    toast({
-      title: "Export Successful",
-      description: "Transactions exported to CSV file",
-    })
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to send notification")
+      }
+
+      toast({
+        title: "Notification Sent",
+        description: `Notification sent successfully to user. Email also sent to ${selectedTransaction?.users?.email || "user"}.`,
+      })
+
+      setNotificationForm({
+        title: "",
+        message: "",
+        type: "info",
+      })
+
+      setSelectedTransaction(null)
+    } catch (err) {
+      console.error("Error sending notification:", err)
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to send notification",
+        variant: "destructive",
+      })
+    } finally {
+      setNotificationLoading(false)
+    }
+  }
+
+  const exportTransactions = () => {
+    try {
+      const csvContent = [
+        [
+          "ID",
+          "User Email",
+          "User Name",
+          "Account Number",
+          "Type",
+          "Amount",
+          "Status",
+          "Payment Method",
+          "Description",
+          "Reference",
+          "Created At",
+        ].join(","),
+        ...filteredTransactions.map((t) =>
+          [
+            t.id,
+            t.users?.email || "N/A",
+            `${t.users?.first_name || "Unknown"} ${t.users?.last_name || "User"}`,
+            t.users?.account_number || t.account_no || "N/A",
+            t.transaction_type,
+            t.amount,
+            t.status,
+            t.payment_method || "N/A",
+            `"${t.narration || ""}"`,
+            t.reference || "",
+            new Date(t.created_at).toLocaleString(),
+          ].join(","),
+        ),
+      ].join("\n")
+
+      const blob = new Blob([csvContent], { type: "text/csv" })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `admin-transactions-${new Date().toISOString().split("T")[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "Export Successful",
+        description: "Transactions exported to CSV file",
+      })
+    } catch (err) {
+      toast({
+        title: "Export Failed",
+        description: "Failed to export transactions",
+        variant: "destructive",
+      })
+    }
   }
 
   const getStatusBadge = (status: string) => {
     const colors = {
-      completed: "text-green-700 bg-green-100",
       pending: "text-yellow-700 bg-yellow-100",
+      completed: "text-green-700 bg-green-100",
       failed: "text-red-700 bg-red-100",
       cancelled: "text-gray-700 bg-gray-100",
-    } as const
+    }
 
     return (
-      <Badge className={`${colors[status as keyof typeof colors] || colors.cancelled} text-xs`}>
+      <Badge className={colors[status as keyof typeof colors] || colors.pending}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     )
@@ -225,296 +334,484 @@ export default function AdminTransactionsPage() {
   const getTypeIcon = (type: string) => {
     switch (type) {
       case "deposit":
-        return <TrendingUp className="h-4 w-4 text-green-600" />
+        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
       case "withdrawal":
-        return <TrendingDown className="h-4 w-4 text-red-600" />
-      case "transfer":
-        return <DollarSign className="h-4 w-4 text-blue-600" />
+        return <ArrowUpRight className="h-4 w-4 text-red-600" />
+      case "transfer_in":
+        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
+      case "transfer_out":
+        return <ArrowUpRight className="h-4 w-4 text-red-600" />
+      case "loan_disbursement":
+        return <Building2 className="h-4 w-4 text-blue-600" />
+      case "loan_repayment":
+        return <CreditCard className="h-4 w-4 text-orange-600" />
       default:
-        return <DollarSign className="h-4 w-4 text-gray-600" />
+        return <Banknote className="h-4 w-4 text-gray-600" />
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount || 0)
-  }
-
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    } catch (error) {
-      return "Invalid Date"
+  const getTransactionTypeLabel = (type: string) => {
+    switch (type) {
+      case "deposit":
+        return "Deposit"
+      case "withdrawal":
+        return "Withdrawal"
+      case "transfer_in":
+        return "Money Received"
+      case "transfer_out":
+        return "Money Sent"
+      case "loan_disbursement":
+        return "Loan Disbursement"
+      case "loan_repayment":
+        return "Loan Payment"
+      default:
+        return type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ")
     }
   }
+
+  const filteredTransactions = transactions.filter((transaction) => {
+    const matchesSearch =
+      !searchTerm ||
+      transaction.users?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.users?.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.users?.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.narration?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.users?.account_number?.includes(searchTerm) ||
+      transaction.account_no?.includes(searchTerm)
+
+    const matchesStatus = statusFilter === "all" || transaction.status === statusFilter
+    const matchesType = typeFilter === "all" || transaction.transaction_type === typeFilter
+
+    return matchesSearch && matchesStatus && matchesType
+  })
 
   if (loading) {
     return (
-      <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-24 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-          <div className="h-96 bg-gray-200 rounded"></div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading transactions...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Transactions</h1>
+          <h1 className="text-3xl font-bold">Transaction Management</h1>
           <p className="text-muted-foreground">Monitor and manage all user transactions</p>
         </div>
-        <Button onClick={exportToCSV} className="w-full sm:w-auto">
-          <Download className="h-4 w-4 mr-2" />
-          <span className="sm:hidden">Export</span>
-          <span className="hidden sm:inline">Export CSV</span>
+        <Button onClick={exportTransactions} className="flex items-center gap-2">
+          <Download className="h-4 w-4" />
+          Export CSV
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <Card className="p-3 sm:p-4">
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Total</p>
-                <p className="text-lg sm:text-2xl font-bold">{stats.total_transactions}</p>
-              </div>
-              <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
-            </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Transactions</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalTransactions.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              ${stats.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} total volume
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="p-3 sm:p-4">
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Volume</p>
-                <p className="text-sm sm:text-lg font-bold">{formatCurrency(stats.total_amount)}</p>
-              </div>
-              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
-            </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">PayPal Transactions</CardTitle>
+            <CreditCard className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{stats.paypalTransactions}</div>
+            <p className="text-xs text-muted-foreground">
+              ${stats.paypalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} via PayPal
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="p-3 sm:p-4">
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Pending</p>
-                <p className="text-lg sm:text-2xl font-bold">{stats.pending_transactions}</p>
-              </div>
-              <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-600" />
-            </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Today's Activity</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.todayTransactions}</div>
+            <p className="text-xs text-muted-foreground">
+              ${stats.todayAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} today
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="p-3 sm:p-4">
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Completed</p>
-                <p className="text-lg sm:text-2xl font-bold">{stats.completed_transactions}</p>
-              </div>
-              <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {stats.totalTransactions > 0 ? Math.round((stats.completedCount / stats.totalTransactions) * 100) : 0}%
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="p-3 sm:p-4 col-span-2 sm:col-span-1">
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Failed</p>
-                <p className="text-lg sm:text-2xl font-bold">{stats.failed_transactions}</p>
-              </div>
-              <XCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
-            </div>
+            <p className="text-xs text-muted-foreground">
+              {stats.completedCount} completed, {stats.failedCount} failed
+            </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <CardTitle className="text-lg">Filter Transactions</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowMobileFilters(!showMobileFilters)}
-              className="sm:hidden w-full"
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              Filters
-              {showMobileFilters ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
-            </Button>
-          </div>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
         </CardHeader>
-        <CardContent className={`space-y-4 ${showMobileFilters ? "block" : "hidden"} sm:block`}>
+        <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
+              <Label htmlFor="search">Search</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by account number, name, reference..."
+                  id="search"
+                  placeholder="Search by email, name, account, reference, or description..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="deposit">Deposits</SelectItem>
-                <SelectItem value="withdrawal">Withdrawals</SelectItem>
-                <SelectItem value="transfer">Transfers</SelectItem>
-              </SelectContent>
-            </Select>
+            <div>
+              <Label htmlFor="status">Status</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="type">Type</Label>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="deposit">Deposits</SelectItem>
+                  <SelectItem value="withdrawal">Withdrawals</SelectItem>
+                  <SelectItem value="transfer_in">Money Received</SelectItem>
+                  <SelectItem value="transfer_out">Money Sent</SelectItem>
+                  <SelectItem value="loan_disbursement">Loan Disbursements</SelectItem>
+                  <SelectItem value="loan_repayment">Loan Payments</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Transactions List */}
+      {/* Transactions Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Transactions ({filteredTransactions.length})</CardTitle>
+          <CardTitle>All Transactions ({filteredTransactions.length})</CardTitle>
           <CardDescription>
-            {filteredTransactions.length === 0 ? "No transactions found" : "Latest transaction activity"}
+            {filteredTransactions.length === transactions.length
+              ? "Showing all transactions"
+              : `Showing ${filteredTransactions.length} of ${transactions.length} transactions`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredTransactions.length === 0 ? (
-            <Alert>
-              <AlertDescription>No transactions found matching your current filters.</AlertDescription>
-            </Alert>
-          ) : (
-            <div className="space-y-4">
-              {/* Mobile Layout */}
-              <div className="sm:hidden space-y-4">
-                {filteredTransactions.map((transaction) => (
-                  <Card key={transaction.id} className="p-4">
-                    <div className="space-y-3">
-                      {/* Account Info - Highlighted */}
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <div className="flex items-center gap-2 mb-1">
-                          <User className="h-4 w-4 text-gray-600" />
-                          <span className="text-sm font-medium text-gray-700">Account:</span>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-2">User</th>
+                  <th className="text-left p-2">Account</th>
+                  <th className="text-left p-2">Type</th>
+                  <th className="text-left p-2">Amount</th>
+                  <th className="text-left p-2">Payment Method</th>
+                  <th className="text-left p-2">Status</th>
+                  <th className="text-left p-2">Date</th>
+                  <th className="text-left p-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center p-8 text-muted-foreground">
+                      {transactions.length === 0 ? "No transactions found" : "No transactions match your filters"}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTransactions.map((transaction) => (
+                    <tr key={transaction.id} className="border-b hover:bg-muted/50">
+                      <td className="p-2">
+                        <div>
+                          <div className="font-medium">
+                            {transaction.users?.first_name || "Unknown"} {transaction.users?.last_name || "User"}
+                          </div>
+                          <div className="text-sm text-muted-foreground">{transaction.users?.email || "N/A"}</div>
                         </div>
-                        <div className="font-bold text-lg text-gray-900">{transaction.account_no}</div>
-                        <div className="text-sm text-gray-600">{transaction.user_name}</div>
-                      </div>
-
-                      {/* Transaction Details */}
-                      <div className="flex items-center justify-between">
+                      </td>
+                      <td className="p-2">
+                        <div className="font-mono text-sm">
+                          {transaction.users?.account_number || transaction.account_no || "N/A"}
+                        </div>
+                      </td>
+                      <td className="p-2">
                         <div className="flex items-center gap-2">
                           {getTypeIcon(transaction.transaction_type)}
-                          <span className="font-medium capitalize">{transaction.transaction_type}</span>
+                          <span className="text-sm">{getTransactionTypeLabel(transaction.transaction_type)}</span>
                         </div>
-                        <div className="text-right">
-                          <div className="font-bold text-lg">{formatCurrency(transaction.amount)}</div>
-                          {getStatusBadge(transaction.status)}
+                      </td>
+                      <td className="p-2">
+                        <div className="font-medium">
+                          ${Number(transaction.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </div>
-                      </div>
+                      </td>
+                      <td className="p-2">
+                        <div className="text-sm">
+                          {transaction.payment_method ? (
+                            <Badge variant="outline" className="text-xs">
+                              {transaction.payment_method === "paypal_card"
+                                ? "PayPal Card"
+                                : transaction.payment_method === "paypal"
+                                  ? "PayPal"
+                                  : transaction.payment_method.charAt(0).toUpperCase() +
+                                    transaction.payment_method.slice(1)}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">N/A</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-2">{getStatusBadge(transaction.status)}</td>
+                      <td className="p-2">
+                        <div className="text-sm">{new Date(transaction.created_at).toLocaleDateString()}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(transaction.created_at).toLocaleTimeString()}
+                        </div>
+                      </td>
+                      <td className="p-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm" onClick={() => setSelectedTransaction(transaction)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                              <DialogTitle>Transaction Details</DialogTitle>
+                              <DialogDescription>View transaction information and send notifications</DialogDescription>
+                            </DialogHeader>
 
-                      <div className="space-y-2 text-sm text-muted-foreground">
-                        <div>
-                          <strong>Method:</strong> {transaction.payment_method || "N/A"}
-                        </div>
-                        <div>
-                          <strong>Reference:</strong> {transaction.reference || "N/A"}
-                        </div>
-                        <div>
-                          <strong>Date:</strong> {formatDate(transaction.created_at)}
-                        </div>
-                        <div>
-                          <strong>Description:</strong> {transaction.narration || "N/A"}
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+                            {selectedTransaction && (
+                              <Tabs defaultValue="details" className="w-full">
+                                <TabsList className="grid w-full grid-cols-2">
+                                  <TabsTrigger value="details">Details</TabsTrigger>
+                                  <TabsTrigger value="notify">Send Notification</TabsTrigger>
+                                </TabsList>
 
-              {/* Desktop Layout */}
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2 font-medium">Date</th>
-                      <th className="text-left p-2 font-medium">Account</th>
-                      <th className="text-left p-2 font-medium">Type</th>
-                      <th className="text-left p-2 font-medium">Amount</th>
-                      <th className="text-left p-2 font-medium">Status</th>
-                      <th className="text-left p-2 font-medium">Method</th>
-                      <th className="text-left p-2 font-medium">Reference</th>
-                      <th className="text-left p-2 font-medium">Description</th>
+                                <TabsContent value="details" className="space-y-4">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <Label>Transaction ID</Label>
+                                      <p className="text-sm font-mono bg-muted p-2 rounded">{selectedTransaction.id}</p>
+                                    </div>
+                                    <div>
+                                      <Label>Reference</Label>
+                                      <p className="text-sm font-mono bg-muted p-2 rounded">
+                                        {selectedTransaction.reference || "N/A"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>User Email</Label>
+                                      <p className="text-sm bg-muted p-2 rounded">
+                                        {selectedTransaction.users?.email || "N/A"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>User Name</Label>
+                                      <p className="text-sm bg-muted p-2 rounded">
+                                        {selectedTransaction.users?.first_name || "Unknown"}{" "}
+                                        {selectedTransaction.users?.last_name || "User"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Account Number</Label>
+                                      <p className="text-sm font-mono bg-muted p-2 rounded">
+                                        {selectedTransaction.users?.account_number ||
+                                          selectedTransaction.account_no ||
+                                          "N/A"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Payment Method</Label>
+                                      <p className="text-sm bg-muted p-2 rounded">
+                                        {selectedTransaction.payment_method || "N/A"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Type</Label>
+                                      <div className="flex items-center gap-2 bg-muted p-2 rounded">
+                                        {getTypeIcon(selectedTransaction.transaction_type)}
+                                        <span className="text-sm">
+                                          {getTransactionTypeLabel(selectedTransaction.transaction_type)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <Label>Status</Label>
+                                      <div className="bg-muted p-2 rounded">
+                                        {getStatusBadge(selectedTransaction.status)}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <Label>Amount</Label>
+                                      <p className="text-sm font-medium bg-muted p-2 rounded">
+                                        $
+                                        {Number(selectedTransaction.amount || 0).toLocaleString(undefined, {
+                                          minimumFractionDigits: 2,
+                                        })}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Created</Label>
+                                      <p className="text-sm bg-muted p-2 rounded">
+                                        {new Date(selectedTransaction.created_at).toLocaleString()}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {selectedTransaction.narration && (
+                                    <div>
+                                      <Label>Description</Label>
+                                      <p className="text-sm bg-muted p-2 rounded">{selectedTransaction.narration}</p>
+                                    </div>
+                                  )}
+
+                                  {selectedTransaction.metadata && (
+                                    <div>
+                                      <Label>Metadata</Label>
+                                      <pre className="text-xs bg-muted p-2 rounded overflow-auto">
+                                        {JSON.stringify(selectedTransaction.metadata, null, 2)}
+                                      </pre>
+                                    </div>
+                                  )}
+                                </TabsContent>
+
+                                <TabsContent value="notify" className="space-y-4">
+                                  <div className="space-y-4">
+                                    <div>
+                                      <Label htmlFor="notif-title">Notification Title</Label>
+                                      <Input
+                                        id="notif-title"
+                                        value={notificationForm.title}
+                                        onChange={(e) =>
+                                          setNotificationForm((prev) => ({ ...prev, title: e.target.value }))
+                                        }
+                                        placeholder="Enter notification title..."
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <Label htmlFor="notif-message">Message</Label>
+                                      <Textarea
+                                        id="notif-message"
+                                        value={notificationForm.message}
+                                        onChange={(e) =>
+                                          setNotificationForm((prev) => ({ ...prev, message: e.target.value }))
+                                        }
+                                        placeholder="Enter notification message..."
+                                        rows={4}
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <Label htmlFor="notif-type">Type</Label>
+                                      <Select
+                                        value={notificationForm.type}
+                                        onValueChange={(value: "info" | "success" | "warning" | "error") =>
+                                          setNotificationForm((prev) => ({ ...prev, type: value }))
+                                        }
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="info">Info</SelectItem>
+                                          <SelectItem value="success">Success</SelectItem>
+                                          <SelectItem value="warning">Warning</SelectItem>
+                                          <SelectItem value="error">Error</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    <Alert>
+                                      <Bell className="h-4 w-4" />
+                                      <AlertDescription>
+                                        This notification will be sent to{" "}
+                                        <strong>{selectedTransaction.users?.email || "the user"}</strong> both in-app
+                                        and via email.
+                                      </AlertDescription>
+                                    </Alert>
+
+                                    <Button
+                                      onClick={() =>
+                                        selectedTransaction && sendNotification(selectedTransaction.user_id)
+                                      }
+                                      disabled={
+                                        notificationLoading ||
+                                        !notificationForm.title.trim() ||
+                                        !notificationForm.message.trim()
+                                      }
+                                      className="w-full"
+                                    >
+                                      {notificationLoading ? (
+                                        <>
+                                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                          Sending...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Send className="h-4 w-4 mr-2" />
+                                          Send Notification & Email
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
+                                </TabsContent>
+                              </Tabs>
+                            )}
+                          </DialogContent>
+                        </Dialog>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTransactions.map((transaction) => (
-                      <tr key={transaction.id} className="border-b hover:bg-gray-50">
-                        <td className="p-2 text-sm">{formatDate(transaction.created_at)}</td>
-                        <td className="p-2">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-gray-600" />
-                            <div>
-                              <div className="font-bold text-gray-900">{transaction.account_no}</div>
-                              <div className="text-xs text-gray-600">{transaction.user_name}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-2">
-                          <div className="flex items-center gap-2">
-                            {getTypeIcon(transaction.transaction_type)}
-                            <span className="capitalize text-sm">{transaction.transaction_type}</span>
-                          </div>
-                        </td>
-                        <td className="p-2 font-medium">{formatCurrency(transaction.amount)}</td>
-                        <td className="p-2">{getStatusBadge(transaction.status)}</td>
-                        <td className="p-2 text-sm">{transaction.payment_method || "N/A"}</td>
-                        <td className="p-2 text-sm font-mono">{transaction.reference || "N/A"}</td>
-                        <td className="p-2 text-sm max-w-xs truncate" title={transaction.narration || "N/A"}>
-                          {transaction.narration || "N/A"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
     </div>

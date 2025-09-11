@@ -4,9 +4,10 @@ import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { SupabaseClient, User } from "@supabase/supabase-js"
+import type { Database } from "@/types/supabase"
 
 type SupabaseContext = {
-  supabase: SupabaseClient
+  supabase: SupabaseClient<Database>
   user: User | null
   loading: boolean
 }
@@ -22,7 +23,7 @@ export function useSupabase() {
 }
 
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
-  const [supabase] = useState(() => createClientComponentClient())
+  const [supabase] = useState(() => createClientComponentClient<Database>())
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 

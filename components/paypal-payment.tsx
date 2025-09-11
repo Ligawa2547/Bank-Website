@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, AlertCircle, CheckCircle, Wallet } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Loader2, AlertCircle, CheckCircle, Wallet, RefreshCw } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 
 interface PayPalPaymentProps {
@@ -16,7 +17,13 @@ interface PayPalPaymentProps {
 
 declare global {
   interface Window {
-    paypal?: any
+    paypal?: {
+      Buttons: (config: any) => { render: (element: HTMLElement) => Promise<void> }
+      FUNDING: {
+        PAYPAL: string
+        CARD: string
+      }
+    }
   }
 }
 
@@ -25,26 +32,92 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [paypalLoaded, setPaypalLoaded] = useState(false)
+  const [sdkError, setSdkError] = useState("")
+  const [retryCount, setRetryCount] = useState(0)
   const paypalRef = useRef<HTMLDivElement>(null)
   const cardPaypalRef = useRef<HTMLDivElement>(null)
+  const checkAttempts = useRef(0)
+  const maxRetries = 3
 
   useEffect(() => {
-    // Check if PayPal SDK is loaded
-    const checkPayPal = () => {
-      if (window.paypal) {
-        setPaypalLoaded(true)
-        renderPayPalButtons()
-      } else {
-        setTimeout(checkPayPal, 100)
-      }
+    // Check if PayPal is already loaded
+    if (window.paypal && typeof window.paypal.Buttons === "function") {
+      console.log("✅ PayPal SDK already loaded")
+      setPaypalLoaded(true)
+      return
     }
-    checkPayPal()
-  }, [amount])
+
+    // Listen for PayPal SDK load events
+    const handlePayPalLoad = () => {
+      console.log("✅ PayPal SDK loaded via event")
+      setPaypalLoaded(true)
+      setSdkError("")
+    }
+
+    const handlePayPalError = () => {
+      console.error("❌ PayPal SDK failed to load via event")
+      setSdkError("PayPal SDK failed to load. Please check your internet connection.")
+    }
+
+    window.addEventListener("paypal-sdk-loaded", handlePayPalLoad)
+    window.addEventListener("paypal-sdk-error", handlePayPalError)
+
+    // Start checking for PayPal SDK
+    checkAttempts.current = 0
+    checkPayPalSDK()
+
+    return () => {
+      window.removeEventListener("paypal-sdk-loaded", handlePayPalLoad)
+      window.removeEventListener("paypal-sdk-error", handlePayPalError)
+    }
+  }, [retryCount])
+
+  useEffect(() => {
+    // Re-render buttons when amount changes and PayPal is loaded
+    if (paypalLoaded && amount) {
+      renderPayPalButtons()
+    }
+  }, [amount, paypalLoaded])
+
+  const checkPayPalSDK = () => {
+    checkAttempts.current += 1
+
+    if (window.paypal && typeof window.paypal.Buttons === "function") {
+      console.log("✅ PayPal SDK loaded successfully")
+      setPaypalLoaded(true)
+      setSdkError("")
+      return
+    }
+
+    // Stop checking after 100 attempts (10 seconds)
+    if (checkAttempts.current >= 100) {
+      console.error("❌ PayPal SDK failed to load after 10 seconds")
+      setSdkError("PayPal SDK failed to load. This might be due to network issues or ad blockers.")
+      return
+    }
+
+    // Continue checking every 100ms
+    setTimeout(checkPayPalSDK, 100)
+  }
+
+  const retryPayPalLoad = () => {
+    if (retryCount < maxRetries) {
+      setRetryCount((prev) => prev + 1)
+      setSdkError("")
+      setPaypalLoaded(false)
+      checkAttempts.current = 0
+
+      // Force reload the page to retry PayPal SDK loading
+      window.location.reload()
+    } else {
+      setSdkError("Maximum retry attempts reached. Please refresh the page manually.")
+    }
+  }
 
   const renderPayPalButtons = () => {
     const paymentAmount = Number.parseFloat(amount)
 
-    if (!paymentAmount || paymentAmount <= 0 || !window.paypal) {
+    if (!paymentAmount || paymentAmount <= 0 || !window.paypal || typeof window.paypal.Buttons !== "function") {
       return
     }
 
@@ -56,10 +129,10 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
       cardPaypalRef.current.innerHTML = ""
     }
 
-    // PayPal Account Button
-    if (paypalRef.current) {
-      window.paypal
-        .Buttons({
+    try {
+      // PayPal Account Button
+      if (paypalRef.current) {
+        const paypalButton = window.paypal.Buttons({
           style: {
             layout: "vertical",
             color: "blue",
@@ -67,7 +140,7 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
             label: "paypal",
             height: 40,
           },
-          fundingSource: window.paypal.FUNDING.PAYPAL,
+          fundingSource: window.paypal.FUNDING?.PAYPAL,
           createOrder: async (data: any, actions: any) => {
             try {
               setLoading(true)
@@ -95,6 +168,7 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
               const errorMessage = err instanceof Error ? err.message : "Payment failed"
               setError(errorMessage)
               onError?.(errorMessage)
+              setLoading(false)
               throw err
             }
           },
@@ -140,13 +214,16 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
             setLoading(false)
           },
         })
-        .render(paypalRef.current)
-    }
 
-    // Card Payment Button
-    if (cardPaypalRef.current) {
-      window.paypal
-        .Buttons({
+        paypalButton.render(paypalRef.current).catch((err: any) => {
+          console.error("PayPal button render error:", err)
+          setError("Failed to load PayPal button")
+        })
+      }
+
+      // Card Payment Button
+      if (cardPaypalRef.current) {
+        const cardButton = window.paypal.Buttons({
           style: {
             layout: "vertical",
             color: "white",
@@ -154,7 +231,7 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
             label: "pay",
             height: 40,
           },
-          fundingSource: window.paypal.FUNDING.CARD,
+          fundingSource: window.paypal.FUNDING?.CARD,
           createOrder: async (data: any, actions: any) => {
             try {
               setLoading(true)
@@ -182,6 +259,7 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
               const errorMessage = err instanceof Error ? err.message : "Payment failed"
               setError(errorMessage)
               onError?.(errorMessage)
+              setLoading(false)
               throw err
             }
           },
@@ -227,7 +305,15 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
             setLoading(false)
           },
         })
-        .render(cardPaypalRef.current)
+
+        cardButton.render(cardPaypalRef.current).catch((err: any) => {
+          console.error("PayPal card button render error:", err)
+          setError("Failed to load card payment button")
+        })
+      }
+    } catch (err) {
+      console.error("Error rendering PayPal buttons:", err)
+      setError("Failed to initialize payment buttons")
     }
   }
 
@@ -275,10 +361,36 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
             </Alert>
           )}
 
-          {!paypalLoaded && (
+          {sdkError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p>{sdkError}</p>
+                  {retryCount < maxRetries && (
+                    <Button variant="outline" size="sm" onClick={retryPayPalLoad} className="w-full bg-transparent">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Retry Loading PayPal ({retryCount + 1}/{maxRetries})
+                    </Button>
+                  )}
+                  <div className="text-xs text-muted-foreground">
+                    <p>Possible solutions:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Check your internet connection</li>
+                      <li>Disable ad blockers for this site</li>
+                      <li>Try refreshing the page</li>
+                      <li>Use a different browser</li>
+                    </ul>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {!paypalLoaded && !sdkError && (
             <Alert>
               <Loader2 className="h-4 w-4 animate-spin" />
-              <AlertDescription>Loading PayPal payment options...</AlertDescription>
+              <AlertDescription>Loading PayPal payment options... ({checkAttempts.current}/100)</AlertDescription>
             </Alert>
           )}
 
@@ -297,7 +409,7 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
                 </div>
 
                 {isValidAmount() ? (
-                  <div ref={paypalRef} className="w-full"></div>
+                  <div ref={paypalRef} className="w-full min-h-[50px]"></div>
                 ) : (
                   <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-sm text-muted-foreground">
                     Enter an amount between $1.00 and $10,000.00 to see PayPal button
@@ -313,7 +425,7 @@ export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
                 </div>
 
                 {isValidAmount() ? (
-                  <div ref={cardPaypalRef} className="w-full"></div>
+                  <div ref={cardPaypalRef} className="w-full min-h-[50px]"></div>
                 ) : (
                   <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-sm text-muted-foreground">
                     Enter an amount between $1.00 and $10,000.00 to see card payment button

@@ -3,19 +3,21 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { User, Mail, Phone, MapPin, Calendar, Shield } from "lucide-react"
-import { useProfile } from "@/hooks/use-profile"
+import { User, Shield, Edit } from "lucide-react"
+import { useAuth } from "@/lib/auth-provider"
 import Link from "next/link"
 
 export function AccountDetailsCard() {
-  const { profile, loading } = useProfile()
+  const { profile, loading } = useAuth()
 
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Account Details</CardTitle>
-          <CardDescription>Your account information</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Account Details
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="animate-pulse space-y-4">
@@ -32,115 +34,97 @@ export function AccountDetailsCard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Account Details</CardTitle>
-          <CardDescription>Your account information</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Account Details
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Unable to load account details</p>
+          <p className="text-gray-500">Profile information not available</p>
         </CardContent>
       </Card>
     )
   }
 
-  const getVerificationStatus = () => {
-    if (profile.kyc_status === "verified") {
-      return <Badge className="bg-green-100 text-green-800">Verified</Badge>
-    } else if (profile.kyc_status === "pending") {
-      return <Badge variant="secondary">Pending Verification</Badge>
-    } else {
-      return <Badge variant="outline">Not Verified</Badge>
+  const getKycStatusBadge = (status: string) => {
+    switch (status) {
+      case "approved":
+        return <Badge className="bg-green-100 text-green-800">Verified</Badge>
+      case "pending":
+        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+      case "rejected":
+        return <Badge className="bg-red-100 text-red-800">Rejected</Badge>
+      default:
+        return <Badge variant="outline">Not Submitted</Badge>
     }
   }
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <CardTitle className="flex items-center gap-2">
+          <User className="h-5 w-5" />
+          Account Details
+        </CardTitle>
+        <CardDescription>Your account information and verification status</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <CardTitle>Account Details</CardTitle>
-            <CardDescription>Your account information and status</CardDescription>
+            <p className="text-sm font-medium text-gray-600">Full Name</p>
+            <p className="text-lg font-semibold">
+              {profile.first_name} {profile.last_name}
+            </p>
           </div>
+          <div>
+            <p className="text-sm font-medium text-gray-600">Account Number</p>
+            <p className="text-lg font-mono font-semibold">{profile.account_number}</p>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-600">Email</p>
+            <p className="text-sm">{profile.email}</p>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-600">Phone</p>
+            <p className="text-sm">{profile.phone_number || "Not provided"}</p>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-600">Account Status</p>
+            <Badge variant={profile.status === "active" ? "default" : "secondary"}>
+              {profile.status.charAt(0).toUpperCase() + profile.status.slice(1)}
+            </Badge>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-600">KYC Status</p>
+            {getKycStatusBadge(profile.kyc_status)}
+          </div>
+        </div>
+
+        {profile.kyc_status !== "approved" && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className="h-4 w-4 text-yellow-600" />
+              <p className="text-sm font-medium text-yellow-800">Account Verification Required</p>
+            </div>
+            <p className="text-sm text-yellow-700 mb-3">
+              Complete your KYC verification to unlock all banking features and increase your transaction limits.
+            </p>
+            <Link href="/dashboard/kyc">
+              <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700">
+                Complete Verification
+              </Button>
+            </Link>
+          </div>
+        )}
+
+        <div className="pt-4 border-t">
           <Link href="/dashboard/profile">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" className="w-full bg-transparent">
+              <Edit className="h-4 w-4 mr-2" />
               Edit Profile
             </Button>
           </Link>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <User className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">
-                  {profile.first_name} {profile.last_name}
-                </p>
-                <p className="text-sm text-muted-foreground">Full Name</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <Mail className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">{profile.email}</p>
-                <p className="text-sm text-muted-foreground">Email Address</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <Phone className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">{profile.phone || "Not provided"}</p>
-                <p className="text-sm text-muted-foreground">Phone Number</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <MapPin className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">{profile.address || "Not provided"}</p>
-                <p className="text-sm text-muted-foreground">Address</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <Calendar className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">
-                  {profile.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString() : "Not provided"}
-                </p>
-                <p className="text-sm text-muted-foreground">Date of Birth</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <Shield className="h-5 w-5 text-muted-foreground" />
-              <div className="flex items-center space-x-2">
-                {getVerificationStatus()}
-                <div>
-                  <p className="text-sm text-muted-foreground">KYC Status</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {profile.kyc_status !== "verified" && (
-          <div className="border-t pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Complete Your Verification</p>
-                <p className="text-sm text-muted-foreground">Verify your identity to unlock all features</p>
-              </div>
-              <Link href="/dashboard/kyc">
-                <Button size="sm">Complete KYC</Button>
-              </Link>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   )

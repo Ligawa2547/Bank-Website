@@ -4,3 +4,5 @@ import type { Database } from "@/types/supabase"
 export const createClient = () => {
   return createClientComponentClient<Database>()
 }
+
+export const supabase = createClient()

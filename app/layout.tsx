@@ -10,26 +10,16 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "IAE Bank - Your Trusted Banking Partner",
-  description:
-    "Experience secure and convenient banking with IAE Bank. Manage your finances, transfer money, and access banking services 24/7.",
-  keywords: "banking, finance, money transfer, savings, loans, credit cards, online banking",
+  description: "Experience modern banking with IAE Bank. Secure, reliable, and innovative financial services.",
+  keywords: "banking, finance, loans, savings, transfers, IAE Bank",
   authors: [{ name: "IAE Bank" }],
   creator: "IAE Bank",
   publisher: "IAE Bank",
-  formatDetection: {
-    email: false,
-    address: false,
-    telephone: false,
-  },
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://iae-bank.vercel.app"),
-  alternates: {
-    canonical: "/",
-  },
+  robots: "index, follow",
   openGraph: {
     title: "IAE Bank - Your Trusted Banking Partner",
-    description:
-      "Experience secure and convenient banking with IAE Bank. Manage your finances, transfer money, and access banking services 24/7.",
-    url: process.env.NEXT_PUBLIC_APP_URL || "https://iae-bank.vercel.app",
+    description: "Experience modern banking with IAE Bank. Secure, reliable, and innovative financial services.",
+    url: "https://iaebank.com",
     siteName: "IAE Bank",
     images: [
       {
@@ -45,23 +35,11 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "IAE Bank - Your Trusted Banking Partner",
-    description:
-      "Experience secure and convenient banking with IAE Bank. Manage your finances, transfer money, and access banking services 24/7.",
+    description: "Experience modern banking with IAE Bank. Secure, reliable, and innovative financial services.",
     images: ["/images/iae-logo.png"],
   },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
   verification: {
-    google: "35bf1cdf0bb83eed",
+    google: "google35bf1cdf0bb83eed",
   },
     generator: 'v0.app'
 }
@@ -76,20 +54,40 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/images/iae-logo.png" />
-        <meta name="theme-color" content="#1f2937" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        <meta name="theme-color" content="#1e40af" />
       </head>
-      <body className={inter.className} suppressHydrationWarning>
+      <body className={inter.className}>
         <Providers>
           {children}
           <Toaster />
         </Providers>
 
-        {/* PayPal SDK for hosted buttons */}
+        {/* PayPal SDK */}
         <Script
-          src="https://www.paypal.com/sdk/js?client-id=BAABv-fGmOQt6xgFrkcz7hkUA6wLY2wP8AtoYUTZ6hR73ZfqKMrdwtROZkStnxTXLNLmd8FPyByLRX1Tdo&components=hosted-buttons&disable-funding=venmo&currency=USD"
+          src={`https://www.paypal.com/sdk/js?client-id=${process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID}&currency=USD&components=buttons,hosted-fields&enable-funding=venmo,paylater,card&disable-funding=credit`}
           strategy="lazyOnload"
-          crossOrigin="anonymous"
+          onLoad={() => {
+            console.log("✅ PayPal SDK loaded successfully")
+            // Dispatch custom event to notify components
+            window.dispatchEvent(new CustomEvent("paypal-sdk-loaded"))
+          }}
+          onError={(e) => {
+            console.error("❌ PayPal SDK failed to load:", e)
+            // Dispatch custom event to notify components of error
+            window.dispatchEvent(new CustomEvent("paypal-sdk-error"))
+          }}
+        />
+
+        {/* Paystack SDK */}
+        <Script
+          src="https://js.paystack.co/v1/inline.js"
+          strategy="lazyOnload"
+          onLoad={() => {
+            console.log("✅ Paystack SDK loaded successfully")
+          }}
+          onError={(e) => {
+            console.error("❌ Paystack SDK failed to load:", e)
+          }}
         />
       </body>
     </html>

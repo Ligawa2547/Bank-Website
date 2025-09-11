@@ -6,20 +6,32 @@ import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { Header } from "@/components/dashboard/header"
 import { InactivityMonitor } from "@/components/inactivity-monitor"
-import { AuthProvider } from "@/lib/auth-provider"
-import { SupabaseProvider } from "@/providers/supabase-provider"
-import { useSession } from "@/providers/session-provider"
+import { AuthProvider, useAuth } from "@/lib/auth-provider"
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
-  const { session, isLoading } = useSession()
+  const { session, isLoading, user, profile } = useAuth()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
-    if (!isLoading && !session) {
-      router.push("/login")
+    console.log("Dashboard layout - Auth state:", {
+      isLoading,
+      hasSession: !!session,
+      hasUser: !!user,
+      hasProfile: !!profile,
+      userEmail: user?.email,
+    })
+
+    if (!isLoading) {
+      if (!session || !user) {
+        console.log("No session/user, redirecting to login")
+        router.push("/login")
+        return
+      }
+
+      console.log("User authenticated, showing dashboard")
     }
-  }, [isLoading, session, router])
+  }, [isLoading, session, user, profile, router])
 
   const handleMenuClick = () => {
     setSidebarOpen(!sidebarOpen)
@@ -29,66 +41,49 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     setSidebarOpen(false)
   }
 
+  // Show loading while checking auth
   if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+        <div className="flex flex-col items-center space-y-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+          <p className="text-sm text-gray-600">Loading dashboard...</p>
+        </div>
       </div>
     )
   }
 
-  if (!session) {
-    return null
+  // Redirect if not authenticated
+  if (!session || !user) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+          <p className="text-sm text-gray-600">Redirecting to login...</p>
+        </div>
+      </div>
+    )
   }
 
+  // Show dashboard
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden" onClick={handleSidebarClose} />
-      )}
-
-      {/* Sidebar */}
-      <div
-        className={`
-        fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:z-auto
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-      `}
-      >
-        <Sidebar isOpen={sidebarOpen} onClose={handleSidebarClose} />
-      </div>
-
-      {/* Main content */}
-      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        {/* Header */}
-        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
-          <Header onMenuClick={handleMenuClick} />
-        </div>
-
-        {/* Main content area */}
-        <main className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="p-4 sm:p-6 lg:p-8 max-w-full">
-            <div className="mx-auto max-w-7xl">{children}</div>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      <InactivityMonitor />
+      <Header />
+      <div className="flex">
+        <Sidebar />
+        <main className="flex-1 p-4 md:p-6 lg:p-8 ml-0 md:ml-64">
+          <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
-
-      {/* Inactivity Monitor */}
-      <InactivityMonitor />
     </div>
   )
 }
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <SupabaseProvider>
-        <DashboardContent>{children}</DashboardContent>
-      </SupabaseProvider>
+      <DashboardContent>{children}</DashboardContent>
     </AuthProvider>
   )
 }

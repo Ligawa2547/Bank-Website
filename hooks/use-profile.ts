@@ -1,8 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSupabase } from "@/providers/supabase-provider"
+import { useAuth } from "@/lib/auth-provider"
 import { toast } from "@/hooks/use-toast"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Database } from "@/types/supabase"
 
 export type Profile = {
   id: string
@@ -10,61 +12,64 @@ export type Profile = {
   last_name?: string
   email?: string
   phone?: string
+  address?: string
+  date_of_birth?: string
   avatar_url?: string
   account_no?: string
   account_balance?: number
+  kyc_status?: string
+  status?: string
   created_at?: string
   updated_at?: string
 }
 
 export function useProfile() {
-  const { supabase, user } = useSupabase()
+  const { user, profile: authProfile, loading: authLoading } = useAuth()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
+  const supabase = createClientComponentClient<Database>()
+
   useEffect(() => {
-    async function loadProfile() {
-      if (!user) {
-        setLoading(false)
-        return
-      }
+    if (authProfile) {
+      setProfile(authProfile as Profile)
+      setLoading(false)
+    } else if (user) {
+      loadProfile()
+    } else {
+      setLoading(false)
+    }
+  }, [user, authProfile])
 
-      try {
-        setLoading(true)
-
-        // Try to fetch from both tables in parallel for best data
-        const [usersResponse, profilesResponse] = await Promise.all([
-          supabase.from("users").select("*").eq("id", user.id).single(),
-          supabase.from("user_profiles").select("*").eq("id", user.id).single(),
-        ])
-
-        // Combine data from both sources, with profiles taking precedence
-        const userData = usersResponse.data || {}
-        const profileData = profilesResponse.data || {}
-
-        const combinedProfile = {
-          id: user.id,
-          ...userData,
-          ...profileData,
-        }
-
-        setProfile(combinedProfile as Profile)
-      } catch (err) {
-        console.error("Error loading profile:", err)
-        setError(err instanceof Error ? err : new Error("Failed to load profile"))
-        toast({
-          title: "Error loading profile",
-          description: "Please try again later",
-          variant: "destructive",
-        })
-      } finally {
-        setLoading(false)
-      }
+  const loadProfile = async () => {
+    if (!user) {
+      setLoading(false)
+      return
     }
 
-    loadProfile()
-  }, [user, supabase])
+    try {
+      setLoading(true)
+
+      const { data, error: profileError } = await supabase.from("users").select("*").eq("id", user.id).single()
+
+      if (profileError) {
+        throw profileError
+      }
+
+      setProfile(data as Profile)
+    } catch (err) {
+      console.error("Error loading profile:", err)
+      setError(err instanceof Error ? err : new Error("Failed to load profile"))
+      toast({
+        title: "Error loading profile",
+        description: "Please try again later",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) return { success: false, error: new Error("Not authenticated") }
@@ -72,19 +77,13 @@ export function useProfile() {
     try {
       setLoading(true)
 
-      // Update both tables to keep them in sync
-      const [usersResponse, profilesResponse] = await Promise.all([
-        supabase.from("users").update(updates).eq("id", user.id),
-        supabase.from("user_profiles").update(updates).eq("id", user.id),
-      ])
+      const { error: updateError } = await supabase.from("users").update(updates).eq("id", user.id)
 
-      if (usersResponse.error && profilesResponse.error) {
-        throw new Error(usersResponse.error.message || "Failed to update profile")
+      if (updateError) {
+        throw updateError
       }
 
-      // Refresh profile data
       setProfile((prev) => (prev ? { ...prev, ...updates } : null))
-
       return { success: true }
     } catch (err) {
       console.error("Error updating profile:", err)
@@ -96,39 +95,10 @@ export function useProfile() {
     }
   }
 
-  const refreshProfile = async () => {
-    if (!user) return
-
-    try {
-      setLoading(true)
-
-      const [usersResponse, profilesResponse] = await Promise.all([
-        supabase.from("users").select("*").eq("id", user.id).single(),
-        supabase.from("user_profiles").select("*").eq("id", user.id).single(),
-      ])
-
-      const userData = usersResponse.data || {}
-      const profileData = profilesResponse.data || {}
-
-      const combinedProfile = {
-        id: user.id,
-        ...userData,
-        ...profileData,
-      }
-
-      setProfile(combinedProfile as Profile)
-    } catch (err) {
-      console.error("Error refreshing profile:", err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return {
     profile,
-    loading,
+    loading: loading || authLoading,
     error,
     updateProfile,
-    refreshProfile,
   }
 }
