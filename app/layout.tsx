@@ -4,7 +4,6 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/toaster"
-import { PayPalScriptProvider } from "@paypal/react-paypal-js"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -44,12 +43,6 @@ export const metadata: Metadata = {
     generator: 'v0.app'
 }
 
-const paypalOptions = {
-  clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "",
-  currency: "USD",
-  intent: "capture",
-}
-
 export default function RootLayout({
   children,
 }: {
@@ -61,14 +54,16 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/images/iae-logo.png" />
         <meta name="theme-color" content="#1e40af" />
+        <script
+          src={`https://www.paypal.com/sdk/js?client-id=${process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID}&currency=USD&components=buttons,hosted-fields&enable-funding=venmo,paylater,card&disable-funding=credit`}
+          async
+        />
       </head>
       <body className={inter.className}>
-        <PayPalScriptProvider options={paypalOptions}>
-          <Providers>
-            {children}
-            <Toaster />
-          </Providers>
-        </PayPalScriptProvider>
+        <Providers>
+          {children}
+          <Toaster />
+        </Providers>
       </body>
     </html>
   )

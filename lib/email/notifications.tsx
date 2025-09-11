@@ -10,166 +10,134 @@ import {
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-interface EmailData {
-  to: string
-  type: "welcome" | "transaction" | "kyc" | "account" | "password_reset" | "general"
-  data: any
-}
-
-export async function sendNotificationEmail({ to, type, data }: EmailData) {
+export async function sendWelcomeEmail(email: string, name: string) {
   try {
-    let subject = ""
-    let template = null
-
-    switch (type) {
-      case "welcome":
-        subject = "Welcome to IAE Bank"
-        template = WelcomeEmail({
-          userName: data.user_name,
-          accountNumber: data.account_number,
-        })
-        break
-
-      case "transaction":
-        subject = `Transaction ${data.transaction_type === "deposit" ? "Deposit" : "Withdrawal"} - $${data.amount.toFixed(2)}`
-        template = TransactionEmail({
-          userName: data.user_name,
-          transactionType: data.transaction_type,
-          amount: data.amount,
-          balance: data.balance,
-          paymentMethod: data.payment_method,
-          transactionId: data.transaction_id,
-          date: data.date,
-        })
-        break
-
-      case "kyc":
-        subject = `KYC Status Update - ${data.status}`
-        template = KYCEmail({
-          userName: data.user_name,
-          status: data.status,
-          message: data.message,
-        })
-        break
-
-      case "account":
-        subject = `Account Update - ${data.title}`
-        template = AccountEmail({
-          userName: data.user_name,
-          title: data.title,
-          message: data.message,
-        })
-        break
-
-      case "password_reset":
-        subject = "Password Reset Request"
-        template = PasswordResetEmail({
-          userName: data.user_name,
-          resetLink: data.reset_link,
-        })
-        break
-
-      case "general":
-        subject = data.title || "Notification from IAE Bank"
-        template = GeneralNotificationEmail({
-          userName: data.user_name,
-          title: data.title,
-          message: data.message,
-        })
-        break
-
-      default:
-        throw new Error(`Unknown email type: ${type}`)
-    }
-
-    const { data: result, error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: "IAE Bank <noreply@iaebank.com>",
-      to: [to],
-      subject,
-      react: template,
+      to: [email],
+      subject: "Welcome to IAE Bank!",
+      react: WelcomeEmail({ name, email }),
     })
 
     if (error) {
-      console.error("Email sending error:", error)
-      throw error
+      console.error("Error sending welcome email:", error)
+      return { success: false, error }
     }
 
-    console.log("Email sent successfully:", result?.id)
-    return { success: true, result }
+    return { success: true, data }
   } catch (error) {
-    console.error("Failed to send notification email:", error)
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
+    console.error("Error sending welcome email:", error)
+    return { success: false, error }
   }
-}
-
-export async function sendBulkNotificationEmails(emails: EmailData[]) {
-  const results = []
-
-  for (const email of emails) {
-    try {
-      const result = await sendNotificationEmail(email)
-      results.push({ success: true, result })
-    } catch (error) {
-      results.push({ success: false, error })
-    }
-  }
-
-  return results
-}
-
-// Helper functions for common email types
-export async function sendWelcomeEmail(to: string, userName: string, accountNumber: string) {
-  return sendNotificationEmail({
-    to,
-    type: "welcome",
-    data: { user_name: userName, account_number: accountNumber },
-  })
 }
 
 export async function sendTransactionEmail(
-  to: string,
-  userName: string,
-  transactionType: string,
+  email: string,
+  name: string,
   amount: number,
-  balance: number,
-  paymentMethod: string,
-  transactionId: string,
+  transactionType: string,
+  reference: string,
 ) {
-  return sendNotificationEmail({
-    to,
-    type: "transaction",
-    data: {
-      user_name: userName,
-      transaction_type: transactionType,
-      amount,
-      balance,
-      payment_method: paymentMethod,
-      transaction_id: transactionId,
-      date: new Date().toISOString(),
-    },
-  })
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "IAE Bank <noreply@iaebank.com>",
+      to: [email],
+      subject: `Transaction Confirmation - ${transactionType}`,
+      react: TransactionEmail({ name, amount, transactionType, reference }),
+    })
+
+    if (error) {
+      console.error("Error sending transaction email:", error)
+      return { success: false, error }
+    }
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error sending transaction email:", error)
+    return { success: false, error }
+  }
 }
 
-export async function sendKYCEmail(to: string, userName: string, status: string, message: string) {
-  return sendNotificationEmail({
-    to,
-    type: "kyc",
-    data: { user_name: userName, status, message },
-  })
+export async function sendKYCEmail(email: string, name: string, kycStatus: string) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "IAE Bank <noreply@iaebank.com>",
+      to: [email],
+      subject: `KYC Status Update - ${kycStatus.toUpperCase()}`,
+      react: KYCEmail({ name, kycStatus }),
+    })
+
+    if (error) {
+      console.error("Error sending KYC email:", error)
+      return { success: false, error }
+    }
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error sending KYC email:", error)
+    return { success: false, error }
+  }
 }
 
-export async function sendAccountEmail(to: string, userName: string, title: string, message: string) {
-  return sendNotificationEmail({
-    to,
-    type: "account",
-    data: { user_name: userName, title, message },
-  })
+export async function sendAccountEmail(email: string, name: string, accountNumber: string, message: string) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "IAE Bank <noreply@iaebank.com>",
+      to: [email],
+      subject: "Account Update Notification",
+      react: AccountEmail({ name, accountNumber, message }),
+    })
+
+    if (error) {
+      console.error("Error sending account email:", error)
+      return { success: false, error }
+    }
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error sending account email:", error)
+    return { success: false, error }
+  }
 }
 
-export async function sendPasswordResetEmail(to: string, userName: string, resetLink: string) {
-  return sendNotificationEmail({
-    to,
-    type: "password_reset",
-    data: { user_name: userName, reset_link: resetLink },
-  })
+export async function sendPasswordResetEmail(email: string, name: string, resetLink: string) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "IAE Bank <noreply@iaebank.com>",
+      to: [email],
+      subject: "Password Reset Request",
+      react: PasswordResetEmail({ name, resetLink }),
+    })
+
+    if (error) {
+      console.error("Error sending password reset email:", error)
+      return { success: false, error }
+    }
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error sending password reset email:", error)
+    return { success: false, error }
+  }
+}
+
+export async function sendGeneralNotificationEmail(email: string, name: string, title: string, message: string) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "IAE Bank <noreply@iaebank.com>",
+      to: [email],
+      subject: title,
+      react: GeneralNotificationEmail({ name, title, message }),
+    })
+
+    if (error) {
+      console.error("Error sending notification email:", error)
+      return { success: false, error }
+    }
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error sending notification email:", error)
+    return { success: false, error }
+  }
 }
