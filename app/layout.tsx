@@ -4,7 +4,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/toaster"
-import Script from "next/script"
+import { PayPalScriptProvider } from "@paypal/react-paypal-js"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -44,6 +44,12 @@ export const metadata: Metadata = {
     generator: 'v0.app'
 }
 
+const paypalOptions = {
+  clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "",
+  currency: "USD",
+  intent: "capture",
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -57,38 +63,12 @@ export default function RootLayout({
         <meta name="theme-color" content="#1e40af" />
       </head>
       <body className={inter.className}>
-        <Providers>
-          {children}
-          <Toaster />
-        </Providers>
-
-        {/* PayPal SDK */}
-        <Script
-          src={`https://www.paypal.com/sdk/js?client-id=${process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID}&currency=USD&components=buttons,hosted-fields&enable-funding=venmo,paylater,card&disable-funding=credit`}
-          strategy="lazyOnload"
-          onLoad={() => {
-            console.log("✅ PayPal SDK loaded successfully")
-            // Dispatch custom event to notify components
-            window.dispatchEvent(new CustomEvent("paypal-sdk-loaded"))
-          }}
-          onError={(e) => {
-            console.error("❌ PayPal SDK failed to load:", e)
-            // Dispatch custom event to notify components of error
-            window.dispatchEvent(new CustomEvent("paypal-sdk-error"))
-          }}
-        />
-
-        {/* Paystack SDK */}
-        <Script
-          src="https://js.paystack.co/v1/inline.js"
-          strategy="lazyOnload"
-          onLoad={() => {
-            console.log("✅ Paystack SDK loaded successfully")
-          }}
-          onError={(e) => {
-            console.error("❌ Paystack SDK failed to load:", e)
-          }}
-        />
+        <PayPalScriptProvider options={paypalOptions}>
+          <Providers>
+            {children}
+            <Toaster />
+          </Providers>
+        </PayPalScriptProvider>
       </body>
     </html>
   )

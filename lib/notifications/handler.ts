@@ -54,17 +54,15 @@ export async function createNotification(data: NotificationData) {
 
           const emailResult = await sendNotificationEmail({
             to: user.email,
-            userName: user.full_name || "Valued Customer",
-            title: data.title,
-            message: data.message,
-            type: data.type,
+            type: "general",
+            data: {
+              user_name: user.full_name || "Valued Customer",
+              title: data.title,
+              message: data.message,
+            },
           })
 
-          if (emailResult.success) {
-            console.log("✅ Notification email sent successfully")
-          } else {
-            console.error("❌ Failed to send notification email:", emailResult.error)
-          }
+          console.log("✅ Notification email sent successfully")
         } else {
           console.warn("⚠️ User email not found, skipping email notification")
         }
@@ -85,6 +83,77 @@ export async function createNotification(data: NotificationData) {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error occurred",
       message: "Failed to create notification",
+    }
+  }
+}
+
+export async function sendTransactionNotification(
+  accountNo: string,
+  transactionType: "deposit" | "withdrawal" | "transfer",
+  amount: number,
+  status: "completed" | "pending" | "failed",
+  reference: string,
+  narration: string,
+) {
+  const supabase = createClient()
+
+  try {
+    // Get user by account number
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("id, email, full_name, first_name, last_name, balance")
+      .eq("account_no", accountNo)
+      .single()
+
+    if (userError || !user) {
+      console.error("User not found for account:", accountNo)
+      return { success: false, error: "User not found" }
+    }
+
+    // Create notification
+    const notificationTitle = `${transactionType.charAt(0).toUpperCase() + transactionType.slice(1)} ${status.charAt(0).toUpperCase() + status.slice(1)}`
+    const notificationMessage = `Your ${transactionType} of $${amount.toFixed(2)} has been ${status}. Reference: ${reference}`
+
+    const notificationResult = await createNotification({
+      userId: user.id,
+      title: notificationTitle,
+      message: notificationMessage,
+      type: status === "completed" ? "success" : status === "failed" ? "error" : "info",
+      sendEmail: true,
+      metadata: {
+        transaction_type: transactionType,
+        amount,
+        status,
+        reference,
+        narration,
+      },
+    })
+
+    // Send transaction email
+    try {
+      await sendNotificationEmail({
+        to: user.email,
+        type: "transaction",
+        data: {
+          user_name: user.full_name || `${user.first_name} ${user.last_name}` || "Valued Customer",
+          transaction_type: transactionType,
+          amount,
+          balance: user.balance || 0,
+          payment_method: "PayPal",
+          transaction_id: reference,
+          date: new Date().toISOString(),
+        },
+      })
+    } catch (emailError) {
+      console.error("Transaction email error:", emailError)
+    }
+
+    return notificationResult
+  } catch (error) {
+    console.error("Error sending transaction notification:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
     }
   }
 }

@@ -95,10 +95,10 @@ export async function sendNotificationEmail({ to, type, data }: EmailData) {
     }
 
     console.log("Email sent successfully:", result?.id)
-    return result
+    return { success: true, result }
   } catch (error) {
     console.error("Failed to send notification email:", error)
-    throw error
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
   }
 }
 
