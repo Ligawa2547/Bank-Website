@@ -30,7 +30,7 @@ interface KYCSubmission {
   submitted_at: string
   reviewed_at?: string
   reviewer_notes?: string
-  user: {
+  users: {
     first_name: string
     last_name: string
     email: string
@@ -59,7 +59,7 @@ export default function AdminKYCPendingPage() {
         .from("kyc_submissions")
         .select(`
           *,
-          user:users!kyc_submissions_account_no_fkey (
+          users!kyc_submissions_user_id_fkey (
             first_name,
             last_name,
             email,
@@ -98,18 +98,6 @@ export default function AdminKYCPendingPage() {
         .eq("id", submissionId)
 
       if (kycError) throw kycError
-
-      // Update user verification status
-      const verificationStatus = status === "approved" ? "verified" : "rejected"
-      const { error: userError } = await supabase
-        .from("users")
-        .update({
-          verification_status: verificationStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("account_no", accountNo)
-
-      if (userError) throw userError
 
       // Send notification
       await sendKYCNotification(accountNo, status, reviewNotes)
@@ -196,14 +184,14 @@ export default function AdminKYCPendingPage() {
                   <div className="flex items-center space-x-2">
                     <User className="h-5 w-5 text-muted-foreground" />
                     <CardTitle className="text-lg">
-                      {submission.user.first_name} {submission.user.last_name}
+                      {submission.users.first_name} {submission.users.last_name}
                     </CardTitle>
                   </div>
                   <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
                 </div>
                 <CardDescription className="flex items-center space-x-2">
                   <Mail className="h-4 w-4" />
-                  <span>{submission.user.email}</span>
+                  <span>{submission.users.email}</span>
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -214,11 +202,11 @@ export default function AdminKYCPendingPage() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Document Type</p>
-                    <p className="capitalize">{submission.document_type}</p>
+                    <p className="capitalize">{submission.document_type.replace("_", " ")}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Phone</p>
-                    <p>{submission.user.phone || "Not provided"}</p>
+                    <p>{submission.users.phone || "Not provided"}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Submitted</p>
@@ -237,7 +225,7 @@ export default function AdminKYCPendingPage() {
                     <DialogHeader>
                       <DialogTitle>KYC Document Review</DialogTitle>
                       <DialogDescription>
-                        Review documents for {submission.user.first_name} {submission.user.last_name}
+                        Review documents for {submission.users.first_name} {submission.users.last_name}
                       </DialogDescription>
                     </DialogHeader>
 
@@ -248,28 +236,28 @@ export default function AdminKYCPendingPage() {
                           <div>
                             <Label className="text-sm font-medium text-gray-600">Full Name</Label>
                             <p className="font-semibold">
-                              {selectedSubmission.user.first_name} {selectedSubmission.user.last_name}
+                              {selectedSubmission.users.first_name} {selectedSubmission.users.last_name}
                             </p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium text-gray-600">Email</Label>
-                            <p>{selectedSubmission.user.email}</p>
+                            <p>{selectedSubmission.users.email}</p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium text-gray-600">Phone</Label>
-                            <p>{selectedSubmission.user.phone || "Not provided"}</p>
+                            <p>{selectedSubmission.users.phone || "Not provided"}</p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium text-gray-600">Date of Birth</Label>
                             <p>
-                              {selectedSubmission.user.date_of_birth
-                                ? new Date(selectedSubmission.user.date_of_birth).toLocaleDateString()
+                              {selectedSubmission.users.date_of_birth
+                                ? new Date(selectedSubmission.users.date_of_birth).toLocaleDateString()
                                 : "Not provided"}
                             </p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium text-gray-600">Document Type</Label>
-                            <p className="capitalize">{selectedSubmission.document_type}</p>
+                            <p className="capitalize">{selectedSubmission.document_type.replace("_", " ")}</p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium text-gray-600">Document Number</Label>
@@ -284,7 +272,7 @@ export default function AdminKYCPendingPage() {
                             <div>
                               <Label className="text-sm font-medium text-gray-600">Document Front</Label>
                               <img
-                                src={selectedSubmission.document_front_url || "/placeholder.svg"}
+                                src={selectedSubmission.document_front_url || "/placeholder.svg?height=200&width=300"}
                                 alt="Document Front"
                                 className="w-full h-48 object-cover rounded-lg border mt-2"
                               />
@@ -293,7 +281,7 @@ export default function AdminKYCPendingPage() {
                               <div>
                                 <Label className="text-sm font-medium text-gray-600">Document Back</Label>
                                 <img
-                                  src={selectedSubmission.document_back_url || "/placeholder.svg"}
+                                  src={selectedSubmission.document_back_url || "/placeholder.svg?height=200&width=300"}
                                   alt="Document Back"
                                   className="w-full h-48 object-cover rounded-lg border mt-2"
                                 />
@@ -302,7 +290,7 @@ export default function AdminKYCPendingPage() {
                             <div>
                               <Label className="text-sm font-medium text-gray-600">Selfie</Label>
                               <img
-                                src={selectedSubmission.selfie_url || "/placeholder.svg"}
+                                src={selectedSubmission.selfie_url || "/placeholder.svg?height=200&width=300"}
                                 alt="Selfie"
                                 className="w-full h-48 object-cover rounded-lg border mt-2"
                               />
