@@ -31,7 +31,7 @@
     "@radix-ui/react-tooltip": "1.1.6",
     "@react-email/render": "1.2.2",
     "@supabase/auth-helpers-nextjs": "latest",
-    "@supabase/ssr": "0.1.0",
+    "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
     "@vercel/analytics": "1.5.0",
     "@vercel/blob": "latest",

@@ -1,63 +1,60 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Session, User } from "@supabase/supabase-js"
-import type { Database } from "@/types/supabase"
 
-type SessionContext = {
+import { createContext, useContext, useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
+import type { Session, User } from "@supabase/supabase-js"
+
+interface SessionContextType {
   session: Session | null
   user: User | null
-  isLoading: boolean
+  loading: boolean
 }
 
-const Context = createContext<SessionContext | undefined>(undefined)
-
-export function useSession() {
-  const context = useContext(Context)
-  if (context === undefined) {
-    throw new Error("useSession must be used within a SessionProvider")
-  }
-  return context
-}
+const SessionContext = createContext<SessionContextType>({
+  session: null,
+  user: null,
+  loading: true,
+})
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [supabase] = useState(() => createClientComponentClient<Database>())
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
+
+  const supabase = createClient()
 
   useEffect(() => {
-    // Get initial session
     const getSession = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-        setSession(session)
-        setUser(session?.user ?? null)
-      } catch (error) {
-        console.error("Error getting session:", error)
-      } finally {
-        setIsLoading(false)
-      }
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      setSession(session)
+      setUser(session?.user ?? null)
+      setLoading(false)
     }
 
     getSession()
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.email)
       setSession(session)
       setUser(session?.user ?? null)
-      setIsLoading(false)
+      setLoading(false)
     })
 
     return () => subscription.unsubscribe()
-  }, [supabase])
+  }, [supabase.auth])
 
-  return <Context.Provider value={{ session, user, isLoading }}>{children}</Context.Provider>
+  return <SessionContext.Provider value={{ session, user, loading }}>{children}</SessionContext.Provider>
+}
+
+export const useSession = () => {
+  const context = useContext(SessionContext)
+  if (context === undefined) {
+    throw new Error("useSession must be used within a SessionProvider")
+  }
+  return context
 }

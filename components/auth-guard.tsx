@@ -1,9 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useEffect } from "react"
+
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "@/providers/session-provider"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 interface AuthGuardProps {
   children: React.ReactNode
@@ -11,58 +13,31 @@ interface AuthGuardProps {
   redirectTo?: string
 }
 
-export function AuthGuard({ children, requireAuth = false, redirectTo }: AuthGuardProps) {
-  const { session, isLoading } = useSession()
+export function AuthGuard({ children, requireAuth = true, redirectTo = "/login" }: AuthGuardProps) {
+  const { session, loading } = useSession()
   const router = useRouter()
+  const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
-    if (isLoading) return
-
-    if (requireAuth && !session) {
-      router.push(redirectTo || "/login")
-      return
+    if (!loading) {
+      if (requireAuth && !session) {
+        router.push(redirectTo)
+      } else {
+        setIsChecking(false)
+      }
     }
+  }, [session, loading, requireAuth, redirectTo, router])
 
-    if (!requireAuth && session) {
-      router.push(redirectTo || "/dashboard")
-      return
-    }
-  }, [session, isLoading, requireAuth, redirectTo, router])
-
-  // Show loading state while checking authentication
-  if (isLoading) {
+  if (loading || isChecking) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
-          <p className="text-sm text-gray-600">Loading...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner />
       </div>
     )
   }
 
-  // For auth pages (requireAuth=false), don't render if user is already logged in
-  if (!requireAuth && session) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
-          <p className="text-sm text-gray-600">Redirecting to dashboard...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // For protected pages (requireAuth=true), don't render if user is not logged in
   if (requireAuth && !session) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
-          <p className="text-sm text-gray-600">Redirecting to login...</p>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return <>{children}</>

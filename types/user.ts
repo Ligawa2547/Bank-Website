@@ -13,8 +13,8 @@ export interface UserProfile {
   kyc_id_type?: string
   kyc_id_number?: string
   kyc_id_expiry?: string
-  account_number: string
-  balance: number
+  account_no: string
+  account_balance: number
   profile_pic?: string
   status: "active" | "pending" | "suspended" | "closed"
   created_at: string
@@ -179,5 +179,5 @@ export interface User {
   account_balance: number
   account_no: string
   profile_pic: string | null
-  phone: string | null
+  phone_number: string | null
 }

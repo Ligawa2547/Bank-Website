@@ -1,298 +1,186 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useAuth } from "@/lib/auth-provider"
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AccountDetailsCard } from "@/components/dashboard/account-details-card"
-import { useAuth } from "@/lib/auth-provider"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Transaction } from "@/types/user"
+import { formatCurrency, formatDateTime } from "@/lib/utils"
 import {
   DollarSign,
   TrendingUp,
-  TrendingDown,
   Clock,
-  ArrowUpRight,
-  ArrowDownLeft,
   Send,
-  FileText,
-  HelpCircle,
+  PiggyBank,
   CreditCard,
-  Building2,
-  Banknote,
+  ArrowUpRight,
+  ArrowDownRight,
+  Eye,
+  EyeOff,
 } from "lucide-react"
 import Link from "next/link"
+import { AccountDetailsCard } from "@/components/dashboard/account-details-card"
+
+interface Transaction {
+  id: string
+  transaction_type: "deposit" | "withdrawal" | "transfer_in" | "transfer_out" | "loan_disbursement" | "loan_repayment"
+  amount: number
+  status: "pending" | "completed" | "failed"
+  reference: string
+  narration: string
+  recipient_account_number?: string
+  recipient_name?: string
+  sender_account_number?: string
+  sender_name?: string
+  created_at: string
+}
 
 export default function DashboardPage() {
-  const { user, profile, loading: authLoading } = useAuth()
+  const { user, profile } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [stats, setStats] = useState({
-    totalDeposits: 0,
-    totalWithdrawals: 0,
-    pendingTransactions: 0,
-    monthlyIncome: 0,
-    monthlyExpenses: 0,
-  })
   const [loading, setLoading] = useState(true)
-  const supabase = createClientComponentClient()
+  const [showBalance, setShowBalance] = useState(true)
+  const supabase = createClient()
 
   useEffect(() => {
-    if (!user || !profile?.account_number) {
-      setLoading(false)
-      return
+    if (profile?.account_no) {
+      fetchTransactions()
     }
+  }, [profile])
 
-    const fetchDashboardData = async () => {
-      try {
-        console.log("Fetching dashboard data for account:", profile.account_number)
+  const fetchTransactions = async () => {
+    if (!profile?.account_no) return
 
-        // Fetch recent transactions
-        const { data: transactionsData, error: transactionsError } = await supabase
-          .from("transactions")
-          .select("*")
-          .or(
-            `sender_account_number.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number},account_no.eq.${profile.account_number}`,
-          )
-          .order("created_at", { ascending: false })
-          .limit(5)
+    try {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .or(
+          `account_no.eq.${profile.account_no},sender_account_number.eq.${profile.account_no},recipient_account_number.eq.${profile.account_no}`,
+        )
+        .order("created_at", { ascending: false })
+        .limit(10)
 
-        if (transactionsError) {
-          console.error("Error fetching transactions:", transactionsError)
-        } else {
-          console.log(`Found ${transactionsData?.length || 0} recent transactions`)
-          setTransactions(transactionsData || [])
-        }
-
-        // Calculate stats
-        const { data: allTransactions, error: statsError } = await supabase
-          .from("transactions")
-          .select("*")
-          .or(
-            `sender_account_number.eq.${profile.account_number},recipient_account_number.eq.${profile.account_number},account_no.eq.${profile.account_number}`,
-          )
-
-        if (statsError) {
-          console.error("Error fetching stats:", statsError)
-        } else {
-          const now = new Date()
-          const currentMonth = now.getMonth()
-          const currentYear = now.getFullYear()
-
-          const deposits =
-            allTransactions?.filter(
-              (t) =>
-                t.transaction_type === "deposit" ||
-                (t.transaction_type === "transfer_in" && t.recipient_account_number === profile.account_number) ||
-                t.transaction_type === "loan_disbursement",
-            ) || []
-
-          const withdrawals =
-            allTransactions?.filter(
-              (t) =>
-                t.transaction_type === "withdrawal" ||
-                (t.transaction_type === "transfer_out" && t.sender_account_number === profile.account_number) ||
-                t.transaction_type === "loan_repayment",
-            ) || []
-
-          const pending = allTransactions?.filter((t) => t.status === "pending") || []
-
-          const monthlyIncome =
-            allTransactions
-              ?.filter((t) => {
-                const transactionDate = new Date(t.created_at)
-                return (
-                  transactionDate.getMonth() === currentMonth &&
-                  transactionDate.getFullYear() === currentYear &&
-                  (t.transaction_type === "deposit" ||
-                    (t.transaction_type === "transfer_in" && t.recipient_account_number === profile.account_number) ||
-                    t.transaction_type === "loan_disbursement")
-                )
-              })
-              .reduce((sum, t) => sum + t.amount, 0) || 0
-
-          const monthlyExpenses =
-            allTransactions
-              ?.filter((t) => {
-                const transactionDate = new Date(t.created_at)
-                return (
-                  transactionDate.getMonth() === currentMonth &&
-                  transactionDate.getFullYear() === currentYear &&
-                  (t.transaction_type === "withdrawal" ||
-                    (t.transaction_type === "transfer_out" && t.sender_account_number === profile.account_number) ||
-                    t.transaction_type === "loan_repayment")
-                )
-              })
-              .reduce((sum, t) => sum + t.amount, 0) || 0
-
-          setStats({
-            totalDeposits: deposits.reduce((sum, t) => sum + t.amount, 0),
-            totalWithdrawals: withdrawals.reduce((sum, t) => sum + t.amount, 0),
-            pendingTransactions: pending.length,
-            monthlyIncome,
-            monthlyExpenses,
-          })
-        }
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error)
-      } finally {
-        setLoading(false)
+      if (error) {
+        console.error("Error fetching transactions:", error)
+      } else {
+        setTransactions(data || [])
       }
-    }
-
-    fetchDashboardData()
-  }, [user, profile, supabase])
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount)
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      })
-    } else if (diffInHours < 168) {
-      return date.toLocaleDateString("en-US", {
-        weekday: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      })
-    } else {
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-      })
+    } catch (error) {
+      console.error("Error fetching transactions:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case "deposit":
-        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
-      case "withdrawal":
-        return <ArrowUpRight className="h-4 w-4 text-red-600" />
-      case "transfer_in":
-        return <ArrowDownLeft className="h-4 w-4 text-green-600" />
-      case "transfer_out":
-        return <ArrowUpRight className="h-4 w-4 text-red-600" />
-      case "loan_disbursement":
-        return <Building2 className="h-4 w-4 text-blue-600" />
-      case "loan_repayment":
-        return <CreditCard className="h-4 w-4 text-orange-600" />
-      default:
-        return <Banknote className="h-4 w-4 text-gray-600" />
+  const getTransactionIcon = (type: string, isIncoming: boolean) => {
+    if (type === "deposit" || isIncoming) {
+      return <ArrowDownRight className="h-4 w-4 text-green-600" />
     }
+    return <ArrowUpRight className="h-4 w-4 text-red-600" />
   }
 
-  const getTransactionDescription = (transaction: Transaction) => {
-    if (transaction.transaction_type === "deposit") {
-      return transaction.narration || "Account deposit"
-    } else if (transaction.transaction_type === "withdrawal") {
-      return transaction.narration || "Account withdrawal"
-    } else if (transaction.transaction_type === "transfer_in") {
-      const senderName = transaction.sender_name || "Unknown sender"
-      return `From ${senderName}`
-    } else if (transaction.transaction_type === "transfer_out") {
-      const recipientName = transaction.recipient_name || "Unknown recipient"
-      return `To ${recipientName}`
-    } else if (transaction.transaction_type === "loan_disbursement") {
-      return transaction.narration || "Loan disbursement"
-    } else if (transaction.transaction_type === "loan_repayment") {
-      return transaction.narration || "Loan repayment"
-    }
-    return transaction.narration || "Transaction"
+  const getTransactionAmount = (transaction: Transaction) => {
+    const isIncoming =
+      transaction.transaction_type === "deposit" ||
+      transaction.transaction_type === "transfer_in" ||
+      transaction.recipient_account_number === profile?.account_no
+
+    return isIncoming ? transaction.amount : -transaction.amount
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case "completed":
-        return <Badge className="bg-green-100 text-green-800">Completed</Badge>
+        return "bg-green-100 text-green-800"
       case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+        return "bg-yellow-100 text-yellow-800"
       case "failed":
-        return <Badge className="bg-red-100 text-red-800">Failed</Badge>
+        return "bg-red-100 text-red-800"
       default:
-        return <Badge variant="outline">{status.charAt(0).toUpperCase() + status.slice(1)}</Badge>
+        return "bg-gray-100 text-gray-800"
     }
   }
 
-  if (authLoading || loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-[#0A3D62] mx-auto mb-4"></div>
-          <p>Loading dashboard...</p>
-        </div>
-      </div>
-    )
+  // Calculate stats
+  const currentMonth = new Date().getMonth()
+  const currentYear = new Date().getFullYear()
+
+  const monthlyIncome = transactions
+    .filter((t) => {
+      const transactionDate = new Date(t.created_at)
+      const isIncoming =
+        t.transaction_type === "deposit" ||
+        t.transaction_type === "transfer_in" ||
+        t.recipient_account_number === profile?.account_no
+
+      return (
+        transactionDate.getMonth() === currentMonth &&
+        transactionDate.getFullYear() === currentYear &&
+        isIncoming &&
+        t.status === "completed"
+      )
+    })
+    .reduce((sum, t) => sum + t.amount, 0)
+
+  const totalDeposits = transactions
+    .filter((t) => t.transaction_type === "deposit" && t.status === "completed")
+    .reduce((sum, t) => sum + t.amount, 0)
+
+  const pendingTransactions = transactions.filter((t) => t.status === "pending").length
+
+  const toggleBalanceVisibility = () => {
+    setShowBalance(!showBalance)
   }
 
-  if (!user || !profile) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <p className="text-gray-500">Please log in to view your dashboard</p>
-        </div>
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-[#0A3D62] to-[#0F5585] text-white rounded-lg p-6">
-        <h1 className="text-2xl md:text-3xl font-bold mb-2">Welcome back, {profile.first_name}!</h1>
-        <p className="text-blue-100">Here's an overview of your account activity and balance.</p>
+      {/* Welcome Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+            Welcome back, {profile?.first_name || "User"}!
+          </h1>
+          <p className="text-gray-600 mt-1">Here's what's happening with your account today.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleBalanceVisibility}
+            className="p-2 hover:bg-gray-100 rounded-full text-gray-500"
+            aria-label={showBalance ? "Hide balance" : "Show balance"}
+          >
+            {showBalance ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          </button>
+          <div className="text-right">
+            <p className="text-sm text-gray-600">Available Balance</p>
+            <p className="text-2xl font-bold text-[#0A3D62]">
+              {showBalance ? formatCurrency(profile?.account_balance || 0) : "••••••"}
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Account Balance Card */}
-      <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-0 shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <DollarSign className="h-6 w-6 text-green-600" />
-            Account Balance
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-4xl font-bold text-green-600 mb-2">{formatCurrency(profile.balance || 0)}</div>
-          <p className="text-gray-600">Available Balance</p>
-        </CardContent>
-      </Card>
+      {/* Account Details Card */}
+      <AccountDetailsCard />
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Monthly Income</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.monthlyIncome)}</div>
-            <p className="text-xs text-muted-foreground">This month</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Expenses</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{formatCurrency(stats.monthlyExpenses)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(monthlyIncome)}</div>
             <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
         </Card>
@@ -300,10 +188,10 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Deposits</CardTitle>
-            <ArrowDownLeft className="h-4 w-4 text-blue-600" />
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalDeposits)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalDeposits)}</div>
             <p className="text-xs text-muted-foreground">All time</p>
           </CardContent>
         </Card>
@@ -311,120 +199,107 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.pendingTransactions}</div>
+            <div className="text-2xl font-bold">{pendingTransactions}</div>
             <p className="text-xs text-muted-foreground">Transactions</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Account Balance</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {showBalance ? formatCurrency(profile?.account_balance || 0) : "••••••"}
+            </div>
+            <p className="text-xs text-muted-foreground">Available now</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Transactions */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Transactions</CardTitle>
-              <CardDescription>Your latest financial activities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {transactions.length > 0 ? (
-                <div className="space-y-4">
-                  {transactions.map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        {getTransactionIcon(transaction.transaction_type)}
-                        <div>
-                          <p className="font-medium text-sm">{getTransactionDescription(transaction)}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            {getStatusBadge(transaction.status)}
-                            <span className="text-xs text-gray-500">{formatDate(transaction.created_at)}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={`font-semibold ${
-                            transaction.transaction_type === "deposit" ||
-                            transaction.transaction_type === "transfer_in" ||
-                            transaction.transaction_type === "loan_disbursement"
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {transaction.transaction_type === "deposit" ||
-                          transaction.transaction_type === "transfer_in" ||
-                          transaction.transaction_type === "loan_disbursement"
-                            ? "+"
-                            : "-"}
-                          {formatCurrency(transaction.amount)}
-                        </p>
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Button asChild className="h-20 flex-col gap-2">
+              <Link href="/dashboard/transfers">
+                <Send className="h-6 w-6" />
+                <span className="text-sm">Transfer</span>
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-20 flex-col gap-2 bg-transparent">
+              <Link href="/dashboard/savings">
+                <PiggyBank className="h-6 w-6" />
+                <span className="text-sm">Savings</span>
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-20 flex-col gap-2 bg-transparent">
+              <Link href="/dashboard/loans">
+                <TrendingUp className="h-6 w-6" />
+                <span className="text-sm">Loans</span>
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-20 flex-col gap-2 bg-transparent">
+              <Link href="/dashboard/transactions">
+                <CreditCard className="h-6 w-6" />
+                <span className="text-sm">History</span>
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Transactions */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Recent Transactions</CardTitle>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/transactions">View All</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {transactions.length === 0 ? (
+            <div className="text-center py-8">
+              <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">No transactions yet</p>
+              <p className="text-sm text-gray-400">Your transaction history will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {transactions.slice(0, 5).map((transaction) => {
+                const amount = getTransactionAmount(transaction)
+                const isIncoming = amount > 0
+
+                return (
+                  <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {getTransactionIcon(transaction.transaction_type, isIncoming)}
+                      <div>
+                        <p className="font-medium">{transaction.narration}</p>
+                        <p className="text-sm text-gray-500">{formatDateTime(transaction.created_at)}</p>
                       </div>
                     </div>
-                  ))}
-                  <div className="pt-4 border-t">
-                    <Link href="/dashboard/transactions">
-                      <Button variant="outline" className="w-full bg-transparent">
-                        View All Transactions
-                      </Button>
-                    </Link>
+                    <div className="text-right">
+                      <p className={`font-medium ${isIncoming ? "text-green-600" : "text-red-600"}`}>
+                        {isIncoming ? "+" : ""}
+                        {formatCurrency(Math.abs(amount))}
+                      </p>
+                      <Badge className={getStatusColor(transaction.status)}>{transaction.status}</Badge>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Banknote className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium mb-2">No transactions yet</h3>
-                  <p className="text-sm">Start by making a deposit or transfer</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Account Details & Quick Actions */}
-        <div className="space-y-6">
-          <AccountDetailsCard />
-
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>Common banking tasks</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Link href="/dashboard/transfers">
-                <Button className="w-full justify-start bg-[#0A3D62] hover:bg-[#0F5585]">
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Money & Deposits
-                </Button>
-              </Link>
-              <Link href="/dashboard/transactions">
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  <FileText className="h-4 w-4 mr-2" />
-                  View Transactions
-                </Button>
-              </Link>
-              <Link href="/dashboard/statements">
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Download Statements
-                </Button>
-              </Link>
-              <Link href="/dashboard/support">
-                <Button variant="outline" className="w-full justify-start bg-transparent">
-                  <HelpCircle className="h-4 w-4 mr-2" />
-                  Get Support
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -2,32 +2,35 @@
 
 import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Database } from "@/types/supabase"
 import { useToast } from "@/hooks/use-toast"
 
-interface Profile {
+interface UserProfile {
   id: string
   email: string
   first_name: string
   last_name: string
-  phone: string
-  address: string
-  date_of_birth: string | null
+  phone_number: string
   account_no: string
   account_balance: number
-  balance: number
-  profile_picture_url: string | null
-  kyc_status: "not_submitted" | "pending" | "approved" | "rejected"
-  verification_status: "unverified" | "pending" | "verified" | "rejected"
+  status: string
+  verification_status: string
+  kyc_status: string
+  email_verified: boolean
+  phone_verified: boolean
+  profile_pic?: string
+  city?: string
+  country?: string
   created_at: string
   updated_at: string
 }
 
 export function useProfile() {
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [updating, setUpdating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const supabase = createClientComponentClient<Database>()
   const { toast } = useToast()
-  const supabase = createClientComponentClient()
 
   const fetchProfile = async () => {
     try {
@@ -40,55 +43,25 @@ export function useProfile() {
         throw new Error("No authenticated user")
       }
 
-      const { data, error } = await supabase
-        .from("users")
-        .select(`
-          id,
-          email,
-          first_name,
-          last_name,
-          phone,
-          address,
-          date_of_birth,
-          account_no,
-          account_balance,
-          profile_picture_url,
-          kyc_status,
-          verification_status,
-          created_at,
-          updated_at
-        `)
-        .eq("id", user.id)
-        .single()
+      const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single()
 
       if (error) {
         throw error
       }
 
-      // Map account_balance to balance for backward compatibility
-      const profileData = {
-        ...data,
-        balance: data.account_balance || 0,
-      }
-
-      setProfile(profileData)
-    } catch (error) {
-      console.error("Error fetching profile:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load profile data",
-        variant: "destructive",
-      })
+      setProfile(data as UserProfile)
+      setError(null)
+    } catch (err: any) {
+      console.error("Error fetching profile:", err)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
   }
 
-  const updateProfile = async (updates: Partial<Profile>) => {
-    if (!profile) return false
-
+  const updateProfile = async (updates: Partial<UserProfile>) => {
     try {
-      setUpdating(true)
+      if (!profile) return false
 
       const { error } = await supabase
         .from("users")
@@ -102,75 +75,153 @@ export function useProfile() {
         throw error
       }
 
-      // Optimistically update local state
+      // Update local state
       setProfile((prev) => (prev ? { ...prev, ...updates } : null))
 
       toast({
-        title: "Success",
-        description: "Profile updated successfully",
+        title: "Profile updated",
+        description: "Your profile has been updated successfully.",
       })
 
       return true
-    } catch (error) {
-      console.error("Error updating profile:", error)
+    } catch (err: any) {
+      console.error("Error updating profile:", err)
       toast({
-        title: "Error",
-        description: "Failed to update profile",
+        title: "Update failed",
+        description: err.message,
         variant: "destructive",
       })
       return false
-    } finally {
-      setUpdating(false)
     }
   }
 
-  const updateBalance = async (newBalance: number) => {
-    if (!profile) return false
-
+  const deductBalance = async (amount: number, description = "KYC Fee") => {
     try {
-      const { error } = await supabase
-        .from("users")
-        .update({
-          account_balance: newBalance,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", profile.id)
-
-      if (error) {
-        throw error
+      if (!profile) {
+        throw new Error("No profile found")
       }
 
-      setProfile((prev) => (prev ? { ...prev, balance: newBalance, account_balance: newBalance } : null))
-      return true
-    } catch (error) {
-      console.error("Error updating balance:", error)
-      return false
-    }
-  }
+      if (profile.account_balance < amount) {
+        throw new Error("Insufficient balance")
+      }
 
-  const deductBalance = async (amount: number) => {
-    if (!profile || profile.balance < amount) {
+      // Use the database function for safe balance updates
+      const { error: balanceError } = await supabase.rpc("update_user_balance", {
+        user_uuid: profile.id,
+        amount_change: amount,
+        operation_type: "debit",
+      })
+
+      if (balanceError) {
+        throw balanceError
+      }
+
+      // Create transaction record
+      const { error: transactionError } = await supabase.from("transactions").insert({
+        user_id: profile.id,
+        account_no: profile.account_no,
+        transaction_type: "withdrawal",
+        amount: amount,
+        status: "completed",
+        reference: `KYC-${Date.now()}`,
+        narration: description,
+        created_at: new Date().toISOString(),
+      })
+
+      if (transactionError) {
+        console.error("Transaction record error:", transactionError)
+        // Don't throw here as the balance was already updated
+      }
+
+      // Update local profile balance
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              account_balance: prev.account_balance - amount,
+            }
+          : null,
+      )
+
       toast({
-        title: "Insufficient Balance",
-        description: `You need at least $${amount} to complete this transaction`,
+        title: "Payment processed",
+        description: `$${amount} has been deducted from your account.`,
+      })
+
+      return true
+    } catch (err: any) {
+      console.error("Error deducting balance:", err)
+      toast({
+        title: "Payment failed",
+        description: err.message,
         variant: "destructive",
       })
       return false
     }
-
-    const newBalance = profile.balance - amount
-    return await updateBalance(newBalance)
   }
 
-  const addBalance = async (amount: number) => {
-    if (!profile) return false
+  const addBalance = async (amount: number, description = "Credit") => {
+    try {
+      if (!profile) {
+        throw new Error("No profile found")
+      }
 
-    const newBalance = profile.balance + amount
-    return await updateBalance(newBalance)
+      // Use the database function for safe balance updates
+      const { error: balanceError } = await supabase.rpc("update_user_balance", {
+        user_uuid: profile.id,
+        amount_change: amount,
+        operation_type: "credit",
+      })
+
+      if (balanceError) {
+        throw balanceError
+      }
+
+      // Create transaction record
+      const { error: transactionError } = await supabase.from("transactions").insert({
+        user_id: profile.id,
+        account_no: profile.account_no,
+        transaction_type: "deposit",
+        amount: amount,
+        status: "completed",
+        reference: `DEP-${Date.now()}`,
+        narration: description,
+        created_at: new Date().toISOString(),
+      })
+
+      if (transactionError) {
+        console.error("Transaction record error:", transactionError)
+      }
+
+      // Update local profile balance
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              account_balance: prev.account_balance + amount,
+            }
+          : null,
+      )
+
+      toast({
+        title: "Balance updated",
+        description: `$${amount} has been added to your account.`,
+      })
+
+      return true
+    } catch (err: any) {
+      console.error("Error adding balance:", err)
+      toast({
+        title: "Update failed",
+        description: err.message,
+        variant: "destructive",
+      })
+      return false
+    }
   }
 
-  const refreshProfile = () => {
-    fetchProfile()
+  const refreshProfile = async () => {
+    await fetchProfile()
   }
 
   useEffect(() => {
@@ -180,12 +231,10 @@ export function useProfile() {
   return {
     profile,
     loading,
-    updating,
-    fetchProfile,
-    refreshProfile,
+    error,
     updateProfile,
-    updateBalance,
     deductBalance,
     addBalance,
+    refreshProfile,
   }
 }

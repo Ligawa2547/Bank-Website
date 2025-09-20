@@ -3,14 +3,16 @@
 import type React from "react"
 
 import { useState } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Mail, Lock, AlertCircle, Loader2 } from "lucide-react"
-import Link from "next/link"
+import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function LoginClient() {
   const [email, setEmail] = useState("")
@@ -19,7 +21,9 @@ export default function LoginClient() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const supabase = createClientComponentClient()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,31 +31,31 @@ export default function LoginClient() {
     setError("")
 
     try {
-      console.log("Attempting login for:", email)
+      const supabase = createClient()
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password,
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       })
 
-      if (error) {
-        console.error("Login error:", error)
-        setError(error.message)
-        setLoading(false)
+      if (authError) {
+        setError(authError.message)
         return
       }
 
       if (data.user) {
-        console.log("Login successful, redirecting to dashboard...")
-        // Use window.location.href for reliable redirect
-        window.location.href = "/dashboard"
-      } else {
-        setError("Login failed - no user data received")
-        setLoading(false)
+        toast({
+          title: "Login successful!",
+          description: "Welcome back to IAE Banking",
+        })
+
+        const redirectTo = searchParams.get("redirectTo") || "/dashboard"
+        router.push(redirectTo)
       }
-    } catch (err) {
-      console.error("Unexpected login error:", err)
+    } catch (error) {
+      console.error("Login error:", error)
       setError("An unexpected error occurred. Please try again.")
+    } finally {
       setLoading(false)
     }
   }
@@ -61,7 +65,7 @@ export default function LoginClient() {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Sign in to your account</h2>
-          <p className="mt-2 text-sm text-gray-600">Welcome back to IAE National Bank</p>
+          <p className="mt-2 text-sm text-gray-600">Welcome back to IAE Banking</p>
         </div>
 
         <Card>
@@ -71,88 +75,76 @@ export default function LoginClient() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <Label htmlFor="email">Email Address</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
-                    required
-                    disabled={loading}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10"
-                    required
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                    disabled={loading}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
               {error && (
                 <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full bg-[#0A3D62] hover:bg-[#0F5585]" disabled={loading}>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    disabled={loading}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={loading}
+                  >
+                    {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
                     Signing in...
                   </>
                 ) : (
-                  "Sign In"
+                  "Sign in"
                 )}
               </Button>
             </form>
 
-            <div className="mt-6 space-y-4">
-              <div className="text-center">
-                <Link href="/forgot-password" className="text-sm text-[#0A3D62] hover:text-[#0F5585] hover:underline">
-                  Forgot your password?
-                </Link>
-              </div>
+            <div className="mt-6 text-center space-y-2">
+              <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
+                Forgot your password?
+              </Link>
 
-              <div className="text-center text-sm text-gray-600">
-                Don't have an account?{" "}
-                <Link href="/signup" className="text-[#0A3D62] hover:text-[#0F5585] hover:underline font-medium">
-                  Sign up here
+              <div className="text-sm text-gray-600">
+                {"Don't have an account? "}
+                <Link href="/signup" className="text-blue-600 hover:text-blue-500">
+                  Sign up
                 </Link>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <div className="text-center text-xs text-gray-500">
-          <p>© 2024 IAE National Bank. All rights reserved.</p>
-          <p>Your security is our priority.</p>
-        </div>
       </div>
     </div>
   )
