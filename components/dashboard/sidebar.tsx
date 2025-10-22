@@ -177,7 +177,7 @@ export function Sidebar({
                         : profile.email || "User"}
                     </div>
                     <div className="text-xs text-gray-500 truncate font-mono">
-                      {profile.account_no || "No account number"}
+                      {profile.account_number || "No account number"}
                     </div>
                   </div>
                 </div>
@@ -194,7 +194,7 @@ export function Sidebar({
                 </div>
 
                 <div className="text-lg sm:text-xl font-bold text-[#0A3D62]">
-                  {showBalance ? formatCurrency(profile.account_balance || 0) : "••••••"}
+                  {showBalance ? formatCurrency(profile.balance || 0) : "••••••"}
                 </div>
               </div>
 

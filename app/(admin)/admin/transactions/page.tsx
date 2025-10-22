@@ -2,102 +2,67 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { createClient } from "@supabase/supabase-js"
 import {
-  Search,
-  Download,
-  Send,
+  DollarSign,
   TrendingUp,
-  Users,
-  CreditCard,
-  Check,
-  X,
+  TrendingDown,
   Clock,
-  AlertCircle,
-  Eye,
-  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Download,
+  Search,
+  Filter,
+  User,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
-import { toast } from "@/hooks/use-toast"
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+import { useSupabase } from "@/providers/supabase-provider"
+import { useToast } from "@/hooks/use-toast"
 
 interface Transaction {
   id: string
   user_id: string
-  account_no: string
-  transaction_type: "deposit" | "withdrawal" | "transfer_in" | "transfer_out" | "loan_disbursement" | "loan_repayment"
+  transaction_type: "deposit" | "withdrawal" | "transfer"
   amount: number
   status: "pending" | "completed" | "failed" | "cancelled"
-  reference: string
+  payment_method: string
   narration: string
-  payment_method?: string
-  recipient_account_number?: string
-  recipient_name?: string
-  sender_account_number?: string
-  sender_name?: string
+  reference: string
   created_at: string
-  updated_at?: string
-  metadata?: any
-  users?: {
-    id: string
-    email: string
-    first_name: string
-    last_name: string
-    full_name: string
-    account_number: string
-    balance: number
-  }
+  account_no: string
+  user_name: string
 }
 
 interface TransactionStats {
-  totalTransactions: number
-  totalVolume: number
-  pendingTransactions: number
-  pendingVolume: number
-  paypalTransactions: number
-  paypalVolume: number
-  successRate: number
-  avgTransactionSize: number
+  total_transactions: number
+  total_amount: number
+  pending_transactions: number
+  completed_transactions: number
+  failed_transactions: number
 }
 
 export default function AdminTransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([])
   const [stats, setStats] = useState<TransactionStats>({
-    totalTransactions: 0,
-    totalVolume: 0,
-    pendingTransactions: 0,
-    pendingVolume: 0,
-    paypalTransactions: 0,
-    paypalVolume: 0,
-    successRate: 0,
-    avgTransactionSize: 0,
+    total_transactions: 0,
+    total_amount: 0,
+    pending_transactions: 0,
+    completed_transactions: 0,
+    failed_transactions: 0,
   })
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
-  const [paymentMethodFilter, setPaymentMethodFilter] = useState("all")
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
-  const [notificationTitle, setNotificationTitle] = useState("")
-  const [notificationMessage, setNotificationMessage] = useState("")
-  const [processingTransaction, setProcessingTransaction] = useState<string | null>(null)
-  const [declineReason, setDeclineReason] = useState("")
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const { supabase } = useSupabase()
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchTransactions()
@@ -105,60 +70,66 @@ export default function AdminTransactionsPage() {
 
   useEffect(() => {
     filterTransactions()
-  }, [transactions, searchTerm, statusFilter, typeFilter, paymentMethodFilter])
+  }, [transactions, searchTerm, statusFilter, typeFilter])
 
   const fetchTransactions = async () => {
     try {
       setLoading(true)
 
-      // Fetch transactions with user data
+      // Fetch transactions with user details
       const { data: transactionsData, error: transactionsError } = await supabase
         .from("transactions")
-        .select(`
+        .select(
+          `
           *,
-          users!transactions_account_no_fkey (
-            id,
-            email,
+          users!inner(
+            account_no,
             first_name,
-            last_name,
-            full_name,
-            account_number,
-            balance
+            last_name
           )
-        `)
+        `,
+        )
         .order("created_at", { ascending: false })
-        .limit(500)
 
       if (transactionsError) {
         console.error("Error fetching transactions:", transactionsError)
         toast({
           title: "Error",
-          description: "Failed to fetch transactions",
+          description: "Failed to load transactions",
           variant: "destructive",
         })
         return
       }
 
-      const processedTransactions = (transactionsData || []).map((transaction) => ({
-        ...transaction,
-        users: transaction.users || {
-          id: "",
-          email: "N/A",
-          first_name: "Unknown",
-          last_name: "User",
-          full_name: "Unknown User",
-          account_number: transaction.account_no || "N/A",
-          balance: 0,
-        },
-      }))
+      // Transform the data to include user info
+      const transformedTransactions =
+        transactionsData?.map((transaction: any) => ({
+          ...transaction,
+          account_no: transaction.users.account_no,
+          user_name: `${transaction.users.first_name} ${transaction.users.last_name}`,
+        })) || []
 
-      setTransactions(processedTransactions)
-      calculateStats(processedTransactions)
+      setTransactions(transformedTransactions)
+
+      // Calculate stats
+      const totalTransactions = transformedTransactions.length
+      const totalAmount = transformedTransactions.reduce((sum: number, t: Transaction) => sum + t.amount, 0)
+      const pendingTransactions = transformedTransactions.filter((t: Transaction) => t.status === "pending").length
+      const completedTransactions = transformedTransactions.filter((t: Transaction) => t.status === "completed").length
+      const failedTransactions = transformedTransactions.filter((t: Transaction) => t.status === "failed").length
+
+      setStats({
+        total_transactions: totalTransactions,
+        total_amount: totalAmount,
+        pending_transactions: pendingTransactions,
+        completed_transactions: completedTransactions,
+        failed_transactions: failedTransactions,
+      })
     } catch (error) {
-      console.error("Error:", error)
+      console.error("Error fetching transactions:", error)
       toast({
         title: "Error",
-        description: "Failed to fetch transactions",
+        description: "Failed to load transactions",
         variant: "destructive",
       })
     } finally {
@@ -166,285 +137,57 @@ export default function AdminTransactionsPage() {
     }
   }
 
-  const calculateStats = (transactionsData: Transaction[]) => {
-    const totalTransactions = transactionsData.length
-    const totalVolume = transactionsData.filter((t) => t.status === "completed").reduce((sum, t) => sum + t.amount, 0)
-
-    const pendingTransactions = transactionsData.filter((t) => t.status === "pending").length
-    const pendingVolume = transactionsData.filter((t) => t.status === "pending").reduce((sum, t) => sum + t.amount, 0)
-
-    const paypalTransactions = transactionsData.filter((t) => t.payment_method?.toLowerCase().includes("paypal")).length
-
-    const paypalVolume = transactionsData
-      .filter((t) => t.payment_method?.toLowerCase().includes("paypal") && t.status === "completed")
-      .reduce((sum, t) => sum + t.amount, 0)
-
-    const completedTransactions = transactionsData.filter((t) => t.status === "completed").length
-    const successRate = totalTransactions > 0 ? (completedTransactions / totalTransactions) * 100 : 0
-    const avgTransactionSize = totalTransactions > 0 ? totalVolume / totalTransactions : 0
-
-    setStats({
-      totalTransactions,
-      totalVolume,
-      pendingTransactions,
-      pendingVolume,
-      paypalTransactions,
-      paypalVolume,
-      successRate,
-      avgTransactionSize,
-    })
-  }
-
   const filterTransactions = () => {
     let filtered = transactions
 
+    // Search filter
     if (searchTerm) {
-      const search = searchTerm.toLowerCase()
       filtered = filtered.filter(
         (transaction) =>
-          transaction.users?.full_name?.toLowerCase().includes(search) ||
-          transaction.users?.first_name?.toLowerCase().includes(search) ||
-          transaction.users?.last_name?.toLowerCase().includes(search) ||
-          transaction.users?.email?.toLowerCase().includes(search) ||
-          transaction.users?.account_number?.toLowerCase().includes(search) ||
-          transaction.account_no?.toLowerCase().includes(search) ||
-          transaction.reference?.toLowerCase().includes(search) ||
-          transaction.narration?.toLowerCase().includes(search) ||
-          transaction.id.toLowerCase().includes(search),
+          transaction.account_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          transaction.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          transaction.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          transaction.narration?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          transaction.payment_method?.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
+    // Status filter
     if (statusFilter !== "all") {
       filtered = filtered.filter((transaction) => transaction.status === statusFilter)
     }
 
+    // Type filter
     if (typeFilter !== "all") {
       filtered = filtered.filter((transaction) => transaction.transaction_type === typeFilter)
-    }
-
-    if (paymentMethodFilter !== "all") {
-      if (paymentMethodFilter === "paypal") {
-        filtered = filtered.filter((transaction) => transaction.payment_method?.toLowerCase().includes("paypal"))
-      } else {
-        filtered = filtered.filter((transaction) => transaction.payment_method === paymentMethodFilter)
-      }
     }
 
     setFilteredTransactions(filtered)
   }
 
-  const approveTransaction = async (transaction: Transaction) => {
-    try {
-      setProcessingTransaction(transaction.id)
-
-      // Update transaction status to completed
-      const { error: updateError } = await supabase
-        .from("transactions")
-        .update({
-          status: "completed",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", transaction.id)
-
-      if (updateError) {
-        throw updateError
-      }
-
-      // Update user balance based on transaction type
-      if (transaction.users?.id) {
-        let balanceChange = 0
-
-        switch (transaction.transaction_type) {
-          case "deposit":
-          case "transfer_in":
-          case "loan_disbursement":
-            balanceChange = transaction.amount
-            break
-          case "withdrawal":
-          case "transfer_out":
-          case "loan_repayment":
-            balanceChange = -transaction.amount
-            break
-        }
-
-        if (balanceChange !== 0) {
-          const { error: balanceError } = await supabase.rpc("update_user_balance", {
-            user_account_no: transaction.account_no,
-            amount_change: balanceChange,
-          })
-
-          if (balanceError) {
-            console.error("Error updating balance:", balanceError)
-            // Don't throw here, transaction is already approved
-          }
-        }
-      }
-
-      // Send notification to user
-      await sendNotificationToUser(
-        transaction.user_id,
-        "Transaction Approved",
-        `Your ${transaction.transaction_type} of $${transaction.amount.toFixed(2)} has been approved and processed. Reference: ${transaction.reference}`,
-        "success",
-      )
-
-      toast({
-        title: "Transaction Approved",
-        description: `Transaction ${transaction.reference} has been approved successfully`,
-      })
-
-      // Refresh transactions
-      await fetchTransactions()
-    } catch (error) {
-      console.error("Error approving transaction:", error)
-      toast({
-        title: "Error",
-        description: "Failed to approve transaction",
-        variant: "destructive",
-      })
-    } finally {
-      setProcessingTransaction(null)
-    }
-  }
-
-  const declineTransaction = async (transaction: Transaction, reason: string) => {
-    try {
-      setProcessingTransaction(transaction.id)
-
-      // Update transaction status to failed
-      const { error: updateError } = await supabase
-        .from("transactions")
-        .update({
-          status: "failed",
-          updated_at: new Date().toISOString(),
-          metadata: {
-            ...transaction.metadata,
-            decline_reason: reason,
-            declined_by: "admin",
-            declined_at: new Date().toISOString(),
-          },
-        })
-        .eq("id", transaction.id)
-
-      if (updateError) {
-        throw updateError
-      }
-
-      // Send notification to user
-      await sendNotificationToUser(
-        transaction.user_id,
-        "Transaction Declined",
-        `Your ${transaction.transaction_type} of $${transaction.amount.toFixed(2)} has been declined. Reason: ${reason}. Reference: ${transaction.reference}`,
-        "error",
-      )
-
-      toast({
-        title: "Transaction Declined",
-        description: `Transaction ${transaction.reference} has been declined`,
-      })
-
-      // Refresh transactions
-      await fetchTransactions()
-      setDeclineReason("")
-    } catch (error) {
-      console.error("Error declining transaction:", error)
-      toast({
-        title: "Error",
-        description: "Failed to decline transaction",
-        variant: "destructive",
-      })
-    } finally {
-      setProcessingTransaction(null)
-    }
-  }
-
-  const sendNotificationToUser = async (
-    userId: string,
-    title: string,
-    message: string,
-    type: "info" | "success" | "warning" | "error" = "info",
-  ) => {
-    try {
-      const response = await fetch("/api/notifications/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userId,
-          title,
-          message,
-          type,
-          sendEmail: true,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to send notification")
-      }
-    } catch (error) {
-      console.error("Error sending notification:", error)
-    }
-  }
-
-  const sendCustomNotification = async () => {
-    if (!selectedTransaction || !notificationTitle || !notificationMessage) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      await sendNotificationToUser(selectedTransaction.user_id, notificationTitle, notificationMessage, "info")
-
-      toast({
-        title: "Success",
-        description: "Notification sent successfully",
-      })
-
-      setNotificationTitle("")
-      setNotificationMessage("")
-      setSelectedTransaction(null)
-    } catch (error) {
-      console.error("Error sending notification:", error)
-      toast({
-        title: "Error",
-        description: "Failed to send notification",
-        variant: "destructive",
-      })
-    }
-  }
-
   const exportToCSV = () => {
     const headers = [
-      "Transaction ID",
-      "User Name",
-      "Email",
+      "Date",
       "Account Number",
+      "User Name",
       "Type",
       "Amount",
-      "Description",
-      "Reference",
       "Status",
       "Payment Method",
-      "Date",
+      "Reference",
+      "Description",
     ]
 
     const csvData = filteredTransactions.map((transaction) => [
-      transaction.id,
-      transaction.users?.full_name || "N/A",
-      transaction.users?.email || "N/A",
-      transaction.users?.account_number || transaction.account_no || "N/A",
+      new Date(transaction.created_at).toLocaleDateString(),
+      transaction.account_no,
+      transaction.user_name,
       transaction.transaction_type,
       transaction.amount,
-      transaction.narration,
-      transaction.reference,
       transaction.status,
-      transaction.payment_method || "N/A",
-      new Date(transaction.created_at).toLocaleString(),
+      transaction.payment_method,
+      transaction.reference,
+      transaction.narration,
     ])
 
     const csvContent = [headers, ...csvData].map((row) => row.map((field) => `"${field}"`).join(",")).join("\n")
@@ -458,463 +201,315 @@ export default function AdminTransactionsPage() {
     window.URL.revokeObjectURL(url)
 
     toast({
-      title: "Success",
-      description: "Transactions exported successfully",
+      title: "Export Successful",
+      description: "Transactions exported to CSV file",
     })
   }
 
   const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      completed: { color: "bg-green-100 text-green-800", icon: Check },
-      pending: { color: "bg-yellow-100 text-yellow-800", icon: Clock },
-      failed: { color: "bg-red-100 text-red-800", icon: X },
-      cancelled: { color: "bg-gray-100 text-gray-800", icon: X },
+    const colors: Record<string, string> = {
+      completed: "text-green-700 bg-green-100",
+      pending: "text-yellow-700 bg-yellow-100",
+      failed: "text-red-700 bg-red-100",
+      cancelled: "text-gray-700 bg-gray-100",
     }
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending
-    const Icon = config.icon
-
     return (
-      <Badge className={`${config.color} flex items-center gap-1`}>
-        <Icon className="h-3 w-3" />
+      <Badge className={`${colors[status] || "text-gray-700 bg-gray-100"} text-xs`}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     )
   }
 
-  const getTypeBadge = (type: string) => {
-    const typeColors = {
-      deposit: "bg-blue-100 text-blue-800",
-      withdrawal: "bg-orange-100 text-orange-800",
-      transfer_in: "bg-green-100 text-green-800",
-      transfer_out: "bg-red-100 text-red-800",
-      loan_disbursement: "bg-purple-100 text-purple-800",
-      loan_repayment: "bg-indigo-100 text-indigo-800",
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "deposit":
+        return <TrendingUp className="h-4 w-4 text-green-600" />
+      case "withdrawal":
+        return <TrendingDown className="h-4 w-4 text-red-600" />
+      case "transfer":
+        return <DollarSign className="h-4 w-4 text-blue-600" />
+      default:
+        return <DollarSign className="h-4 w-4 text-gray-600" />
     }
+  }
 
-    const typeLabels = {
-      deposit: "Deposit",
-      withdrawal: "Withdrawal",
-      transfer_in: "Money In",
-      transfer_out: "Money Out",
-      loan_disbursement: "Loan Disbursement",
-      loan_repayment: "Loan Payment",
-    }
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount)
+  }
 
-    return (
-      <Badge className={typeColors[type as keyof typeof typeColors] || "bg-gray-100 text-gray-800"}>
-        {typeLabels[type as keyof typeof typeLabels] || type}
-      </Badge>
-    )
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading transactions...</p>
+      <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+          <div className="h-96 bg-gray-200 rounded"></div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Transaction Management</h1>
-          <p className="text-gray-600">Monitor, approve, and manage all system transactions</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Transactions</h1>
+          <p className="text-muted-foreground">Monitor and manage all user transactions</p>
         </div>
-        <Button onClick={exportToCSV} className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          Export CSV
+        <Button onClick={exportToCSV} className="w-full sm:w-auto">
+          <Download className="h-4 w-4 mr-2" />
+          <span className="sm:hidden">Export</span>
+          <span className="hidden sm:inline">Export CSV</span>
         </Button>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Transactions</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalTransactions.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              ${stats.totalVolume.toLocaleString(undefined, { minimumFractionDigits: 2 })} total volume
-            </p>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <Card className="p-3 sm:p-4">
+          <CardContent className="p-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Total</p>
+                <p className="text-lg sm:text-2xl font-bold">{stats.total_transactions}</p>
+              </div>
+              <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.pendingTransactions.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              ${stats.pendingVolume.toLocaleString(undefined, { minimumFractionDigits: 2 })} pending
-            </p>
+        <Card className="p-3 sm:p-4">
+          <CardContent className="p-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Volume</p>
+                <p className="text-sm sm:text-lg font-bold">{formatCurrency(stats.total_amount)}</p>
+              </div>
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">PayPal Transactions</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.paypalTransactions.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              ${stats.paypalVolume.toLocaleString(undefined, { minimumFractionDigits: 2 })} PayPal volume
-            </p>
+        <Card className="p-3 sm:p-4">
+          <CardContent className="p-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Pending</p>
+                <p className="text-lg sm:text-2xl font-bold">{stats.pending_transactions}</p>
+              </div>
+              <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-600" />
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.successRate.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">Avg: ${stats.avgTransactionSize.toFixed(2)}</p>
+        <Card className="p-3 sm:p-4">
+          <CardContent className="p-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Completed</p>
+                <p className="text-lg sm:text-2xl font-bold">{stats.completed_transactions}</p>
+              </div>
+              <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="p-3 sm:p-4 col-span-2 sm:col-span-1">
+          <CardContent className="p-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground">Failed</p>
+                <p className="text-lg sm:text-2xl font-bold">{stats.failed_transactions}</p>
+              </div>
+              <XCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Pending Transactions Alert */}
-      {stats.pendingTransactions > 0 && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            You have {stats.pendingTransactions} pending transactions worth $
-            {stats.pendingVolume.toLocaleString(undefined, { minimumFractionDigits: 2 })} awaiting your review.
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Filters */}
       <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <CardTitle className="text-lg">Filter Transactions</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              className="sm:hidden w-full"
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Filters
+              {showMobileFilters ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search transactions..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+        <CardContent className={`space-y-4 ${showMobileFilters ? "block" : "hidden"} sm:block`}>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by account number, name, reference..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Type" />
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter by type" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="deposit">Deposits</SelectItem>
                 <SelectItem value="withdrawal">Withdrawals</SelectItem>
-                <SelectItem value="transfer_in">Money In</SelectItem>
-                <SelectItem value="transfer_out">Money Out</SelectItem>
-                <SelectItem value="loan_disbursement">Loan Disbursements</SelectItem>
-                <SelectItem value="loan_repayment">Loan Payments</SelectItem>
+                <SelectItem value="transfer">Transfers</SelectItem>
               </SelectContent>
             </Select>
-
-            <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Payment Method" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Methods</SelectItem>
-                <SelectItem value="paypal">PayPal</SelectItem>
-                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                <SelectItem value="internal">Internal Transfer</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearchTerm("")
-                setStatusFilter("all")
-                setTypeFilter("all")
-                setPaymentMethodFilter("all")
-              }}
-            >
-              Clear Filters
-            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Transactions Table */}
+      {/* Transactions List */}
       <Card>
         <CardHeader>
-          <CardTitle>Transactions ({filteredTransactions.length})</CardTitle>
+          <CardTitle>Recent Transactions ({filteredTransactions.length})</CardTitle>
           <CardDescription>
-            Showing {filteredTransactions.length} of {transactions.length} transactions
+            {filteredTransactions.length === 0 ? "No transactions found" : "Latest transaction activity"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left p-2">User</th>
-                  <th className="text-left p-2">Account</th>
-                  <th className="text-left p-2">Type</th>
-                  <th className="text-left p-2">Amount</th>
-                  <th className="text-left p-2">Description</th>
-                  <th className="text-left p-2">Reference</th>
-                  <th className="text-left p-2">Status</th>
-                  <th className="text-left p-2">Payment Method</th>
-                  <th className="text-left p-2">Date</th>
-                  <th className="text-left p-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="text-center p-8 text-muted-foreground">
-                      No transactions found matching your criteria
-                    </td>
-                  </tr>
-                ) : (
-                  filteredTransactions.map((transaction) => (
-                    <tr key={transaction.id} className="border-b hover:bg-gray-50">
-                      <td className="p-2">
+          {filteredTransactions.length === 0 ? (
+            <Alert>
+              <AlertDescription>No transactions found matching your current filters.</AlertDescription>
+            </Alert>
+          ) : (
+            <div className="space-y-4">
+              {/* Mobile Layout */}
+              <div className="sm:hidden space-y-4">
+                {filteredTransactions.map((transaction) => (
+                  <Card key={transaction.id} className="p-4">
+                    <div className="space-y-3">
+                      {/* Account Info - Highlighted */}
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <User className="h-4 w-4 text-gray-600" />
+                          <span className="text-sm font-medium text-gray-700">Account:</span>
+                        </div>
+                        <div className="font-bold text-lg text-gray-900">{transaction.account_no}</div>
+                        <div className="text-sm text-gray-600">{transaction.user_name}</div>
+                      </div>
+
+                      {/* Transaction Details */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {getTypeIcon(transaction.transaction_type)}
+                          <span className="font-medium capitalize">{transaction.transaction_type}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-lg">{formatCurrency(transaction.amount)}</div>
+                          {getStatusBadge(transaction.status)}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 text-sm text-muted-foreground">
                         <div>
-                          <div className="font-medium">
-                            {transaction.users?.full_name ||
-                              `${transaction.users?.first_name} ${transaction.users?.last_name}` ||
-                              "Unknown User"}
-                          </div>
-                          <div className="text-sm text-gray-500">{transaction.users?.email || "N/A"}</div>
+                          <strong>Method:</strong> {transaction.payment_method}
                         </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="font-mono text-sm">
-                          {transaction.users?.account_number || transaction.account_no || "N/A"}
+                        <div>
+                          <strong>Reference:</strong> {transaction.reference}
                         </div>
-                      </td>
-                      <td className="p-2">{getTypeBadge(transaction.transaction_type)}</td>
-                      <td className="p-2">
-                        <div className="font-medium">
-                          ${transaction.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        <div>
+                          <strong>Date:</strong> {formatDate(transaction.created_at)}
                         </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="max-w-xs truncate" title={transaction.narration}>
-                          {transaction.narration}
+                        <div>
+                          <strong>Description:</strong> {transaction.narration}
                         </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="font-mono text-sm">{transaction.reference}</div>
-                      </td>
-                      <td className="p-2">{getStatusBadge(transaction.status)}</td>
-                      <td className="p-2">
-                        <div className="text-sm">
-                          {transaction.payment_method ? (
-                            <Badge variant="outline" className="text-xs">
-                              {transaction.payment_method}
-                            </Badge>
-                          ) : (
-                            "N/A"
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="text-sm">{new Date(transaction.created_at).toLocaleDateString()}</div>
-                        <div className="text-xs text-gray-500">
-                          {new Date(transaction.created_at).toLocaleTimeString()}
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <div className="flex gap-1">
-                          {transaction.status === "pending" && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="default"
-                                onClick={() => approveTransaction(transaction)}
-                                disabled={processingTransaction === transaction.id}
-                                className="bg-green-600 hover:bg-green-700 text-white"
-                              >
-                                {processingTransaction === transaction.id ? (
-                                  <RefreshCw className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Check className="h-3 w-3" />
-                                )}
-                              </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
 
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    disabled={processingTransaction === transaction.id}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                  <DialogHeader>
-                                    <DialogTitle>Decline Transaction</DialogTitle>
-                                    <DialogDescription>
-                                      Please provide a reason for declining this transaction
-                                    </DialogDescription>
-                                  </DialogHeader>
-                                  <div className="space-y-4">
-                                    <div>
-                                      <Label htmlFor="decline-reason">Decline Reason</Label>
-                                      <Textarea
-                                        id="decline-reason"
-                                        value={declineReason}
-                                        onChange={(e) => setDeclineReason(e.target.value)}
-                                        placeholder="Enter reason for declining this transaction..."
-                                        rows={3}
-                                      />
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <Button
-                                        variant="destructive"
-                                        onClick={() => declineTransaction(transaction, declineReason)}
-                                        disabled={!declineReason.trim() || processingTransaction === transaction.id}
-                                        className="flex-1"
-                                      >
-                                        {processingTransaction === transaction.id ? (
-                                          <>
-                                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                            Declining...
-                                          </>
-                                        ) : (
-                                          "Decline Transaction"
-                                        )}
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-                            </>
-                          )}
-
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="sm" onClick={() => setSelectedTransaction(transaction)}>
-                                <Eye className="h-3 w-3" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-2xl">
-                              <DialogHeader>
-                                <DialogTitle>Transaction Details & Notification</DialogTitle>
-                                <DialogDescription>
-                                  View transaction details and send notification to user
-                                </DialogDescription>
-                              </DialogHeader>
-
-                              {selectedTransaction && (
-                                <div className="space-y-6">
-                                  {/* Transaction Details */}
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                      <Label>Transaction ID</Label>
-                                      <p className="text-sm font-mono bg-muted p-2 rounded">{selectedTransaction.id}</p>
-                                    </div>
-                                    <div>
-                                      <Label>Reference</Label>
-                                      <p className="text-sm font-mono bg-muted p-2 rounded">
-                                        {selectedTransaction.reference}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <Label>User</Label>
-                                      <p className="text-sm bg-muted p-2 rounded">
-                                        {selectedTransaction.users?.full_name || "Unknown User"}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <Label>Email</Label>
-                                      <p className="text-sm bg-muted p-2 rounded">
-                                        {selectedTransaction.users?.email || "N/A"}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <Label>Amount</Label>
-                                      <p className="text-sm font-medium bg-muted p-2 rounded">
-                                        $
-                                        {selectedTransaction.amount.toLocaleString(undefined, {
-                                          minimumFractionDigits: 2,
-                                        })}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <Label>Status</Label>
-                                      <div className="bg-muted p-2 rounded">
-                                        {getStatusBadge(selectedTransaction.status)}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Send Notification */}
-                                  <div className="border-t pt-4 space-y-4">
-                                    <h4 className="font-medium">Send Custom Notification</h4>
-                                    <div>
-                                      <Label htmlFor="title">Title</Label>
-                                      <Input
-                                        id="title"
-                                        value={notificationTitle}
-                                        onChange={(e) => setNotificationTitle(e.target.value)}
-                                        placeholder="Notification title"
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label htmlFor="message">Message</Label>
-                                      <Textarea
-                                        id="message"
-                                        value={notificationMessage}
-                                        onChange={(e) => setNotificationMessage(e.target.value)}
-                                        placeholder="Notification message"
-                                        rows={4}
-                                      />
-                                    </div>
-                                    <Button onClick={sendCustomNotification} className="w-full">
-                                      <Send className="h-4 w-4 mr-2" />
-                                      Send Notification & Email
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-                            </DialogContent>
-                          </Dialog>
-                        </div>
-                      </td>
+              {/* Desktop Layout */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2 font-medium">Date</th>
+                      <th className="text-left p-2 font-medium">Account</th>
+                      <th className="text-left p-2 font-medium">Type</th>
+                      <th className="text-left p-2 font-medium">Amount</th>
+                      <th className="text-left p-2 font-medium">Status</th>
+                      <th className="text-left p-2 font-medium">Method</th>
+                      <th className="text-left p-2 font-medium">Reference</th>
+                      <th className="text-left p-2 font-medium">Description</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {filteredTransactions.map((transaction) => (
+                      <tr key={transaction.id} className="border-b hover:bg-gray-50">
+                        <td className="p-2 text-sm">{formatDate(transaction.created_at)}</td>
+                        <td className="p-2">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-gray-600" />
+                            <div>
+                              <div className="font-bold text-gray-900">{transaction.account_no}</div>
+                              <div className="text-xs text-gray-600">{transaction.user_name}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <div className="flex items-center gap-2">
+                            {getTypeIcon(transaction.transaction_type)}
+                            <span className="capitalize text-sm">{transaction.transaction_type}</span>
+                          </div>
+                        </td>
+                        <td className="p-2 font-medium">{formatCurrency(transaction.amount)}</td>
+                        <td className="p-2">{getStatusBadge(transaction.status)}</td>
+                        <td className="p-2 text-sm">{transaction.payment_method}</td>
+                        <td className="p-2 text-sm font-mono">{transaction.reference}</td>
+                        <td className="p-2 text-sm max-w-xs truncate" title={transaction.narration}>
+                          {transaction.narration}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

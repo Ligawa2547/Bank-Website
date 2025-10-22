@@ -2,45 +2,437 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { useProfile } from "@/hooks/use-profile"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Database } from "@/types/supabase"
-import { Upload, FileText, CheckCircle, XCircle, Clock, AlertCircle, DollarSign } from "lucide-react"
+import { useAuth } from "@/lib/auth-provider"
+import { createClient } from "@/lib/supabase/client"
+import {
+  FileCheck,
+  Upload,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  XCircle,
+  DollarSign,
+  CreditCard,
+  FileText,
+  User,
+  Home,
+  Building,
+  Camera,
+  File,
+  Trash2,
+  Eye,
+  Shield,
+  Award,
+  Database,
+} from "lucide-react"
 
-const KYC_FEE = 35.0
+interface KYCDocument {
+  id: string
+  document_type: string
+  file_name: string
+  file_url: string
+  status: "pending" | "approved" | "rejected"
+  uploaded_at: string
+  rejection_reason?: string
+}
+
+const DOCUMENT_TYPES = [
+  {
+    id: "national_id",
+    name: "National ID",
+    icon: User,
+    required: true,
+    description: "Government-issued national identity card",
+  },
+  { id: "passport", name: "Passport", icon: FileText, required: false, description: "International passport document" },
+  {
+    id: "drivers_license",
+    name: "Driver's License",
+    icon: CreditCard,
+    required: false,
+    description: "Valid driver's license",
+  },
+  {
+    id: "utility_bill",
+    name: "Utility Bill",
+    icon: Home,
+    required: true,
+    description: "Recent utility bill (electricity, water, gas)",
+  },
+  {
+    id: "bank_statement",
+    name: "Bank Statement",
+    icon: Building,
+    required: false,
+    description: "Recent bank account statement",
+  },
+]
+
+const KYC_FEE = 35
+
+// Supported file types
+const SUPPORTED_FILE_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/bmp",
+  "image/webp",
+  "image/tiff",
+  "image/svg+xml",
+]
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
 export default function KYCPage() {
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [documentType, setDocumentType] = useState("")
-  const [documentNumber, setDocumentNumber] = useState("")
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const { profile, loading, deductBalance, refreshProfile } = useProfile()
+  const { user, profile, refreshProfile } = useAuth()
   const { toast } = useToast()
-  const supabase = createClientComponentClient<Database>()
+  const [documents, setDocuments] = useState<KYCDocument[]>([])
+  const [uploading, setUploading] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [tableExists, setTableExists] = useState(true)
+  const [dragOver, setDragOver] = useState<string | null>(null)
+  const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({})
+  const supabase = createClient()
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "approved":
-        return <CheckCircle className="h-4 w-4 text-green-500" />
-      case "rejected":
-        return <XCircle className="h-4 w-4 text-red-500" />
-      case "pending":
-        return <Clock className="h-4 w-4 text-yellow-500" />
-      default:
-        return <AlertCircle className="h-4 w-4 text-gray-500" />
+  useEffect(() => {
+    if (user) {
+      fetchDocuments()
+    }
+  }, [user])
+
+  const fetchDocuments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("kyc_documents")
+        .select("*")
+        .eq("user_id", user?.id)
+        .order("uploaded_at", { ascending: false })
+
+      if (error) {
+        // Check if the error is because the table doesn't exist
+        if (error.message.includes("does not exist") || error.code === "42P01") {
+          console.error("kyc_documents table does not exist")
+          setTableExists(false)
+          setDocuments([])
+        } else {
+          throw error
+        }
+      } else {
+        setDocuments(data || [])
+        setTableExists(true)
+      }
+    } catch (error) {
+      console.error("Error fetching documents:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load KYC documents",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const validateFile = (file: File): string | null => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return `File size must be less than ${MAX_FILE_SIZE / (1024 * 1024)}MB`
+    }
+
+    // Check file type
+    if (!SUPPORTED_FILE_TYPES.includes(file.type)) {
+      return "Unsupported file format. Please upload PDF, JPG, PNG, GIF, BMP, WebP, TIFF, or SVG files"
+    }
+
+    return null
+  }
+
+  const handleFileUpload = async (documentType: string, file: File) => {
+    if (!user) return
+
+    if (!tableExists) {
+      toast({
+        title: "Database Setup Required",
+        description: "Please run the KYC documents table creation script first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Prevent uploads if KYC is already submitted or approved
+    if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
+      toast({
+        title: "Upload not allowed",
+        description: "You cannot upload documents when KYC is already submitted or approved.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Validate file
+    const validationError = validateFile(file)
+    if (validationError) {
+      toast({
+        title: "Invalid file",
+        description: validationError,
+        variant: "destructive",
+      })
+      return
+    }
+
+    setUploading(documentType)
+
+    try {
+      // Upload file to Supabase storage
+      const fileExt = file.name.split(".").pop()?.toLowerCase()
+      const fileName = `${user.id}/${documentType}_${Date.now()}.${fileExt}`
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("kyc-documents")
+        .upload(fileName, file, {
+          cacheControl: "3600",
+          upsert: false,
+        })
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: urlData } = supabase.storage.from("kyc-documents").getPublicUrl(fileName)
+
+      // Delete existing document of the same type if it exists
+      const existingDoc = documents.find((doc) => doc.document_type === documentType)
+      if (existingDoc) {
+        await supabase.from("kyc_documents").delete().eq("id", existingDoc.id)
+
+        // Also delete the old file from storage
+        const oldFileName = existingDoc.file_url.split("/").pop()
+        if (oldFileName) {
+          await supabase.storage.from("kyc-documents").remove([`${user.id}/${oldFileName}`])
+        }
+      }
+
+      // Save document record
+      const { error: insertError } = await supabase.from("kyc_documents").insert({
+        user_id: user.id,
+        account_no: profile?.account_number,
+        document_type: documentType,
+        document_number: file.name.split(".")[0],
+        document_url: urlData.publicUrl,
+        file_name: file.name,
+        status: "pending",
+        submitted_at: new Date().toISOString(),
+      })
+
+      if (insertError) throw insertError
+
+      toast({
+        title: "Document uploaded successfully",
+        description: `${DOCUMENT_TYPES.find((dt) => dt.id === documentType)?.name} has been uploaded and is pending review`,
+      })
+
+      fetchDocuments()
+
+      // Clear the file input
+      if (fileInputRefs.current[documentType]) {
+        fileInputRefs.current[documentType]!.value = ""
+      }
+    } catch (error) {
+      console.error("Error uploading document:", error)
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload document. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent, documentType: string) => {
+    e.preventDefault()
+    setDragOver(null)
+
+    if (!tableExists) {
+      toast({
+        title: "Database Setup Required",
+        description: "Please run the KYC documents table creation script first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Prevent drops if KYC is already submitted or approved
+    if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
+      toast({
+        title: "Upload not allowed",
+        description: "You cannot upload documents when KYC is already submitted or approved.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      handleFileUpload(documentType, files[0])
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent, documentType: string) => {
+    e.preventDefault()
+    // Only allow drag over if KYC is not submitted or approved
+    if (profile?.kyc_status !== "pending" && profile?.kyc_status !== "approved" && tableExists) {
+      setDragOver(documentType)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(null)
+  }
+
+  const deleteDocument = async (docId: string, documentType: string) => {
+    if (!tableExists) {
+      toast({
+        title: "Database Setup Required",
+        description: "Please run the KYC documents table creation script first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Prevent deletion if KYC is already submitted or approved
+    if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
+      toast({
+        title: "Delete not allowed",
+        description: "You cannot delete documents when KYC is already submitted or approved.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const { error } = await supabase.from("kyc_documents").delete().eq("id", docId)
+      if (error) throw error
+
+      toast({
+        title: "Document deleted",
+        description: "Document has been removed successfully",
+      })
+
+      fetchDocuments()
+    } catch (error) {
+      console.error("Error deleting document:", error)
+      toast({
+        title: "Delete failed",
+        description: "Failed to delete document. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const viewDocument = (url: string) => {
+    window.open(url, "_blank")
+  }
+
+  const handleSubmitKYC = async () => {
+    if (!user || !profile) return
+
+    if (!tableExists) {
+      toast({
+        title: "Database Setup Required",
+        description: "Please run the KYC documents table creation script first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Check if user has sufficient balance
+    const userBalance = typeof profile.balance === "number" ? profile.balance : 0
+    if (userBalance < KYC_FEE) {
+      toast({
+        title: "Insufficient balance",
+        description: `You need at least $${KYC_FEE} to submit KYC verification`,
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Check if required documents are uploaded
+    const requiredDocs = DOCUMENT_TYPES.filter((doc) => doc.required)
+    const uploadedRequiredDocs = requiredDocs.filter((doc) => documents.some((d) => d.document_type === doc.id))
+
+    if (uploadedRequiredDocs.length < requiredDocs.length) {
+      toast({
+        title: "Missing documents",
+        description: "Please upload all required documents before submitting",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSubmitting(true)
+
+    try {
+      // Deduct KYC fee and update status
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({
+          account_balance: userBalance - KYC_FEE,
+          kyc_status: "pending",
+        })
+        .eq("id", user.id)
+
+      if (updateError) throw updateError
+
+      // Record the fee transaction
+      const { error: transactionError } = await supabase.from("transactions").insert({
+        user_id: user.id,
+        account_no: profile.account_number,
+        transaction_type: "withdrawal",
+        amount: KYC_FEE,
+        narration: "KYC Verification Fee",
+        reference: `KYC_${Date.now()}`,
+        status: "completed",
+      })
+
+      if (transactionError) throw transactionError
+
+      // Create notification
+      await supabase.from("notifications").insert({
+        user_id: user.id,
+        account_no: profile.account_number,
+        title: "KYC Verification Submitted",
+        message: `Your KYC verification has been submitted for review. Fee of $${KYC_FEE} has been deducted from your account.`,
+        is_read: false,
+      })
+
+      toast({
+        title: "KYC submitted successfully",
+        description: `Your KYC verification has been submitted for review. Fee of $${KYC_FEE} has been deducted.`,
+      })
+
+      // Refresh profile to get updated status
+      refreshProfile()
+    } catch (error) {
+      console.error("Error submitting KYC:", error)
+      toast({
+        title: "Submission failed",
+        description: "Failed to submit KYC verification. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -48,362 +440,514 @@ export default function KYCPage() {
     switch (status) {
       case "approved":
         return "bg-green-100 text-green-800"
-      case "rejected":
-        return "bg-red-100 text-red-800"
       case "pending":
         return "bg-yellow-100 text-yellow-800"
+      case "rejected":
+        return "bg-red-100 text-red-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
   }
 
-  const getProgressValue = (status: string) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
-      case "not_submitted":
-        return 0
-      case "pending":
-        return 50
       case "approved":
-        return 100
+        return <CheckCircle className="h-4 w-4" />
+      case "pending":
+        return <Clock className="h-4 w-4" />
       case "rejected":
-        return 25
+        return <XCircle className="h-4 w-4" />
       default:
-        return 0
+        return <AlertCircle className="h-4 w-4" />
     }
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      // Validate file type
-      const allowedTypes = ["image/jpeg", "image/png", "image/jpg", "application/pdf"]
-      if (!allowedTypes.includes(file.type)) {
-        setError("Please select a valid file type (JPEG, PNG, or PDF)")
-        return
-      }
-
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError("File size must be less than 5MB")
-        return
-      }
-
-      setSelectedFile(file)
-      setError(null)
-    }
+  const calculateProgress = () => {
+    const requiredDocs = DOCUMENT_TYPES.filter((doc) => doc.required)
+    const uploadedRequiredDocs = requiredDocs.filter((doc) => documents.some((d) => d.document_type === doc.id))
+    return (uploadedRequiredDocs.length / requiredDocs.length) * 100
   }
 
-  const uploadFile = async (file: File, userId: string) => {
-    const fileExt = file.name.split(".").pop()
-    const fileName = `${userId}/${documentType}_${Date.now()}.${fileExt}`
-
-    const { data, error } = await supabase.storage.from("kyc-documents").upload(fileName, file)
-
-    if (error) {
-      throw error
-    }
-
-    return data.path
+  const canUploadDocuments = () => {
+    return tableExists && (profile?.kyc_status === "not_submitted" || profile?.kyc_status === "rejected")
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
+  const renderKYCStatusMessage = () => {
+    switch (profile?.kyc_status) {
+      case "approved":
+        return (
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-center space-x-4">
+                <div className="flex items-center justify-center w-16 h-16 bg-green-100 rounded-full">
+                  <Award className="h-8 w-8 text-green-600" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-xl font-semibold text-green-800 mb-2">KYC Verification Approved!</h3>
+                  <p className="text-green-700 mb-4">
+                    Congratulations! Your identity has been successfully verified. You now have full access to all
+                    banking features.
+                  </p>
+                  <div className="flex items-center justify-center space-x-2 text-sm text-green-600">
+                    <Shield className="h-4 w-4" />
+                    <span>Your account is fully verified and secure</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )
 
-    if (!profile) {
-      setError("Profile not loaded")
-      return
-    }
+      case "pending":
+        return (
+          <Card className="border-yellow-200 bg-yellow-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-center space-x-4">
+                <div className="flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full">
+                  <Clock className="h-8 w-8 text-yellow-600" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-xl font-semibold text-yellow-800 mb-2">KYC Under Review</h3>
+                  <p className="text-yellow-700 mb-4">
+                    Your KYC verification is currently being reviewed by our team. This process typically takes 1-3
+                    business days.
+                  </p>
+                  <div className="flex items-center justify-center space-x-2 text-sm text-yellow-600">
+                    <FileCheck className="h-4 w-4" />
+                    <span>We'll notify you once the review is complete</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )
 
-    if (!documentType || !documentNumber || !selectedFile) {
-      setError("Please fill in all fields and select a file")
-      return
-    }
+      case "rejected":
+        return (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-center space-x-4">
+                <div className="flex items-center justify-center w-16 h-16 bg-red-100 rounded-full">
+                  <XCircle className="h-8 w-8 text-red-600" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-xl font-semibold text-red-800 mb-2">KYC Verification Rejected</h3>
+                  <p className="text-red-700 mb-4">
+                    Your KYC verification was rejected. Please review the feedback below and resubmit your documents
+                    with the required corrections.
+                  </p>
+                  <div className="flex items-center justify-center space-x-2 text-sm text-red-600">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>You can upload new documents to resubmit your verification</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )
 
-    if (profile.kyc_status === "pending") {
-      setError("You already have a pending KYC submission")
-      return
-    }
-
-    if (profile.kyc_status === "approved") {
-      setError("Your KYC is already approved")
-      return
-    }
-
-    setIsSubmitting(true)
-
-    try {
-      // Check and deduct balance first
-      const balanceDeducted = await deductBalance(KYC_FEE, "KYC Verification Fee")
-      if (!balanceDeducted) {
-        return // Error already shown by deductBalance
-      }
-
-      // Upload file
-      const filePath = await uploadFile(selectedFile, profile.id)
-
-      // Get file URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("kyc-documents").getPublicUrl(filePath)
-
-      // Create KYC submission
-      const { error: submissionError } = await supabase.from("kyc_submissions").insert({
-        user_id: profile.id,
-        account_no: profile.account_no,
-        document_type: documentType,
-        document_number: documentNumber,
-        document_url: publicUrl,
-        status: "pending",
-        fee_paid: KYC_FEE,
-        submitted_at: new Date().toISOString(),
-      })
-
-      if (submissionError) {
-        throw submissionError
-      }
-
-      // Update user KYC status
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({
-          kyc_status: "pending",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", profile.id)
-
-      if (updateError) {
-        console.error("Error updating user status:", updateError)
-      }
-
-      toast({
-        title: "KYC Submitted Successfully!",
-        description: `Your KYC documents have been submitted for review. Fee of $${KYC_FEE} has been deducted.`,
-      })
-
-      // Reset form
-      setDocumentType("")
-      setDocumentNumber("")
-      setSelectedFile(null)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
-
-      // Refresh profile to get updated status
-      await refreshProfile()
-    } catch (err: any) {
-      console.error("KYC submission error:", err)
-      setError(err.message || "Failed to submit KYC documents")
-    } finally {
-      setIsSubmitting(false)
+      default:
+        return null
     }
   }
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-          <div className="h-64 bg-gray-200 rounded"></div>
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
       </div>
     )
   }
 
-  if (!profile) {
+  // Show database setup message if table doesn't exist
+  if (!tableExists) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">KYC Verification</h1>
+          <p className="text-gray-600">Complete your identity verification to unlock all features</p>
+        </div>
+
         <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Failed to load profile data</AlertDescription>
+          <Database className="h-4 w-4" />
+          <AlertDescription>
+            <div className="space-y-2">
+              <p className="font-semibold">Database Setup Required</p>
+              <p>
+                The KYC documents table has not been created yet. Please run the following SQL script in your Supabase
+                database:
+              </p>
+              <code className="block bg-black text-white p-2 rounded text-sm">
+                scripts/create-kyc-documents-table.sql
+              </code>
+              <p className="text-xs">After running the script, refresh this page to continue.</p>
+            </div>
+          </AlertDescription>
         </Alert>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Setup Instructions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <ol className="list-decimal list-inside space-y-2 text-sm">
+              <li>Go to your Supabase project dashboard</li>
+              <li>Navigate to the SQL Editor</li>
+              <li>Copy and run the SQL script: scripts/create-kyc-documents-table.sql</li>
+              <li>Create the kyc-documents storage bucket if it doesn't exist</li>
+              <li>Refresh this page</li>
+            </ol>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">KYC Verification</h1>
-        <p className="text-gray-600 mt-2">Complete your identity verification to unlock all banking features</p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">KYC Verification</h1>
+          <p className="text-gray-600">Complete your identity verification to unlock all features</p>
+        </div>
+        <Badge className={getStatusColor(profile?.kyc_status || "not_submitted")}>
+          {getStatusIcon(profile?.kyc_status || "not_submitted")}
+          <span className="ml-1 capitalize">{profile?.kyc_status?.replace("_", " ") || "Not Submitted"}</span>
+        </Badge>
       </div>
 
-      {/* Status Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {getStatusIcon(profile.kyc_status)}
-            Verification Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Current Status:</span>
-            <Badge className={getStatusColor(profile.kyc_status)}>
-              {profile.kyc_status.replace("_", " ").toUpperCase()}
-            </Badge>
-          </div>
+      {/* KYC Status Message */}
+      {renderKYCStatusMessage()}
 
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Progress</span>
-              <span>{getProgressValue(profile.kyc_status)}%</span>
-            </div>
-            <Progress value={getProgressValue(profile.kyc_status)} className="h-2" />
-          </div>
+      {/* KYC Status Alert for not_submitted */}
+      {profile?.kyc_status === "not_submitted" && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Complete your KYC verification to access all banking features. A one-time fee of ${KYC_FEE} applies.
+          </AlertDescription>
+        </Alert>
+      )}
 
-          {profile.kyc_status === "rejected" && (
-            <Alert variant="destructive">
-              <XCircle className="h-4 w-4" />
-              <AlertDescription>
-                Your KYC submission was rejected. Please submit new documents with correct information.
-              </AlertDescription>
-            </Alert>
-          )}
+      <Tabs defaultValue="documents" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="status">Status</TabsTrigger>
+        </TabsList>
 
-          {profile.kyc_status === "approved" && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>
-                Your identity has been verified successfully! You now have access to all banking features.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+        <TabsContent value="documents" className="space-y-6">
+          {/* Only show progress and fee info if KYC is not approved */}
+          {profile?.kyc_status !== "approved" && (
+            <>
+              {/* Progress */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileCheck className="h-5 w-5" />
+                    Verification Progress
+                  </CardTitle>
+                  <CardDescription>
+                    {profile?.kyc_status === "pending"
+                      ? "Your documents are under review"
+                      : "Upload required documents to complete your verification"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Progress</span>
+                      <span>{Math.round(calculateProgress())}% Complete</span>
+                    </div>
+                    <Progress value={calculateProgress()} className="h-2" />
+                  </div>
+                </CardContent>
+              </Card>
 
-      {/* Balance Info */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-green-600" />
-              <span className="font-medium">Current Balance:</span>
-            </div>
-            <span className="text-2xl font-bold text-green-600">${profile.account_balance.toFixed(2)}</span>
-          </div>
-          <p className="text-sm text-gray-600 mt-2">KYC verification fee: ${KYC_FEE.toFixed(2)}</p>
-        </CardContent>
-      </Card>
-
-      {/* Submission Form */}
-      {(profile.kyc_status === "not_submitted" || profile.kyc_status === "rejected") && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Submit KYC Documents</CardTitle>
-            <CardDescription>
-              Upload your identity documents for verification. A fee of ${KYC_FEE} will be charged.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
+              {/* Fee Information - only show if not submitted */}
+              {profile?.kyc_status === "not_submitted" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5" />
+                      Verification Fee
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                      <div>
+                        <p className="font-medium">KYC Verification Fee</p>
+                        <p className="text-sm text-gray-600">One-time identity verification charge</p>
+                      </div>
+                      <div className="text-2xl font-bold text-blue-600">${KYC_FEE}</div>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Current Balance: ${typeof profile?.balance === "number" ? profile.balance.toFixed(2) : "0.00"}
+                    </p>
+                  </CardContent>
+                </Card>
               )}
+            </>
+          )}
 
-              <div className="space-y-2">
-                <Label htmlFor="documentType">Document Type</Label>
-                <Select value={documentType} onValueChange={setDocumentType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select document type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="national_id">National ID</SelectItem>
-                    <SelectItem value="passport">Passport</SelectItem>
-                    <SelectItem value="drivers_license">Driver's License</SelectItem>
-                    <SelectItem value="utility_bill">Utility Bill</SelectItem>
-                    <SelectItem value="bank_statement">Bank Statement</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          {/* Document Upload/View */}
+          <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+            {DOCUMENT_TYPES.map((docType) => {
+              const uploadedDoc = documents.find((doc) => doc.document_type === docType.id)
+              const Icon = docType.icon
+              const isDragOver = dragOver === docType.id
+              const canUpload = canUploadDocuments()
 
-              <div className="space-y-2">
-                <Label htmlFor="documentNumber">Document Number</Label>
-                <Input
-                  id="documentNumber"
-                  value={documentNumber}
-                  onChange={(e) => setDocumentNumber(e.target.value)}
-                  placeholder="Enter document number"
-                  required
-                />
-              </div>
+              return (
+                <Card key={docType.id} className={isDragOver ? "border-blue-500 bg-blue-50" : ""}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Icon className="h-4 w-4" />
+                      {docType.name}
+                      {docType.required && <Badge variant="secondary">Required</Badge>}
+                    </CardTitle>
+                    <CardDescription className="text-sm">{docType.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {uploadedDoc ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <File className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm font-medium truncate max-w-[150px]" title={uploadedDoc.file_name}>
+                              {uploadedDoc.file_name}
+                            </span>
+                          </div>
+                          <Badge className={getStatusColor(uploadedDoc.status)}>
+                            {getStatusIcon(uploadedDoc.status)}
+                            <span className="ml-1 capitalize">{uploadedDoc.status}</span>
+                          </Badge>
+                        </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="file">Upload Document</Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    id="file"
-                    accept="image/*,.pdf"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mb-2"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Choose File
-                  </Button>
-                  {selectedFile ? (
-                    <div className="flex items-center justify-center gap-2 text-sm text-green-600">
-                      <FileText className="h-4 w-4" />
-                      {selectedFile.name}
+                        {uploadedDoc.status === "rejected" && uploadedDoc.rejection_reason && (
+                          <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                            <strong>Rejection reason:</strong> {uploadedDoc.rejection_reason}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-500">
+                            Uploaded: {new Date(uploadedDoc.uploaded_at).toLocaleDateString()}
+                          </p>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => viewDocument(uploadedDoc.file_url)}>
+                              <Eye className="h-3 w-3 mr-1" />
+                              View
+                            </Button>
+                            {canUpload && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteDocument(uploadedDoc.id, docType.id)}
+                              >
+                                <Trash2 className="h-3 w-3 mr-1" />
+                                Delete
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {canUpload && (
+                          <div className="pt-2 border-t">
+                            <input
+                              ref={(el) => (fileInputRefs.current[docType.id] = el)}
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.svg"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  handleFileUpload(docType.id, file)
+                                }
+                              }}
+                              className="hidden"
+                              id={`reupload-${docType.id}`}
+                              disabled={uploading === docType.id}
+                            />
+                            <label
+                              htmlFor={`reupload-${docType.id}`}
+                              className="flex items-center justify-center gap-2 p-2 border border-dashed border-gray-300 rounded cursor-pointer hover:border-gray-400 transition-colors text-sm"
+                            >
+                              <Upload className="h-3 w-3" />
+                              Replace Document
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {canUpload ? (
+                          <>
+                            <input
+                              ref={(el) => (fileInputRefs.current[docType.id] = el)}
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.svg"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  handleFileUpload(docType.id, file)
+                                }
+                              }}
+                              className="hidden"
+                              id={`upload-${docType.id}`}
+                              disabled={uploading === docType.id}
+                            />
+
+                            {/* Drag and Drop Area */}
+                            <div
+                              onDrop={(e) => handleDrop(e, docType.id)}
+                              onDragOver={(e) => handleDragOver(e, docType.id)}
+                              onDragLeave={handleDragLeave}
+                              className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                                isDragOver ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+                              }`}
+                            >
+                              {uploading === docType.id ? (
+                                <div className="flex flex-col items-center gap-2">
+                                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                  <p className="text-sm text-gray-600">Uploading...</p>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <Upload className="h-6 w-6 text-gray-400" />
+                                    <Camera className="h-6 w-6 text-gray-400" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-700">
+                                      Drop your file here or{" "}
+                                      <label
+                                        htmlFor={`upload-${docType.id}`}
+                                        className="text-blue-600 hover:text-blue-700 cursor-pointer underline"
+                                      >
+                                        browse
+                                      </label>
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      PDF, JPG, PNG, GIF, BMP, WebP, TIFF, SVG
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      Maximum file size: {MAX_FILE_SIZE / (1024 * 1024)}MB
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="p-6 text-center border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
+                            <div className="flex flex-col items-center gap-3">
+                              <FileCheck className="h-8 w-8 text-gray-400" />
+                              <div>
+                                <p className="text-sm font-medium text-gray-600">Document upload not available</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {profile?.kyc_status === "pending"
+                                    ? "Your KYC is under review"
+                                    : "KYC verification is complete"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* Submit Button - only show if not submitted */}
+          {profile?.kyc_status === "not_submitted" && (
+            <Card>
+              <CardContent className="pt-6">
+                <Button
+                  onClick={handleSubmitKYC}
+                  disabled={
+                    submitting ||
+                    calculateProgress() < 100 ||
+                    (typeof profile?.balance === "number" ? profile.balance : 0) < KYC_FEE
+                  }
+                  className="w-full"
+                  size="lg"
+                >
+                  {submitting ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Submitting...
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">Select a JPEG, PNG, or PDF file (max 5MB)</p>
+                    `Submit KYC Verification ($${KYC_FEE})`
                   )}
-                </div>
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="font-medium text-yellow-800">Important:</p>
-                    <ul className="mt-1 text-yellow-700 space-y-1">
-                      <li>• Ensure document is clear and readable</li>
-                      <li>• Document must be valid and not expired</li>
-                      <li>• A fee of ${KYC_FEE} will be deducted from your balance</li>
-                      <li>• Processing typically takes 1-3 business days</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full" disabled={isSubmitting || profile.account_balance < KYC_FEE}>
-                {isSubmitting
-                  ? "Submitting..."
-                  : profile.account_balance < KYC_FEE
-                    ? `Insufficient Balance (Need $${KYC_FEE})`
-                    : `Submit KYC Documents ($${KYC_FEE})`}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      {profile.kyc_status === "pending" && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <Clock className="h-12 w-12 text-yellow-500 mx-auto" />
-              <div>
-                <h3 className="text-lg font-semibold">Under Review</h3>
-                <p className="text-gray-600">
-                  Your KYC documents are being reviewed. This typically takes 1-3 business days.
+                </Button>
+                <p className="text-sm text-gray-600 text-center mt-2">
+                  By submitting, you agree to pay the ${KYC_FEE} verification fee
                 </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="status" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Verification Status</CardTitle>
+              <CardDescription>Track the progress of your KYC verification</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {documents.length > 0 ? (
+                  documents.map((doc) => {
+                    const docType = DOCUMENT_TYPES.find((type) => type.id === doc.document_type)
+                    return (
+                      <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          {docType && <docType.icon className="h-4 w-4" />}
+                          <div>
+                            <p className="font-medium">{docType?.name || doc.document_type}</p>
+                            <p className="text-sm text-gray-600">{doc.file_name}</p>
+                            <p className="text-xs text-gray-500">
+                              Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}
+                            </p>
+                            {doc.status === "rejected" && doc.rejection_reason && (
+                              <p className="text-xs text-red-600 mt-1">Reason: {doc.rejection_reason}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getStatusColor(doc.status)}>
+                            {getStatusIcon(doc.status)}
+                            <span className="ml-1 capitalize">{doc.status}</span>
+                          </Badge>
+                          <Button variant="outline" size="sm" onClick={() => viewDocument(doc.file_url)}>
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <div className="text-center py-8">
+                    <FileCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">No documents uploaded yet</p>
+                    <p className="text-sm text-gray-400">
+                      {canUploadDocuments()
+                        ? "Upload your documents to get started"
+                        : "Your KYC verification is complete"}
+                    </p>
+                  </div>
+                )}
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

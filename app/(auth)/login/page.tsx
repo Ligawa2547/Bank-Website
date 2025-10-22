@@ -1,16 +1,21 @@
-import { Suspense } from "react"
+import type { Metadata } from "next"
 import LoginClient from "./login-client"
 
+export const metadata: Metadata = {
+  title: "Login - Access Your Account",
+  description:
+    "Securely log in to your IAE Bank account to manage your finances, view transactions, and access all banking services.",
+  keywords: ["login", "sign in", "account access", "secure login", "banking login"],
+  openGraph: {
+    title: "Login - IAE Bank",
+    description: "Securely access your IAE Bank account",
+    url: "https://ebanking.iaenb.com/login",
+  },
+  alternates: {
+    canonical: "https://ebanking.iaenb.com/login",
+  },
+}
+
 export default function LoginPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
-        </div>
-      }
-    >
-      <LoginClient />
-    </Suspense>
-  )
+  return <LoginClient />
 }

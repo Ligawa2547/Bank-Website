@@ -1,21 +1,82 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+import { NextResponse } from "next/server"
+import { sendTransactionNotification } from "@/lib/notifications/handler"
 
-export async function POST(request: NextRequest) {
-  return NextResponse.json(
-    {
-      error: "Paystack is no longer supported. Please use PayPal for payments.",
-      deprecated: true,
-    },
-    { status: 410 },
-  )
-}
+export async function GET(request: Request) {
+  try {
+    // Get reference from URL
+    const url = new URL(request.url)
+    const reference = url.searchParams.get("reference")
 
-export async function GET(request: NextRequest) {
-  return NextResponse.json(
-    {
-      error: "Paystack is no longer supported. Please use PayPal for payments.",
-      deprecated: true,
-    },
-    { status: 410 },
-  )
+    if (!reference) {
+      return NextResponse.json({ message: "Reference is required" }, { status: 400 })
+    }
+
+    // Verify Paystack transaction
+    const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+    })
+
+    const data = await response.json()
+
+    if (!data.status) {
+      return NextResponse.json({ message: data.message }, { status: 400 })
+    }
+
+    // If payment is successful, update transaction status
+    if (data.data.status === "success") {
+      const supabase = createRouteHandlerClient({ cookies })
+
+      // Get transaction details
+      const { data: transactionData, error: transactionError } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("reference", reference)
+        .single()
+
+      if (transactionError || !transactionData) {
+        return NextResponse.json({ message: "Transaction not found" }, { status: 404 })
+      }
+
+      // Update transaction status
+      await supabase.from("transactions").update({ status: "completed" }).eq("reference", reference)
+
+      // Get user profile
+      const { data: profileData, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("account_number", transactionData.account_no)
+        .single()
+
+      if (profileError || !profileData) {
+        return NextResponse.json({ message: "User profile not found" }, { status: 404 })
+      }
+
+      // Update user's balance
+      await supabase
+        .from("user_profiles")
+        .update({ balance: profileData.balance + transactionData.amount })
+        .eq("account_number", transactionData.account_no)
+
+      // Send notification and email
+      await sendTransactionNotification(
+        transactionData.account_no,
+        transactionData.transaction_type || "Deposit",
+        transactionData.amount,
+        "completed",
+        reference,
+        "Paystack deposit",
+      )
+    }
+
+    return NextResponse.json(data.data)
+  } catch (error: any) {
+    console.error("Paystack verification error:", error)
+    return NextResponse.json({ message: error.message || "Internal server error" }, { status: 500 })
+  }
 }

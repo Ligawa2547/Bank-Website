@@ -1,240 +1,134 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Database } from "@/types/supabase"
-import { useToast } from "@/hooks/use-toast"
+import { useSupabase } from "@/providers/supabase-provider"
+import { toast } from "@/hooks/use-toast"
 
-interface UserProfile {
+export type Profile = {
   id: string
-  email: string
-  first_name: string
-  last_name: string
-  phone_number: string
-  account_no: string
-  account_balance: number
-  status: string
-  verification_status: string
-  kyc_status: string
-  email_verified: boolean
-  phone_verified: boolean
-  profile_pic?: string
-  city?: string
-  country?: string
-  created_at: string
-  updated_at: string
+  first_name?: string
+  last_name?: string
+  email?: string
+  phone?: string
+  avatar_url?: string
+  account_no?: string
+  account_balance?: number
+  created_at?: string
+  updated_at?: string
 }
 
 export function useProfile() {
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const { supabase, user } = useSupabase()
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const supabase = createClientComponentClient<Database>()
-  const { toast } = useToast()
+  const [error, setError] = useState<Error | null>(null)
 
-  const fetchProfile = async () => {
+  useEffect(() => {
+    async function loadProfile() {
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        setLoading(true)
+
+        // Try to fetch from both tables in parallel for best data
+        const [usersResponse, profilesResponse] = await Promise.all([
+          supabase.from("users").select("*").eq("id", user.id).single(),
+          supabase.from("user_profiles").select("*").eq("id", user.id).single(),
+        ])
+
+        // Combine data from both sources, with profiles taking precedence
+        const userData = usersResponse.data || {}
+        const profileData = profilesResponse.data || {}
+
+        const combinedProfile = {
+          id: user.id,
+          ...userData,
+          ...profileData,
+        }
+
+        setProfile(combinedProfile as Profile)
+      } catch (err) {
+        console.error("Error loading profile:", err)
+        setError(err instanceof Error ? err : new Error("Failed to load profile"))
+        toast({
+          title: "Error loading profile",
+          description: "Please try again later",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadProfile()
+  }, [user, supabase])
+
+  const updateProfile = async (updates: Partial<Profile>) => {
+    if (!user) return { success: false, error: new Error("Not authenticated") }
+
     try {
       setLoading(true)
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
 
-      if (!user) {
-        throw new Error("No authenticated user")
+      // Update both tables to keep them in sync
+      const [usersResponse, profilesResponse] = await Promise.all([
+        supabase.from("users").update(updates).eq("id", user.id),
+        supabase.from("user_profiles").update(updates).eq("id", user.id),
+      ])
+
+      if (usersResponse.error && profilesResponse.error) {
+        throw new Error(usersResponse.error.message || "Failed to update profile")
       }
 
-      const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single()
+      // Refresh profile data
+      setProfile((prev) => (prev ? { ...prev, ...updates } : null))
 
-      if (error) {
-        throw error
-      }
-
-      setProfile(data as UserProfile)
-      setError(null)
-    } catch (err: any) {
-      console.error("Error fetching profile:", err)
-      setError(err.message)
+      return { success: true }
+    } catch (err) {
+      console.error("Error updating profile:", err)
+      const error = err instanceof Error ? err : new Error("Failed to update profile")
+      setError(error)
+      return { success: false, error }
     } finally {
       setLoading(false)
     }
   }
 
-  const updateProfile = async (updates: Partial<UserProfile>) => {
-    try {
-      if (!profile) return false
-
-      const { error } = await supabase
-        .from("users")
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", profile.id)
-
-      if (error) {
-        throw error
-      }
-
-      // Update local state
-      setProfile((prev) => (prev ? { ...prev, ...updates } : null))
-
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been updated successfully.",
-      })
-
-      return true
-    } catch (err: any) {
-      console.error("Error updating profile:", err)
-      toast({
-        title: "Update failed",
-        description: err.message,
-        variant: "destructive",
-      })
-      return false
-    }
-  }
-
-  const deductBalance = async (amount: number, description = "KYC Fee") => {
-    try {
-      if (!profile) {
-        throw new Error("No profile found")
-      }
-
-      if (profile.account_balance < amount) {
-        throw new Error("Insufficient balance")
-      }
-
-      // Use the database function for safe balance updates
-      const { error: balanceError } = await supabase.rpc("update_user_balance", {
-        user_uuid: profile.id,
-        amount_change: amount,
-        operation_type: "debit",
-      })
-
-      if (balanceError) {
-        throw balanceError
-      }
-
-      // Create transaction record
-      const { error: transactionError } = await supabase.from("transactions").insert({
-        user_id: profile.id,
-        account_no: profile.account_no,
-        transaction_type: "withdrawal",
-        amount: amount,
-        status: "completed",
-        reference: `KYC-${Date.now()}`,
-        narration: description,
-        created_at: new Date().toISOString(),
-      })
-
-      if (transactionError) {
-        console.error("Transaction record error:", transactionError)
-        // Don't throw here as the balance was already updated
-      }
-
-      // Update local profile balance
-      setProfile((prev) =>
-        prev
-          ? {
-              ...prev,
-              account_balance: prev.account_balance - amount,
-            }
-          : null,
-      )
-
-      toast({
-        title: "Payment processed",
-        description: `$${amount} has been deducted from your account.`,
-      })
-
-      return true
-    } catch (err: any) {
-      console.error("Error deducting balance:", err)
-      toast({
-        title: "Payment failed",
-        description: err.message,
-        variant: "destructive",
-      })
-      return false
-    }
-  }
-
-  const addBalance = async (amount: number, description = "Credit") => {
-    try {
-      if (!profile) {
-        throw new Error("No profile found")
-      }
-
-      // Use the database function for safe balance updates
-      const { error: balanceError } = await supabase.rpc("update_user_balance", {
-        user_uuid: profile.id,
-        amount_change: amount,
-        operation_type: "credit",
-      })
-
-      if (balanceError) {
-        throw balanceError
-      }
-
-      // Create transaction record
-      const { error: transactionError } = await supabase.from("transactions").insert({
-        user_id: profile.id,
-        account_no: profile.account_no,
-        transaction_type: "deposit",
-        amount: amount,
-        status: "completed",
-        reference: `DEP-${Date.now()}`,
-        narration: description,
-        created_at: new Date().toISOString(),
-      })
-
-      if (transactionError) {
-        console.error("Transaction record error:", transactionError)
-      }
-
-      // Update local profile balance
-      setProfile((prev) =>
-        prev
-          ? {
-              ...prev,
-              account_balance: prev.account_balance + amount,
-            }
-          : null,
-      )
-
-      toast({
-        title: "Balance updated",
-        description: `$${amount} has been added to your account.`,
-      })
-
-      return true
-    } catch (err: any) {
-      console.error("Error adding balance:", err)
-      toast({
-        title: "Update failed",
-        description: err.message,
-        variant: "destructive",
-      })
-      return false
-    }
-  }
-
   const refreshProfile = async () => {
-    await fetchProfile()
-  }
+    if (!user) return
 
-  useEffect(() => {
-    fetchProfile()
-  }, [])
+    try {
+      setLoading(true)
+
+      const [usersResponse, profilesResponse] = await Promise.all([
+        supabase.from("users").select("*").eq("id", user.id).single(),
+        supabase.from("user_profiles").select("*").eq("id", user.id).single(),
+      ])
+
+      const userData = usersResponse.data || {}
+      const profileData = profilesResponse.data || {}
+
+      const combinedProfile = {
+        id: user.id,
+        ...userData,
+        ...profileData,
+      }
+
+      setProfile(combinedProfile as Profile)
+    } catch (err) {
+      console.error("Error refreshing profile:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return {
     profile,
     loading,
     error,
     updateProfile,
-    deductBalance,
-    addBalance,
     refreshProfile,
   }
 }
