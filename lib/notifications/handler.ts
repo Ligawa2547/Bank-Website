@@ -1,4 +1,6 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+"use server"
+
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { sendEmail } from "@/lib/resend/client"
 import {
@@ -16,7 +18,8 @@ export async function sendNotificationWithEmail(
   additionalData?: any,
 ) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const cookieStore = await cookies()
+    const supabase = createServerComponentClient({ cookies: () => cookieStore })
 
     // Get user details
     const { data: userData, error: userError } = await supabase
@@ -80,7 +83,6 @@ export async function sendNotificationWithEmail(
     return { success: true }
   } catch (error) {
     console.error("Error sending notification with email:", error)
-    // Don't throw error - we want notifications to work even if email fails
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
   }
 }
