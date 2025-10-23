@@ -26,11 +26,10 @@ interface AdminUser {
   email: string
   first_name: string
   last_name: string
-  phone_number: string
+  phone: string
   account_balance: number
   account_status: string
   verification_status: string
-  kyc_status: string
   created_at: string
   updated_at: string
 }
@@ -70,7 +69,7 @@ export default function AdminUsersPage() {
     }
   }
 
-  const updateUserStatus = async (userId: string, field: string, value: string) => {
+  const updateUserStatus = async (userId: string, field: string, value: string, reason?: string) => {
     setIsUpdating(true)
     try {
       const { error } = await supabase
@@ -79,6 +78,19 @@ export default function AdminUsersPage() {
         .eq("id", userId)
 
       if (error) throw error
+
+      // Send notification based on the field updated
+      const user = users.find((u) => u.id === userId)
+      if (user) {
+        let notificationType = ""
+        if (field === "verification_status") {
+          notificationType = "kyc"
+          await sendNotification(user.account_no, "kyc", { status: value, reason })
+        } else if (field === "account_status") {
+          notificationType = "account_status"
+          await sendNotification(user.account_no, "account_status", { status: value, reason })
+        }
+      }
 
       await fetchUsers()
       toast({
@@ -116,7 +128,6 @@ export default function AdminUsersPage() {
       }
     } catch (error) {
       console.error("Error sending notification:", error)
-      throw error
     }
   }
 
@@ -158,7 +169,7 @@ export default function AdminUsersPage() {
   )
 
   const getStatusBadge = (status: string, type: "account" | "verification") => {
-    const colors: Record<string, Record<string, string>> = {
+    const colors = {
       account: {
         active: "bg-green-100 text-green-800",
         suspended: "bg-red-100 text-red-800",
@@ -172,10 +183,11 @@ export default function AdminUsersPage() {
       },
     }
 
-    const colorMap = colors[type]
-    const badgeClass = colorMap[status] || "bg-gray-100 text-gray-800"
-
-    return <Badge className={badgeClass}>{status}</Badge>
+    return (
+      <Badge className={colors[type][status as keyof (typeof colors)[typeof type]] || "bg-gray-100 text-gray-800"}>
+        {status}
+      </Badge>
+    )
   }
 
   if (loading) {
@@ -220,7 +232,7 @@ export default function AdminUsersPage() {
                 </div>
                 <div className="flex space-x-1">
                   {getStatusBadge(user.account_status, "account")}
-                  {getStatusBadge(user.verification_status || user.kyc_status, "verification")}
+                  {getStatusBadge(user.verification_status, "verification")}
                 </div>
               </div>
               <CardDescription className="flex items-center space-x-2">
@@ -236,11 +248,11 @@ export default function AdminUsersPage() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Balance</p>
-                  <p className="font-semibold">₦{user.account_balance?.toLocaleString() || "0.00"}</p>
+                  <p className="font-semibold">${user.account_balance?.toFixed(2) || "0.00"}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Phone</p>
-                  <p>{user.phone_number || "Not provided"}</p>
+                  <p>{user.phone || "Not provided"}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Joined</p>
@@ -305,7 +317,7 @@ export default function AdminUsersPage() {
                         <Label>Verification Status</Label>
                         <Select
                           onValueChange={(value) => updateUserStatus(user.id, "verification_status", value)}
-                          defaultValue={user.verification_status || user.kyc_status}
+                          defaultValue={user.verification_status}
                         >
                           <SelectTrigger>
                             <SelectValue />

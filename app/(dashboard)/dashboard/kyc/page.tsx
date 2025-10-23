@@ -31,7 +31,6 @@ import {
   Eye,
   Shield,
   Award,
-  Database,
 } from "lucide-react"
 
 interface KYCDocument {
@@ -100,7 +99,6 @@ export default function KYCPage() {
   const [uploading, setUploading] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [tableExists, setTableExists] = useState(true)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({})
   const supabase = createClient()
@@ -119,19 +117,8 @@ export default function KYCPage() {
         .eq("user_id", user?.id)
         .order("uploaded_at", { ascending: false })
 
-      if (error) {
-        // Check if the error is because the table doesn't exist
-        if (error.message.includes("does not exist") || error.code === "42P01") {
-          console.error("kyc_documents table does not exist")
-          setTableExists(false)
-          setDocuments([])
-        } else {
-          throw error
-        }
-      } else {
-        setDocuments(data || [])
-        setTableExists(true)
-      }
+      if (error) throw error
+      setDocuments(data || [])
     } catch (error) {
       console.error("Error fetching documents:", error)
       toast({
@@ -158,17 +145,16 @@ export default function KYCPage() {
     return null
   }
 
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  }
+
   const handleFileUpload = async (documentType: string, file: File) => {
     if (!user) return
-
-    if (!tableExists) {
-      toast({
-        title: "Database Setup Required",
-        description: "Please run the KYC documents table creation script first.",
-        variant: "destructive",
-      })
-      return
-    }
 
     // Prevent uploads if KYC is already submitted or approved
     if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
@@ -227,9 +213,8 @@ export default function KYCPage() {
         user_id: user.id,
         account_no: profile?.account_number,
         document_type: documentType,
-        document_number: file.name.split(".")[0],
+        document_number: file.name.split(".")[0], // Use filename without extension as document number
         document_url: urlData.publicUrl,
-        file_name: file.name,
         status: "pending",
         submitted_at: new Date().toISOString(),
       })
@@ -263,15 +248,6 @@ export default function KYCPage() {
     e.preventDefault()
     setDragOver(null)
 
-    if (!tableExists) {
-      toast({
-        title: "Database Setup Required",
-        description: "Please run the KYC documents table creation script first.",
-        variant: "destructive",
-      })
-      return
-    }
-
     // Prevent drops if KYC is already submitted or approved
     if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
       toast({
@@ -291,7 +267,7 @@ export default function KYCPage() {
   const handleDragOver = (e: React.DragEvent, documentType: string) => {
     e.preventDefault()
     // Only allow drag over if KYC is not submitted or approved
-    if (profile?.kyc_status !== "pending" && profile?.kyc_status !== "approved" && tableExists) {
+    if (profile?.kyc_status !== "pending" && profile?.kyc_status !== "approved") {
       setDragOver(documentType)
     }
   }
@@ -302,15 +278,6 @@ export default function KYCPage() {
   }
 
   const deleteDocument = async (docId: string, documentType: string) => {
-    if (!tableExists) {
-      toast({
-        title: "Database Setup Required",
-        description: "Please run the KYC documents table creation script first.",
-        variant: "destructive",
-      })
-      return
-    }
-
     // Prevent deletion if KYC is already submitted or approved
     if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
       toast({
@@ -347,15 +314,6 @@ export default function KYCPage() {
 
   const handleSubmitKYC = async () => {
     if (!user || !profile) return
-
-    if (!tableExists) {
-      toast({
-        title: "Database Setup Required",
-        description: "Please run the KYC documents table creation script first.",
-        variant: "destructive",
-      })
-      return
-    }
 
     // Check if user has sufficient balance
     const userBalance = typeof profile.balance === "number" ? profile.balance : 0
@@ -469,7 +427,7 @@ export default function KYCPage() {
   }
 
   const canUploadDocuments = () => {
-    return tableExists && (profile?.kyc_status === "not_submitted" || profile?.kyc_status === "rejected")
+    return profile?.kyc_status === "not_submitted" || profile?.kyc_status === "rejected"
   }
 
   const renderKYCStatusMessage = () => {
@@ -555,53 +513,6 @@ export default function KYCPage() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-      </div>
-    )
-  }
-
-  // Show database setup message if table doesn't exist
-  if (!tableExists) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">KYC Verification</h1>
-          <p className="text-gray-600">Complete your identity verification to unlock all features</p>
-        </div>
-
-        <Alert variant="destructive">
-          <Database className="h-4 w-4" />
-          <AlertDescription>
-            <div className="space-y-2">
-              <p className="font-semibold">Database Setup Required</p>
-              <p>
-                The KYC documents table has not been created yet. Please run the following SQL script in your Supabase
-                database:
-              </p>
-              <code className="block bg-black text-white p-2 rounded text-sm">
-                scripts/create-kyc-documents-table.sql
-              </code>
-              <p className="text-xs">After running the script, refresh this page to continue.</p>
-            </div>
-          </AlertDescription>
-        </Alert>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              Setup Instructions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ol className="list-decimal list-inside space-y-2 text-sm">
-              <li>Go to your Supabase project dashboard</li>
-              <li>Navigate to the SQL Editor</li>
-              <li>Copy and run the SQL script: scripts/create-kyc-documents-table.sql</li>
-              <li>Create the kyc-documents storage bucket if it doesn't exist</li>
-              <li>Refresh this page</li>
-            </ol>
-          </CardContent>
-        </Card>
       </div>
     )
   }

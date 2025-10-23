@@ -1,14 +1,17 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect, useRef } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, CreditCard, RefreshCw } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Loader2, AlertCircle, CheckCircle, Wallet } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 
 interface PayPalPaymentProps {
-  amount: number
-  onSuccess?: (details: any) => void
-  onError?: (error: any) => void
+  onSuccess?: () => void
+  onError?: (error: string) => void
 }
 
 declare global {
@@ -17,227 +20,324 @@ declare global {
   }
 }
 
-export function PayPalPayment({ amount, onSuccess, onError }: PayPalPaymentProps) {
+export function PayPalPayment({ onSuccess, onError }: PayPalPaymentProps) {
+  const [amount, setAmount] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [paypalLoaded, setPaypalLoaded] = useState(false)
   const paypalRef = useRef<HTMLDivElement>(null)
-  const [sdkReady, setSdkReady] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isRetrying, setIsRetrying] = useState(false)
-  const [checkAttempts, setCheckAttempts] = useState(0)
-  const buttonRendered = useRef(false)
-  const maxCheckAttempts = 10
+  const cardPaypalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handleSDKLoad = () => {
-      console.log("PayPal SDK load event received")
-      setSdkReady(true)
-      setError(null)
+    // Check if PayPal SDK is loaded
+    const checkPayPal = () => {
+      if (window.paypal) {
+        setPaypalLoaded(true)
+        renderPayPalButtons()
+      } else {
+        setTimeout(checkPayPal, 100)
+      }
     }
-
-    const handleSDKError = () => {
-      console.error("PayPal SDK error event received")
-      setError("Failed to load PayPal SDK. Please check your internet connection and try again.")
-      setSdkReady(false)
-    }
-
-    window.addEventListener("paypal-sdk-loaded", handleSDKLoad)
-    window.addEventListener("paypal-sdk-error", handleSDKError)
-
-    // Check if SDK is already loaded
-    checkPayPalSDK()
-
-    return () => {
-      window.removeEventListener("paypal-sdk-loaded", handleSDKLoad)
-      window.removeEventListener("paypal-sdk-error", handleSDKError)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (sdkReady && !buttonRendered.current && paypalRef.current && amount > 0) {
-      renderPayPalButtons()
-    }
-  }, [sdkReady, amount])
-
-  const checkPayPalSDK = () => {
-    if (checkAttempts >= maxCheckAttempts) {
-      setError("PayPal SDK is taking too long to load. Please refresh the page or check your internet connection.")
-      return
-    }
-
-    if (window.paypal && typeof window.paypal.Buttons === "function") {
-      console.log("PayPal SDK is ready")
-      setSdkReady(true)
-      setError(null)
-    } else {
-      console.log(`Checking for PayPal SDK... Attempt ${checkAttempts + 1}/${maxCheckAttempts}`)
-      setCheckAttempts((prev) => prev + 1)
-      setTimeout(checkPayPalSDK, 500)
-    }
-  }
+    checkPayPal()
+  }, [amount])
 
   const renderPayPalButtons = () => {
-    if (!window.paypal || typeof window.paypal.Buttons !== "function") {
-      console.error("PayPal SDK not properly loaded")
-      setError("PayPal is not available. Please refresh the page and try again.")
+    const paymentAmount = Number.parseFloat(amount)
+
+    if (!paymentAmount || paymentAmount <= 0 || !window.paypal) {
       return
     }
 
-    if (buttonRendered.current) {
-      console.log("PayPal buttons already rendered, skipping")
-      return
-    }
-
-    if (!paypalRef.current) {
-      console.error("PayPal container ref is null")
-      return
-    }
-
-    try {
-      // Clear the container
+    // Clear existing buttons
+    if (paypalRef.current) {
       paypalRef.current.innerHTML = ""
+    }
+    if (cardPaypalRef.current) {
+      cardPaypalRef.current.innerHTML = ""
+    }
 
+    // PayPal Account Button
+    if (paypalRef.current) {
       window.paypal
         .Buttons({
           style: {
             layout: "vertical",
-            color: "gold",
+            color: "blue",
             shape: "rect",
             label: "paypal",
+            height: 40,
           },
+          fundingSource: window.paypal.FUNDING.PAYPAL,
           createOrder: async (data: any, actions: any) => {
             try {
+              setLoading(true)
+              setError("")
+
               const response = await fetch("/api/paypal/initialize", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ amount }),
+                body: JSON.stringify({
+                  amount: paymentAmount,
+                  paymentMethod: "paypal",
+                }),
               })
 
+              const orderData = await response.json()
+
               if (!response.ok) {
-                const errorData = await response.json()
-                throw new Error(errorData.error || "Failed to create PayPal order")
+                throw new Error(orderData.error || "Payment initialization failed")
               }
 
-              const order = await response.json()
-              return order.id
-            } catch (error) {
-              console.error("Error creating order:", error)
-              setError(error instanceof Error ? error.message : "Failed to create order")
-              throw error
+              return orderData.orderId
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : "Payment failed"
+              setError(errorMessage)
+              onError?.(errorMessage)
+              throw err
             }
           },
           onApprove: async (data: any, actions: any) => {
             try {
-              const response = await fetch("/api/paypal/success", {
+              const response = await fetch(`/api/paypal/success?token=${data.orderID}&PayerID=${data.payerID}`)
+              const result = await response.json()
+
+              if (response.ok && result.success) {
+                toast({
+                  title: "Payment Successful!",
+                  description: `$${paymentAmount} has been added to your account`,
+                })
+                onSuccess?.()
+                setAmount("")
+              } else {
+                throw new Error(result.error || "Payment processing failed")
+              }
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : "Payment processing failed"
+              setError(errorMessage)
+              onError?.(errorMessage)
+              toast({
+                title: "Payment Failed",
+                description: errorMessage,
+                variant: "destructive",
+              })
+            } finally {
+              setLoading(false)
+            }
+          },
+          onError: (err: any) => {
+            console.error("PayPal error:", err)
+            setError("PayPal payment failed")
+            onError?.("PayPal payment failed")
+            setLoading(false)
+          },
+          onCancel: (data: any) => {
+            toast({
+              title: "Payment Cancelled",
+              description: "Your PayPal payment was cancelled",
+            })
+            setLoading(false)
+          },
+        })
+        .render(paypalRef.current)
+    }
+
+    // Card Payment Button
+    if (cardPaypalRef.current) {
+      window.paypal
+        .Buttons({
+          style: {
+            layout: "vertical",
+            color: "white",
+            shape: "rect",
+            label: "pay",
+            height: 40,
+          },
+          fundingSource: window.paypal.FUNDING.CARD,
+          createOrder: async (data: any, actions: any) => {
+            try {
+              setLoading(true)
+              setError("")
+
+              const response = await fetch("/api/paypal/initialize", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ orderID: data.orderID }),
+                body: JSON.stringify({
+                  amount: paymentAmount,
+                  paymentMethod: "card",
+                }),
               })
 
+              const orderData = await response.json()
+
               if (!response.ok) {
-                const errorData = await response.json()
-                throw new Error(errorData.error || "Payment verification failed")
+                throw new Error(orderData.error || "Payment initialization failed")
               }
 
-              const details = await response.json()
-              onSuccess?.(details)
-            } catch (error) {
-              console.error("Error approving order:", error)
-              const errorMessage = error instanceof Error ? error.message : "Payment verification failed"
+              return orderData.orderId
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : "Payment failed"
               setError(errorMessage)
-              onError?.(error)
+              onError?.(errorMessage)
+              throw err
+            }
+          },
+          onApprove: async (data: any, actions: any) => {
+            try {
+              const response = await fetch(`/api/paypal/success?token=${data.orderID}&PayerID=${data.payerID}`)
+              const result = await response.json()
+
+              if (response.ok && result.success) {
+                toast({
+                  title: "Payment Successful!",
+                  description: `$${paymentAmount} has been added to your account`,
+                })
+                onSuccess?.()
+                setAmount("")
+              } else {
+                throw new Error(result.error || "Payment processing failed")
+              }
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : "Payment processing failed"
+              setError(errorMessage)
+              onError?.(errorMessage)
+              toast({
+                title: "Payment Failed",
+                description: errorMessage,
+                variant: "destructive",
+              })
+            } finally {
+              setLoading(false)
             }
           },
           onError: (err: any) => {
-            console.error("PayPal button error:", err)
-            setError("An error occurred with PayPal. Please try again.")
-            onError?.(err)
+            console.error("PayPal Card error:", err)
+            setError("Card payment failed")
+            onError?.("Card payment failed")
+            setLoading(false)
           },
           onCancel: (data: any) => {
-            console.log("PayPal payment cancelled:", data)
-            setError("Payment was cancelled. Please try again if you wish to complete the payment.")
+            toast({
+              title: "Payment Cancelled",
+              description: "Your card payment was cancelled",
+            })
+            setLoading(false)
           },
         })
-        .render(paypalRef.current)
-        .then(() => {
-          console.log("PayPal buttons rendered successfully")
-          buttonRendered.current = true
-        })
-        .catch((err: any) => {
-          console.error("Error rendering PayPal buttons:", err)
-          setError("Failed to render PayPal buttons. Please refresh the page and try again.")
-        })
-    } catch (err) {
-      console.error("Error in renderPayPalButtons:", err)
-      setError("Failed to initialize PayPal. Please refresh the page and try again.")
+        .render(cardPaypalRef.current)
     }
   }
 
-  const handleRetry = () => {
-    setIsRetrying(true)
-    setError(null)
-    setCheckAttempts(0)
-    buttonRendered.current = false
-    setSdkReady(false)
-
-    // Clear the container
-    if (paypalRef.current) {
-      paypalRef.current.innerHTML = ""
-    }
-
-    // Retry checking for SDK
-    setTimeout(() => {
-      checkPayPalSDK()
-      setIsRetrying(false)
-    }, 1000)
+  const formatCurrency = (value: string) => {
+    const num = Number.parseFloat(value)
+    return isNaN(num) ? "$0.00" : `$${num.toFixed(2)}`
   }
 
-  if (amount <= 0) {
-    return (
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>Please enter a valid amount to continue with PayPal.</AlertDescription>
-      </Alert>
-    )
+  const isValidAmount = () => {
+    const paymentAmount = Number.parseFloat(amount)
+    return paymentAmount && paymentAmount >= 1 && paymentAmount <= 10000
   }
 
   return (
-    <div className="space-y-4">
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>{error}</span>
-            <Button variant="outline" size="sm" onClick={handleRetry} disabled={isRetrying}>
-              <RefreshCw className={`h-3 w-3 mr-1 ${isRetrying ? "animate-spin" : ""}`} />
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Wallet className="h-5 w-5 text-blue-600" />
+          Add Money
+        </CardTitle>
+        <CardDescription>Choose your preferred payment method to add funds</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="amount">Amount (USD)</Label>
+            <Input
+              id="amount"
+              type="number"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              min="1"
+              max="10000"
+              step="0.01"
+              disabled={loading}
+            />
+            {amount && <p className="text-sm text-muted-foreground">You will deposit: {formatCurrency(amount)}</p>}
+          </div>
 
-      {!sdkReady && !error && (
-        <div className="flex items-center justify-center p-8">
-          <div className="text-center space-y-2">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent mx-auto" />
-            <p className="text-sm text-gray-600">Loading PayPal...</p>
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {!paypalLoaded && (
+            <Alert>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <AlertDescription>Loading PayPal payment options...</AlertDescription>
+            </Alert>
+          )}
+
+          {paypalLoaded && (
+            <Tabs defaultValue="paypal" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="paypal">PayPal Account</TabsTrigger>
+                <TabsTrigger value="card">Debit/Credit Card</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="paypal" className="space-y-3 mt-4">
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>• Pay using your PayPal account balance</p>
+                  <p>• Link your bank account or card to PayPal</p>
+                  <p>• Secure PayPal login required</p>
+                </div>
+
+                {isValidAmount() ? (
+                  <div ref={paypalRef} className="w-full"></div>
+                ) : (
+                  <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-sm text-muted-foreground">
+                    Enter an amount between $1.00 and $10,000.00 to see PayPal button
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="card" className="space-y-3 mt-4">
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>• Pay directly with your debit or credit card</p>
+                  <p>• No PayPal account required</p>
+                  <p>• Processed securely through PayPal</p>
+                </div>
+
+                {isValidAmount() ? (
+                  <div ref={cardPaypalRef} className="w-full"></div>
+                ) : (
+                  <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-sm text-muted-foreground">
+                    Enter an amount between $1.00 and $10,000.00 to see card payment button
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
+
+          <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
+            <p>• Minimum deposit: $1.00</p>
+            <p>• Maximum deposit: $10,000.00</p>
+            <p>• Funds available immediately after payment</p>
+            <p>• All payments processed securely</p>
           </div>
         </div>
-      )}
 
-      <div ref={paypalRef} className={sdkReady ? "block" : "hidden"} />
-
-      {sdkReady && (
-        <div className="text-center text-xs text-gray-500 space-y-1">
-          <p>You will be redirected to PayPal to complete your payment securely</p>
-          <p className="flex items-center justify-center gap-1">
-            <CreditCard className="h-3 w-3" />
-            Secure payment powered by PayPal
-          </p>
+        <div className="border-t pt-4 mt-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <CheckCircle className="h-4 w-4 text-green-500" />
+            <span>Secure payment powered by PayPal</span>
+          </div>
         </div>
-      )}
-    </div>
+      </CardContent>
+    </Card>
   )
 }
