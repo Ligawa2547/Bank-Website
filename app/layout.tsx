@@ -80,18 +80,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#1f2937" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 
-        {/* Zoho SalesIQ Widget */}
-        <Script
-          id="zoho-salesiq"
-          type="text/javascript"
-          src="https://salesiq.zoho.com/widget"
-          strategy="afterInteractive"
-          onLoad={() => {
-            if (typeof window !== "undefined" && (window as any).ZohoSalesIQ) {
-              ;(window as any).ZohoSalesIQ.widget.initiate()
-            }
-          }}
-        />
+        {/* Zoho SalesIQ Widget Initialization */}
         <script
           type="text/javascript"
           dangerouslySetInnerHTML={{
@@ -110,6 +99,9 @@ export default function RootLayout({
           <Toaster />
           <Analytics />
         </Providers>
+
+        {/* Zoho SalesIQ Widget Script */}
+        <Script id="zoho-salesiq-widget" src="https://salesiq.zoho.com/widget" strategy="lazyOnload" async defer />
 
         {/* PayPal SDK for hosted buttons */}
         <Script
