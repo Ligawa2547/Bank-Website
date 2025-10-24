@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/toaster"
+import { FloatingChat } from "@/components/floating-chat"
 import Script from "next/script"
 import { Analytics } from "@vercel/analytics/react"
 
@@ -79,29 +80,14 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/images/iae-logo.png" />
         <meta name="theme-color" content="#1f2937" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-
-        {/* Zoho SalesIQ Widget Initialization */}
-        <script
-          type="text/javascript"
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.$zoho = window.$zoho || {};
-              window.$zoho.salesiq = window.$zoho.salesiq || {
-                ready: function() {}
-              };
-            `,
-          }}
-        />
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <Providers>
           {children}
           <Toaster />
           <Analytics />
+          <FloatingChat />
         </Providers>
-
-        {/* Zoho SalesIQ Widget Script */}
-        <Script id="zoho-salesiq-widget" src="https://salesiq.zoho.com/widget" strategy="lazyOnload" async defer />
 
         {/* PayPal SDK for hosted buttons */}
         <Script
