@@ -5,6 +5,7 @@ import "./globals.css"
 import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/toaster"
 import Script from "next/script"
+import { Analytics } from "@vercel/analytics/react"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -78,11 +79,36 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/images/iae-logo.png" />
         <meta name="theme-color" content="#1f2937" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+        {/* Zoho SalesIQ Widget */}
+        <Script
+          id="zoho-salesiq"
+          type="text/javascript"
+          src="https://salesiq.zoho.com/widget"
+          strategy="afterInteractive"
+          onLoad={() => {
+            if (typeof window !== "undefined" && (window as any).ZohoSalesIQ) {
+              ;(window as any).ZohoSalesIQ.widget.initiate()
+            }
+          }}
+        />
+        <script
+          type="text/javascript"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.$zoho = window.$zoho || {};
+              window.$zoho.salesiq = window.$zoho.salesiq || {
+                ready: function() {}
+              };
+            `,
+          }}
+        />
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <Providers>
           {children}
           <Toaster />
+          <Analytics />
         </Providers>
 
         {/* PayPal SDK for hosted buttons */}
