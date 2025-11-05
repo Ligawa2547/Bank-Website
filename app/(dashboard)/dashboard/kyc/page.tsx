@@ -36,11 +36,14 @@ import {
 interface KYCDocument {
   id: string
   document_type: string
-  file_name: string
-  file_url: string
+  document_front_url: string
+  document_back_url?: string
+  selfie_url?: string
   status: "pending" | "approved" | "rejected"
-  uploaded_at: string
-  rejection_reason?: string
+  submitted_at: string
+  reviewed_at?: string
+  reviewer_notes?: string
+  document_number?: string
 }
 
 const DOCUMENT_TYPES = [
@@ -75,9 +78,8 @@ const DOCUMENT_TYPES = [
   },
 ]
 
-const KYC_FEE = 35
+const KYC_FEE = 15
 
-// Supported file types
 const SUPPORTED_FILE_TYPES = [
   "application/pdf",
   "image/jpeg",
@@ -112,10 +114,10 @@ export default function KYCPage() {
   const fetchDocuments = async () => {
     try {
       const { data, error } = await supabase
-        .from("kyc_documents")
+        .from("kyc_submissions")
         .select("*")
         .eq("user_id", user?.id)
-        .order("uploaded_at", { ascending: false })
+        .order("submitted_at", { ascending: false })
 
       if (error) throw error
       setDocuments(data || [])
@@ -132,12 +134,10 @@ export default function KYCPage() {
   }
 
   const validateFile = (file: File): string | null => {
-    // Check file size
     if (file.size > MAX_FILE_SIZE) {
       return `File size must be less than ${MAX_FILE_SIZE / (1024 * 1024)}MB`
     }
 
-    // Check file type
     if (!SUPPORTED_FILE_TYPES.includes(file.type)) {
       return "Unsupported file format. Please upload PDF, JPG, PNG, GIF, BMP, WebP, TIFF, or SVG files"
     }
@@ -156,7 +156,6 @@ export default function KYCPage() {
   const handleFileUpload = async (documentType: string, file: File) => {
     if (!user) return
 
-    // Prevent uploads if KYC is already submitted or approved
     if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
       toast({
         title: "Upload not allowed",
@@ -166,7 +165,6 @@ export default function KYCPage() {
       return
     }
 
-    // Validate file
     const validationError = validateFile(file)
     if (validationError) {
       toast({
@@ -180,7 +178,6 @@ export default function KYCPage() {
     setUploading(documentType)
 
     try {
-      // Upload file to Supabase storage
       const fileExt = file.name.split(".").pop()?.toLowerCase()
       const fileName = `${user.id}/${documentType}_${Date.now()}.${fileExt}`
 
@@ -193,28 +190,24 @@ export default function KYCPage() {
 
       if (uploadError) throw uploadError
 
-      // Get public URL
       const { data: urlData } = supabase.storage.from("kyc-documents").getPublicUrl(fileName)
 
-      // Delete existing document of the same type if it exists
       const existingDoc = documents.find((doc) => doc.document_type === documentType)
       if (existingDoc) {
-        await supabase.from("kyc_documents").delete().eq("id", existingDoc.id)
+        await supabase.from("kyc_submissions").delete().eq("id", existingDoc.id)
 
-        // Also delete the old file from storage
-        const oldFileName = existingDoc.file_url.split("/").pop()
+        const oldFileName = existingDoc.document_front_url.split("/").pop()
         if (oldFileName) {
           await supabase.storage.from("kyc-documents").remove([`${user.id}/${oldFileName}`])
         }
       }
 
-      // Save document record
-      const { error: insertError } = await supabase.from("kyc_documents").insert({
+      const { error: insertError } = await supabase.from("kyc_submissions").insert({
         user_id: user.id,
         account_no: profile?.account_number,
         document_type: documentType,
-        document_number: file.name.split(".")[0], // Use filename without extension as document number
-        document_url: urlData.publicUrl,
+        document_number: file.name.split(".")[0],
+        document_front_url: urlData.publicUrl,
         status: "pending",
         submitted_at: new Date().toISOString(),
       })
@@ -228,7 +221,6 @@ export default function KYCPage() {
 
       fetchDocuments()
 
-      // Clear the file input
       if (fileInputRefs.current[documentType]) {
         fileInputRefs.current[documentType]!.value = ""
       }
@@ -248,7 +240,6 @@ export default function KYCPage() {
     e.preventDefault()
     setDragOver(null)
 
-    // Prevent drops if KYC is already submitted or approved
     if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
       toast({
         title: "Upload not allowed",
@@ -266,7 +257,6 @@ export default function KYCPage() {
 
   const handleDragOver = (e: React.DragEvent, documentType: string) => {
     e.preventDefault()
-    // Only allow drag over if KYC is not submitted or approved
     if (profile?.kyc_status !== "pending" && profile?.kyc_status !== "approved") {
       setDragOver(documentType)
     }
@@ -278,7 +268,6 @@ export default function KYCPage() {
   }
 
   const deleteDocument = async (docId: string, documentType: string) => {
-    // Prevent deletion if KYC is already submitted or approved
     if (profile?.kyc_status === "pending" || profile?.kyc_status === "approved") {
       toast({
         title: "Delete not allowed",
@@ -289,7 +278,7 @@ export default function KYCPage() {
     }
 
     try {
-      const { error } = await supabase.from("kyc_documents").delete().eq("id", docId)
+      const { error } = await supabase.from("kyc_submissions").delete().eq("id", docId)
       if (error) throw error
 
       toast({
@@ -315,7 +304,6 @@ export default function KYCPage() {
   const handleSubmitKYC = async () => {
     if (!user || !profile) return
 
-    // Check if user has sufficient balance
     const userBalance = typeof profile.balance === "number" ? profile.balance : 0
     if (userBalance < KYC_FEE) {
       toast({
@@ -326,7 +314,6 @@ export default function KYCPage() {
       return
     }
 
-    // Check if required documents are uploaded
     const requiredDocs = DOCUMENT_TYPES.filter((doc) => doc.required)
     const uploadedRequiredDocs = requiredDocs.filter((doc) => documents.some((d) => d.document_type === doc.id))
 
@@ -342,7 +329,6 @@ export default function KYCPage() {
     setSubmitting(true)
 
     try {
-      // Deduct KYC fee and update status
       const { error: updateError } = await supabase
         .from("users")
         .update({
@@ -353,7 +339,6 @@ export default function KYCPage() {
 
       if (updateError) throw updateError
 
-      // Record the fee transaction
       const { error: transactionError } = await supabase.from("transactions").insert({
         user_id: user.id,
         account_no: profile.account_number,
@@ -366,7 +351,6 @@ export default function KYCPage() {
 
       if (transactionError) throw transactionError
 
-      // Create notification
       await supabase.from("notifications").insert({
         user_id: user.id,
         account_no: profile.account_number,
@@ -380,7 +364,6 @@ export default function KYCPage() {
         description: `Your KYC verification has been submitted for review. Fee of $${KYC_FEE} has been deducted.`,
       })
 
-      // Refresh profile to get updated status
       refreshProfile()
     } catch (error) {
       console.error("Error submitting KYC:", error)
@@ -530,10 +513,8 @@ export default function KYCPage() {
         </Badge>
       </div>
 
-      {/* KYC Status Message */}
       {renderKYCStatusMessage()}
 
-      {/* KYC Status Alert for not_submitted */}
       {profile?.kyc_status === "not_submitted" && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
@@ -550,10 +531,8 @@ export default function KYCPage() {
         </TabsList>
 
         <TabsContent value="documents" className="space-y-6">
-          {/* Only show progress and fee info if KYC is not approved */}
           {profile?.kyc_status !== "approved" && (
             <>
-              {/* Progress */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -577,7 +556,6 @@ export default function KYCPage() {
                 </CardContent>
               </Card>
 
-              {/* Fee Information - only show if not submitted */}
               {profile?.kyc_status === "not_submitted" && (
                 <Card>
                   <CardHeader>
@@ -603,7 +581,6 @@ export default function KYCPage() {
             </>
           )}
 
-          {/* Document Upload/View */}
           <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
             {DOCUMENT_TYPES.map((docType) => {
               const uploadedDoc = documents.find((doc) => doc.document_type === docType.id)
@@ -637,18 +614,22 @@ export default function KYCPage() {
                           </Badge>
                         </div>
 
-                        {uploadedDoc.status === "rejected" && uploadedDoc.rejection_reason && (
+                        {uploadedDoc.status === "rejected" && uploadedDoc.reviewer_notes && (
                           <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-                            <strong>Rejection reason:</strong> {uploadedDoc.rejection_reason}
+                            <strong>Rejection reason:</strong> {uploadedDoc.reviewer_notes}
                           </div>
                         )}
 
                         <div className="flex items-center justify-between">
                           <p className="text-xs text-gray-500">
-                            Uploaded: {new Date(uploadedDoc.uploaded_at).toLocaleDateString()}
+                            Uploaded: {new Date(uploadedDoc.submitted_at).toLocaleDateString()}
                           </p>
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => viewDocument(uploadedDoc.file_url)}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => viewDocument(uploadedDoc.document_front_url)}
+                            >
                               <Eye className="h-3 w-3 mr-1" />
                               View
                             </Button>
@@ -685,7 +666,7 @@ export default function KYCPage() {
                               htmlFor={`reupload-${docType.id}`}
                               className="flex items-center justify-center gap-2 p-2 border border-dashed border-gray-300 rounded cursor-pointer hover:border-gray-400 transition-colors text-sm"
                             >
-                              <Upload className="h-3 w-3" />
+                              <Upload className="h-3 w-3 mr-1" />
                               Replace Document
                             </label>
                           </div>
@@ -710,7 +691,6 @@ export default function KYCPage() {
                               disabled={uploading === docType.id}
                             />
 
-                            {/* Drag and Drop Area */}
                             <div
                               onDrop={(e) => handleDrop(e, docType.id)}
                               onDragOver={(e) => handleDragOver(e, docType.id)}
@@ -774,7 +754,6 @@ export default function KYCPage() {
             })}
           </div>
 
-          {/* Submit Button - only show if not submitted */}
           {profile?.kyc_status === "not_submitted" && (
             <Card>
               <CardContent className="pt-6">
@@ -822,12 +801,12 @@ export default function KYCPage() {
                           {docType && <docType.icon className="h-4 w-4" />}
                           <div>
                             <p className="font-medium">{docType?.name || doc.document_type}</p>
-                            <p className="text-sm text-gray-600">{doc.file_name}</p>
+                            <p className="text-sm text-gray-600">{doc.document_front_url}</p>
                             <p className="text-xs text-gray-500">
-                              Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}
+                              Uploaded: {new Date(doc.submitted_at).toLocaleDateString()}
                             </p>
-                            {doc.status === "rejected" && doc.rejection_reason && (
-                              <p className="text-xs text-red-600 mt-1">Reason: {doc.rejection_reason}</p>
+                            {doc.status === "rejected" && doc.reviewer_notes && (
+                              <p className="text-xs text-red-600 mt-1">Reason: {doc.reviewer_notes}</p>
                             )}
                           </div>
                         </div>
@@ -836,7 +815,7 @@ export default function KYCPage() {
                             {getStatusIcon(doc.status)}
                             <span className="ml-1 capitalize">{doc.status}</span>
                           </Badge>
-                          <Button variant="outline" size="sm" onClick={() => viewDocument(doc.file_url)}>
+                          <Button variant="outline" size="sm" onClick={() => viewDocument(doc.document_front_url)}>
                             <Eye className="h-3 w-3" />
                           </Button>
                         </div>

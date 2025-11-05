@@ -102,7 +102,7 @@ export function getTransactionEmailTemplate(
   `
 }
 
-export function getKYCEmailTemplate(status: string, reason?: string): string {
+export function getKYCStatusEmailTemplate(userName: string, status: string, reason?: string): string {
   const isApproved = status === "approved"
   const statusColor = isApproved ? "#10B981" : "#EF4444"
   const statusIcon = isApproved ? "✅" : "❌"
@@ -138,8 +138,8 @@ export function getKYCEmailTemplate(status: string, reason?: string): string {
             <p style="margin: 0; color: #1f2937; line-height: 1.6;">
               ${
                 isApproved
-                  ? "Your KYC verification has been approved! You now have full access to all banking features including transfers, deposits, and withdrawals."
-                  : `Your KYC verification has been ${status}. ${reason ? `Reason: ${reason}` : "Please review your documents and resubmit if necessary."}`
+                  ? `Hello ${userName}, your KYC verification has been approved! You now have full access to all banking features including transfers, deposits, and withdrawals.`
+                  : `Hello ${userName}, your KYC verification has been ${status}. ${reason ? `Reason: ${reason}` : "Please review your documents and resubmit if necessary."}`
               }
             </p>
           </div>
@@ -202,7 +202,7 @@ export function getKYCEmailTemplate(status: string, reason?: string): string {
   `
 }
 
-export function getAccountStatusEmailTemplate(status: string, reason?: string): string {
+export function getAccountStatusEmailTemplate(userName: string, status: string, reason?: string): string {
   const isActive = status === "active"
   const statusColor = isActive ? "#10B981" : "#EF4444"
   const statusIcon = isActive ? "✅" : "⚠️"
@@ -235,8 +235,8 @@ export function getAccountStatusEmailTemplate(status: string, reason?: string): 
             <p style="margin: 0; color: #1f2937; line-height: 1.6; font-size: 16px;">
               ${
                 isActive
-                  ? "Welcome to IAE Bank! Your account has been successfully activated and you now have full access to all our banking services."
-                  : `Your account status has been updated to "${status}". ${reason ? `Reason: ${reason}` : "Please contact our support team for more information."}`
+                  ? `Hello ${userName}, welcome to IAE Bank! Your account has been successfully activated and you now have full access to all our banking services.`
+                  : `Hello ${userName}, your account status has been updated to "${status}". ${reason ? `Reason: ${reason}` : "Please contact our support team for more information."}`
               }
             </p>
           </div>
@@ -299,7 +299,12 @@ export function getAccountStatusEmailTemplate(status: string, reason?: string): 
   `
 }
 
-export function getGeneralNotificationEmailTemplate(title: string, message: string): string {
+export function getGeneralNotificationEmailTemplate(
+  userName: string,
+  title: string,
+  message: string,
+  type = "info",
+): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -326,7 +331,7 @@ export function getGeneralNotificationEmailTemplate(title: string, message: stri
           <!-- Message -->
           <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; margin-bottom: 30px; border-radius: 0 8px 8px 0;">
             <p style="margin: 0; color: #1f2937; line-height: 1.6; font-size: 16px;">
-              ${message}
+              Hello ${userName}, ${message}
             </p>
           </div>
           

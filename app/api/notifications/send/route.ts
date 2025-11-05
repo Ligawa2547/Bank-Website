@@ -4,7 +4,7 @@ import { cookies } from "next/headers"
 import { sendEmail } from "@/lib/resend/client"
 import {
   getTransactionEmailTemplate,
-  getKYCEmailTemplate,
+  getKYCStatusEmailTemplate,
   getAccountStatusEmailTemplate,
   getGeneralNotificationEmailTemplate,
 } from "@/lib/email/templates"
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
             ? "Congratulations! Your KYC verification has been approved. You now have full access to all banking features."
             : `Your KYC status has been updated to ${kycStatus}.${kycReason ? ` Reason: ${kycReason}` : ""}`
         notificationType = kycStatus === "approved" ? "success" : "warning"
-        emailTemplate = getKYCEmailTemplate(kycStatus, kycReason)
+        emailTemplate = getKYCStatusEmailTemplate("User", kycStatus, kycReason)
         break
 
       case "account_status":
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
             ? "Your account has been activated. Welcome to IAE Bank!"
             : `Your account status has been updated to ${accountStatus}.${accountReason ? ` Reason: ${accountReason}` : ""}`
         notificationType = accountStatus === "active" ? "success" : "warning"
-        emailTemplate = getAccountStatusEmailTemplate(accountStatus, accountReason)
+        emailTemplate = getAccountStatusEmailTemplate("User", accountStatus, accountReason)
         break
 
       case "general":
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         notificationTitle = title
         notificationMessage = message
         notificationType = "info"
-        emailTemplate = getGeneralNotificationEmailTemplate(title, message)
+        emailTemplate = getGeneralNotificationEmailTemplate("User", title, message)
         break
 
       default:

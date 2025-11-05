@@ -51,17 +51,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           console.error("Error fetching initial session:", error)
           if (mounted) {
             setSession(null)
+            setIsLoading(false)
           }
         } else if (mounted) {
           setSession(data.session)
+          setIsLoading(false)
         }
       } catch (error) {
         console.error("Error in getInitialSession:", error)
         if (mounted) {
           setSession(null)
-        }
-      } finally {
-        if (mounted) {
           setIsLoading(false)
         }
       }
@@ -71,9 +70,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       if (mounted) {
-        setSession(session)
+        setSession(newSession)
         setIsLoading(false)
       }
     })
