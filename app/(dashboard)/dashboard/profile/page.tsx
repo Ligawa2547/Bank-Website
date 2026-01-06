@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import ProfileClient from "./profile-client"
 import type { Metadata } from "next"
-import { redirect } from "next/navigation"
 
 // Disable static prerendering; we need per-request auth
 export const dynamic = "force-dynamic"
@@ -18,11 +17,19 @@ export default async function ProfilePage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  if (!user) {
+    return (
+      <div className="container mx-auto p-6 text-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    )
+  }
 
-  const { data, error } = await supabase.from("users").select("name,email,phone,profile_pic").eq("id", user.id).single()
+  const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single()
 
-  if (error) throw error
+  if (error) {
+    console.error("Error fetching user:", error)
+  }
 
   return <ProfileClient initialData={data} />
 }
