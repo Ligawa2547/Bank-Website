@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import type { Session } from "@supabase/supabase-js"
 
 type SessionContextType = {
@@ -21,14 +21,18 @@ export function useSession() {
   return context
 }
 
+const supabaseClient = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+)
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClientComponentClient()
 
   const refreshSession = useCallback(async () => {
     try {
-      const { data, error } = await supabase.auth.getSession()
+      const { data, error } = await supabaseClient.auth.getSession()
       if (error) {
         console.error("Error refreshing session:", error)
         setSession(null)
@@ -39,14 +43,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       console.error("Error in refreshSession:", error)
       setSession(null)
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     let mounted = true
 
     const getInitialSession = async () => {
       try {
-        const { data, error } = await supabase.auth.getSession()
+        const { data, error } = await supabaseClient.auth.getSession()
         if (error) {
           console.error("Error fetching initial session:", error)
           if (mounted) {
@@ -70,7 +74,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    } = supabaseClient.auth.onAuthStateChange(async (_event, newSession) => {
       if (mounted) {
         setSession(newSession)
         setIsLoading(false)
@@ -79,9 +83,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false
-      subscription.unsubscribe()
+      subscription?.unsubscribe()
     }
-  }, [supabase])
+  }, [])
 
   const value = {
     session,

@@ -5,7 +5,6 @@ import "./globals.css"
 import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/toaster"
 import { FloatingChat } from "@/components/floating-chat"
-import Script from "next/script"
 import { Analytics } from "@vercel/analytics/react"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -88,13 +87,6 @@ export default function RootLayout({
           <Analytics />
           <FloatingChat />
         </Providers>
-
-        {/* PayPal SDK for hosted buttons */}
-        <Script
-          src="https://www.paypal.com/sdk/js?client-id=BAABv-fGmOQt6xgFrkcz7hkUA6wLY2wP8AtoYUTZ6hR73ZfqKMrdwtROZkStnxTXLNLmd8FPyByLRX1Tdo&components=hosted-buttons&disable-funding=venmo&currency=USD"
-          strategy="lazyOnload"
-          crossOrigin="anonymous"
-        />
       </body>
     </html>
   )

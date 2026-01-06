@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { ArrowDownLeft, RefreshCw, CheckCircle, XCircle, Info, DollarSign, Eye, EyeOff } from "lucide-react"
-import { PayPalPayment } from "@/components/paypal-payment"
+import { CardPayment } from "@/components/card-payment"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
 import { useSupabase } from "@/providers/supabase-provider"
@@ -166,7 +166,7 @@ export default function TransfersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Transfers</h1>
-          <p className="text-muted-foreground">Add money to your account using PayPal or card payments</p>
+          <p className="text-muted-foreground">Add money to your account using secure card payments</p>
         </div>
         <Button onClick={handleRefresh} variant="outline" size="sm">
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -227,12 +227,11 @@ export default function TransfersPage() {
           <CardHeader>
             <CardTitle>Add Money to Your Account</CardTitle>
             <CardDescription>
-              Choose between PayPal account payment or direct card payment. Both options are secure and processed
-              through PayPal.
+              Add funds securely using your debit or credit card. Payments are processed instantly through IntaSend.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <PayPalPayment onSuccess={handlePaymentSuccess} />
+            <CardPayment onSuccess={handlePaymentSuccess} />
           </CardContent>
         </Card>
 
@@ -244,24 +243,13 @@ export default function TransfersPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <DollarSign className="h-4 w-4 text-blue-600" />
-              </div>
-              <div>
-                <p className="font-medium">PayPal Account</p>
-                <p className="text-sm text-muted-foreground">
-                  Pay using your PayPal balance, linked bank account, or cards saved in PayPal. Requires PayPal login.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
               <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </div>
               <div>
                 <p className="font-medium">Debit/Credit Card</p>
                 <p className="text-sm text-muted-foreground">
-                  Pay directly with your card without needing a PayPal account. Still processed securely through PayPal.
+                  Pay directly with your card. All card details are encrypted and processed securely through IntaSend.
                 </p>
               </div>
             </div>
@@ -286,7 +274,7 @@ export default function TransfersPage() {
               <RefreshCw className="h-5 w-5 text-yellow-500" />
               <div>
                 <p className="font-medium">Pending</p>
-                <p className="text-sm text-muted-foreground">Payment is being processed by PayPal</p>
+                <p className="text-sm text-muted-foreground">Payment is being processed</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -294,13 +282,6 @@ export default function TransfersPage() {
               <div>
                 <p className="font-medium">Failed</p>
                 <p className="text-sm text-muted-foreground">Payment could not be processed</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Info className="h-5 w-5 text-blue-500" />
-              <div>
-                <p className="font-medium">Cancelled</p>
-                <p className="text-sm text-muted-foreground">Payment was cancelled by user</p>
               </div>
             </div>
           </CardContent>
@@ -311,9 +292,8 @@ export default function TransfersPage() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>Secure Payments:</strong> Both PayPal and card payments are processed through PayPal's secure payment
-          system. Card payments don't require a PayPal account but still benefit from PayPal's fraud protection and
-          security measures.
+          <strong>Secure Payments:</strong> All card payments are processed securely through IntaSend with SSL
+          encryption. Your card details are never stored on our servers.
         </AlertDescription>
       </Alert>
     </div>

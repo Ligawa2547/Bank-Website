@@ -5,11 +5,9 @@ import { useEffect } from "react"
 export function FloatingChat() {
   useEffect(() => {
     try {
-      window.$zoho = window.$zoho || {}
-      window.$zoho.salesiq = window.$zoho.salesiq || {
-        ready: () => {
-          // Widget is ready - you can add custom configurations here
-        },
+      if (typeof window !== "undefined") {
+        window.$zoho = window.$zoho || {}
+        window.$zoho.salesiq = window.$zoho.salesiq || {}
       }
 
       // Load the Zoho SalesIQ widget script
@@ -20,7 +18,7 @@ export function FloatingChat() {
       script.defer = true
 
       script.onerror = () => {
-        console.error("[v0] Failed to load Zoho SalesIQ widget")
+        console.log("[v0] Zoho SalesIQ widget failed to load (optional feature)")
       }
 
       script.onload = () => {
@@ -29,11 +27,12 @@ export function FloatingChat() {
 
       document.body.appendChild(script)
     } catch (error) {
-      console.error("[v0] Error initializing Zoho SalesIQ:", error)
+      // Silently fail if Zoho widget doesn't load - it's optional
+      console.log("[v0] Zoho SalesIQ initialization skipped")
     }
 
     return () => {
-      // Cleanup - remove script on unmount if needed
+      // Cleanup
     }
   }, [])
 
