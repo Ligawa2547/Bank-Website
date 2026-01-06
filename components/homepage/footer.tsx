@@ -2,8 +2,14 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { Facebook, Twitter, Linkedin, Instagram, Mail, Phone, MapPin } from "lucide-react"
+import { Facebook, Linkedin, Instagram, Mail, Phone, MapPin } from "lucide-react"
 import { useState } from "react"
+
+const XLogo = () => (
+  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.514l-5.106-6.675L2.306 21.75H-1v-3.308l7.227-8.26L-1.424 2.25h6.514l5.106 6.675L18.244 2.25zM16.874 19.269h1.828L6.288 3.922H4.382L16.874 19.269z" />
+  </svg>
+)
 
 export function HomepageFooter() {
   const [logoError, setLogoError] = useState(false)
@@ -40,7 +46,7 @@ export function HomepageFooter() {
                 <Facebook className="h-5 w-5" />
               </a>
               <a href="#" className="text-blue-200 hover:text-white transition-colors">
-                <Twitter className="h-5 w-5" />
+                <XLogo />
               </a>
               <a href="#" className="text-blue-200 hover:text-white transition-colors">
                 <Linkedin className="h-5 w-5" />

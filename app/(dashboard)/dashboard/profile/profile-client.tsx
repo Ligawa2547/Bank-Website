@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
 import { ProfilePictureUpload } from "@/components/profile-picture-upload"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { User, Mail, Phone, MapPin, Calendar, Shield, CheckCircle, Clock } from "lucide-react"
 
 interface UserProfile {
@@ -28,10 +28,10 @@ interface UserProfile {
   created_at: string
 }
 
-export default function ProfileClient() {
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+export default function ProfileClient({ initialData }: { initialData?: Partial<UserProfile> }) {
+  const [profile, setProfile] = useState<UserProfile | null>((initialData as UserProfile) || null)
   const [isEditing, setIsEditing] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(!initialData)
   const [isSaving, setSaving] = useState(false)
   const [editForm, setEditForm] = useState({
     full_name: "",
@@ -41,10 +41,15 @@ export default function ProfileClient() {
   })
 
   const { toast } = useToast()
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
 
   useEffect(() => {
-    fetchProfile()
+    if (!initialData) {
+      fetchProfile()
+    }
   }, [])
 
   const fetchProfile = async () => {
@@ -217,7 +222,11 @@ export default function ProfileClient() {
                 <div>
                   <Label className="text-sm font-medium text-gray-500">Account Balance</Label>
                   <p className="text-lg font-semibold text-green-600">
-                    ₦{profile.account_balance?.toLocaleString() || "0.00"}
+                    $
+                    {(profile.account_balance ?? 0).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </p>
                 </div>
               </div>
