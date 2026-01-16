@@ -23,19 +23,19 @@ export function HomepageFooter() {
             <Link href="/" className="flex items-center gap-2">
               {logoError ? (
                 <div className="h-8 w-8 bg-white rounded-md flex items-center justify-center text-[#0A3D62] font-bold text-sm">
-                  I&E
+                  AV
                 </div>
               ) : (
                 <Image
                   src="/images/iae-logo.png"
-                  alt="I&E National Bank"
+                  alt="Alghahim Virtual Bank"
                   width={32}
                   height={32}
                   className="h-8 w-auto"
                   onError={() => setLogoError(true)}
                 />
               )}
-              <span className="font-bold text-xl">I&E National Bank</span>
+              <span className="font-bold text-xl">Alghahim Virtual Bank</span>
             </Link>
             <p className="text-blue-200 text-sm">
               Your trusted banking partner for modern financial solutions. Experience seamless banking with cutting-edge
@@ -140,7 +140,7 @@ export function HomepageFooter() {
         {/* Bottom Section */}
         <div className="border-t border-blue-800 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="text-sm text-blue-200">© 2024 I&E National Bank. All rights reserved.</div>
+            <div className="text-sm text-blue-200">© 2026 Alghahim Virtual Bank. All rights reserved.</div>
             <div className="flex space-x-6 text-sm">
               <Link href="/privacy" className="text-blue-200 hover:text-white transition-colors">
                 Privacy Policy

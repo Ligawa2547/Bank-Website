@@ -20,8 +20,8 @@ export default function HomePage() {
             Banking that works <span className="text-green-600">for&nbsp;you</span>
           </h1>
           <p className="mx-auto max-w-2xl text-muted-foreground md:text-lg">
-            Open an account, send money instantly, and manage your finances with I&#38;E Bank&#8217;s modern web
-            experience.
+            Open an account, send money instantly, and manage your finances with Alghahim Virtual Bank&#8217;s modern
+            web experience.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Button asChild size="lg">
@@ -90,8 +90,8 @@ export default function HomePage() {
                   Financial Freedom at Your Fingertips
                 </h1>
                 <p className="text-base sm:text-lg md:text-xl text-blue-100">
-                  Experience seamless banking with I&E National Bank's innovative digital solutions designed for your
-                  lifestyle.
+                  Experience seamless banking with Alghahim Virtual Bank's innovative digital solutions designed for
+                  your lifestyle.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <Button size="lg" className="bg-[#8CC63F] text-white hover:bg-[#7AB62F]" asChild>
@@ -132,7 +132,7 @@ export default function HomePage() {
                 <div className="absolute -top-10 -right-10 w-32 h-32 sm:w-40 sm:h-40 bg-[#8CC63F]/20 rounded-full blur-3xl"></div>
                 <div className="absolute -bottom-10 -left-10 w-32 h-32 sm:w-40 sm:h-40 bg-[#0A5483]/30 rounded-full blur-3xl"></div>
                 <div className="relative bg-white/10 backdrop-blur-sm p-4 sm:p-6 rounded-2xl shadow-2xl border border-white/20 w-full max-w-sm">
-                  <img src="/images/iae-logo.png" alt="I&E National Bank" className="h-8 sm:h-12 w-auto mb-4" />
+                  <img src="/images/iae-logo.png" alt="Alghahim Virtual Bank" className="h-8 sm:h-12 w-auto mb-4" />
                   <div className="bg-gradient-to-r from-[#0A5483] to-[#0F7AB3] h-32 sm:h-40 rounded-lg mb-4 relative overflow-hidden">
                     <div className="absolute inset-0 opacity-20">
                       <div className="absolute top-4 right-4 w-8 sm:w-12 h-6 sm:h-8 border border-white/40 rounded"></div>
@@ -172,7 +172,7 @@ export default function HomePage() {
 
         <section className="py-12 sm:py-16 bg-white">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#0A5483] mb-4">Why Choose I&E National Bank?</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#0A5483] mb-4">Why Choose Alghahim Virtual Bank?</h2>
             <p className="text-gray-600 max-w-2xl mx-auto text-sm sm:text-base">
               We combine cutting-edge technology with personalized service to provide you with the best banking
               experience.
@@ -353,13 +353,13 @@ export default function HomePage() {
               {[
                 {
                   quote:
-                    "I&E National Bank has transformed how I manage my finances. Their savings goals feature helped me save for my dream vacation.",
+                    "Alghahim Virtual Bank has transformed how I manage my finances. Their savings goals feature helped me save for my dream vacation.",
                   author: "Sarah Johnson",
                   title: "Small Business Owner",
                 },
                 {
                   quote:
-                    "The security features at I&E National Bank give me peace of mind. I know my money and personal information are protected.",
+                    "The security features at Alghahim Virtual Bank give me peace of mind. I know my money and personal information are protected.",
                   author: "Michael Chen",
                   title: "Software Engineer",
                 },
@@ -387,7 +387,7 @@ export default function HomePage() {
           <div className="absolute inset-0 z-0">
             <img
               src="/images/bank-building.jpeg"
-              alt="I&E National Bank Building"
+              alt="Alghahim Virtual Bank Building"
               className="w-full h-full object-cover opacity-20"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-[#0A5483]/90 to-[#0F7AB3]/90"></div>
@@ -396,7 +396,7 @@ export default function HomePage() {
             <div className="max-w-3xl mx-auto text-center text-white">
               <h2 className="text-3xl sm:text-4xl font-bold mb-6">Ready to Experience Modern Banking?</h2>
               <p className="text-lg sm:text-xl mb-8">
-                Join thousands of satisfied customers who have transformed their financial journey with I&E National
+                Join thousands of satisfied customers who have transformed their financial journey with Alghahim Virtual
                 Bank.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">

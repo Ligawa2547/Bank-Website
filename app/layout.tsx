@@ -10,34 +10,34 @@ import { Analytics } from "@vercel/analytics/react"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "IAE Bank - Your Trusted Banking Partner",
+  title: "Alghahim Virtual Bank - Your Trusted Banking Partner",
   description:
-    "Experience secure and convenient banking with IAE Bank. Manage your finances, transfer money, and access banking services 24/7.",
+    "Experience secure and convenient banking with Alghahim Virtual Bank. Manage your finances, transfer money, and access banking services 24/7.",
   keywords: "banking, finance, money transfer, savings, loans, credit cards, online banking",
-  authors: [{ name: "IAE Bank" }],
-  creator: "IAE Bank",
-  publisher: "IAE Bank",
+  authors: [{ name: "Alghahim Virtual Bank" }],
+  creator: "Alghahim Virtual Bank",
+  publisher: "Alghahim Virtual Bank",
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://iae-bank.vercel.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://alghahim-bank.vercel.app"),
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "IAE Bank - Your Trusted Banking Partner",
+    title: "Alghahim Virtual Bank - Your Trusted Banking Partner",
     description:
-      "Experience secure and convenient banking with IAE Bank. Manage your finances, transfer money, and access banking services 24/7.",
-    url: process.env.NEXT_PUBLIC_APP_URL || "https://iae-bank.vercel.app",
-    siteName: "IAE Bank",
+      "Experience secure and convenient banking with Alghahim Virtual Bank. Manage your finances, transfer money, and access banking services 24/7.",
+    url: process.env.NEXT_PUBLIC_APP_URL || "https://alghahim-bank.vercel.app",
+    siteName: "Alghahim Virtual Bank",
     images: [
       {
         url: "/images/iae-logo.png",
         width: 1200,
         height: 630,
-        alt: "IAE Bank Logo",
+        alt: "Alghahim Virtual Bank Logo",
       },
     ],
     locale: "en_US",
@@ -45,9 +45,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "IAE Bank - Your Trusted Banking Partner",
+    title: "Alghahim Virtual Bank - Your Trusted Banking Partner",
     description:
-      "Experience secure and convenient banking with IAE Bank. Manage your finances, transfer money, and access banking services 24/7.",
+      "Experience secure and convenient banking with Alghahim Virtual Bank. Manage your finances, transfer money, and access banking services 24/7.",
     images: ["/images/iae-logo.png"],
   },
   robots: {

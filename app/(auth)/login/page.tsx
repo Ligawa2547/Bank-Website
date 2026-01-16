@@ -4,11 +4,11 @@ import LoginClient from "./login-client"
 export const metadata: Metadata = {
   title: "Login - Access Your Account",
   description:
-    "Securely log in to your IAE Bank account to manage your finances, view transactions, and access all banking services.",
+    "Securely log in to your Alghahim Virtual Bank account to manage your finances, view transactions, and access all banking services.",
   keywords: ["login", "sign in", "account access", "secure login", "banking login"],
   openGraph: {
-    title: "Login - IAE Bank",
-    description: "Securely access your IAE Bank account",
+    title: "Login - Alghahim Virtual Bank",
+    description: "Securely access your Alghahim Virtual Bank account",
     url: "https://ebanking.iaenb.com/login",
   },
   alternates: {
