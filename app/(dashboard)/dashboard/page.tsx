@@ -186,22 +186,24 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-6 space-y-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back, {userProfile?.first_name || user?.user_metadata?.first_name || "User"}
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            Welcome back
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {userProfile?.first_name || user?.user_metadata?.first_name || "User"}, here's your financial overview
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild>
+        <div className="flex gap-3">
+          <Button asChild className="rounded-lg font-semibold shadow-md hover:shadow-lg transition-all">
             <Link href="/dashboard/transfers">
               <Plus className="mr-2 h-4 w-4" />
               Add Money
             </Link>
           </Button>
-          <Button variant="outline" asChild>
+          <Button variant="outline" asChild className="rounded-lg font-semibold border-2 bg-transparent">
             <Link href="/dashboard/transfers">
               <Send className="mr-2 h-4 w-4" />
               Transfer
@@ -211,48 +213,52 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Balance - Primary */}
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-primary/90 to-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-sm font-semibold opacity-90">Total Balance</CardTitle>
+            <DollarSign className="h-5 w-5 opacity-80" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalBalance)}</div>
-            <p className="text-xs text-muted-foreground">Available balance</p>
+            <div className="text-3xl font-bold">{formatCurrency(stats.totalBalance)}</div>
+            <p className="text-xs opacity-80 mt-1">Available balance</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Deposits</CardTitle>
-            <ArrowDownRight className="h-4 w-4 text-green-500" />
+        {/* Total Deposits - Secondary */}
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-secondary/80 to-secondary text-secondary-foreground shadow-lg hover:shadow-xl transition-all">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-sm font-semibold opacity-90">Total Deposits</CardTitle>
+            <ArrowDownRight className="h-5 w-5 opacity-80" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalDeposits)}</div>
-            <p className="text-xs text-muted-foreground">All time deposits</p>
+            <div className="text-3xl font-bold">{formatCurrency(stats.totalDeposits)}</div>
+            <p className="text-xs opacity-80 mt-1">All time deposits</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Withdrawals</CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-red-500" />
+        {/* Total Withdrawals */}
+        <Card className="relative overflow-hidden border border-border/50 bg-card shadow-md hover:shadow-lg hover:border-accent/30 transition-all">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-sm font-semibold">Total Withdrawals</CardTitle>
+            <ArrowUpRight className="h-5 w-5 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalWithdrawals)}</div>
-            <p className="text-xs text-muted-foreground">All time withdrawals</p>
+            <div className="text-3xl font-bold">{formatCurrency(stats.totalWithdrawals)}</div>
+            <p className="text-xs text-muted-foreground mt-1">All time withdrawals</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
+        {/* Pending Transactions */}
+        <Card className="relative overflow-hidden border border-border/50 bg-card shadow-md hover:shadow-lg hover:border-accent/30 transition-all">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-sm font-semibold">Pending</CardTitle>
+            <Clock className="h-5 w-5 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingTransactions}</div>
-            <p className="text-xs text-muted-foreground">Pending transactions</p>
+            <div className="text-3xl font-bold">{stats.pendingTransactions}</div>
+            <p className="text-xs text-muted-foreground mt-1">Pending transactions</p>
           </CardContent>
         </Card>
       </div>

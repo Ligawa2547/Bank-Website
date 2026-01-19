@@ -15,53 +15,66 @@ export default function HomePage() {
       <HomepageHeader />
       <main className="flex-1">
         {/* Hero */}
-        <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 pb-24 pt-32 text-center md:pt-40">
-          <h1 className="text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">
-            Banking that works <span className="text-green-600">for&nbsp;you</span>
+        <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 pb-24 pt-32 text-center md:pt-48">
+          <div className="inline-flex items-center gap-2 rounded-full border border-secondary/30 bg-secondary/5 px-4 py-1.5 text-sm font-medium text-secondary">
+            <span className="flex h-2 w-2 rounded-full bg-secondary"></span>
+            Trusted by thousands of users
+          </div>
+          <h1 className="text-5xl font-bold leading-tight tracking-tight md:text-7xl text-balance">
+            Banking that works <span className="bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent">for&nbsp;you</span>
           </h1>
-          <p className="mx-auto max-w-2xl text-muted-foreground md:text-lg">
-            Open an account, send money instantly, and manage your finances with Alghahim Virtual Bank&#8217;s modern
-            web experience.
+          <p className="mx-auto max-w-2xl text-lg text-muted-foreground md:text-xl">
+            Open an account in minutes, send money instantly, and manage your finances with Alghahim Virtual Bank's secure and intuitive platform.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Button asChild size="lg">
-              <Link href="/signup">Create account</Link>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+            <Button asChild size="lg" className="rounded-full px-8 font-semibold shadow-lg hover:shadow-xl transition-all">
+              <Link href="/signup">Get Started</Link>
             </Button>
-            <Button variant="outline" size="lg" asChild>
-              <Link href="/login">Log&nbsp;in</Link>
+            <Button variant="outline" size="lg" className="rounded-full px-8 font-semibold border-2 hover:bg-muted bg-transparent" asChild>
+              <Link href="/login">Sign In</Link>
             </Button>
           </div>
         </section>
 
         {/* Keep all the existing sections from the original file */}
         {/* Features */}
-        <section className="w-full bg-gray-50 py-16">
-          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-4 md:grid-cols-3">
-            {[
-              {
-                title: "Instant transfers",
-                desc: "Move money in seconds using our real-time payment rails.",
-                icon: "arrows-up-down",
-              },
-              {
-                title: "Dark-mode ready",
-                desc: "Keep your eyes fresh with a beautiful light & dark UI.",
-                icon: "moon",
-              },
-              {
-                title: "Secure by design",
-                desc: "All data encrypted in transit and at rest, 2-factor ready.",
-                icon: "shield-check",
-              },
-            ].map(({ title, desc, icon }) => (
-              <div key={title} className="flex flex-col items-center text-center md:items-start md:text-left">
-                <div className="mb-4 rounded-md bg-green-100 p-3 text-green-700">
-                  <i data-lucide={icon} className="h-6 w-6"></i>
+        <section className="w-full py-24 bg-muted/30">
+          <div className="mx-auto max-w-6xl px-4">
+            <div className="mb-16 text-center">
+              <h2 className="text-3xl md:text-5xl font-bold mb-4 text-balance">Why choose Alghahim Virtual Bank?</h2>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">Experience banking reimagined with cutting-edge security, speed, and simplicity.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+              {[
+                {
+                  title: "Instant Transfers",
+                  desc: "Move money securely in seconds using our real-time payment rails. No delays, no complications.",
+                  icon: "send",
+                  color: "secondary",
+                },
+                {
+                  title: "Bank-Grade Security",
+                  desc: "Military-grade encryption protects your data 24/7. Two-factor authentication keeps your account secure.",
+                  icon: "shield-check",
+                  color: "accent",
+                },
+                {
+                  title: "24/7 Support",
+                  desc: "Our dedicated support team is always available to help you with any questions or concerns.",
+                  icon: "headset",
+                  color: "primary",
+                },
+              ].map(({ title, desc, icon, color }) => (
+                <div key={title} className="group relative overflow-hidden rounded-2xl border border-border bg-card p-8 hover:border-secondary/50 hover:shadow-lg transition-all duration-300">
+                  <div className={`mb-6 inline-flex rounded-xl bg-${color}/10 p-3 text-${color}`}>
+                    <i data-lucide={icon} className="h-6 w-6"></i>
+                  </div>
+                  <h3 className="mb-3 text-xl font-bold text-card-foreground">{title}</h3>
+                  <p className="text-muted-foreground leading-relaxed">{desc}</p>
+                  <div className="absolute inset-0 -z-10 bg-gradient-to-br from-secondary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </div>
-                <h3 className="mb-2 text-xl font-semibold">{title}</h3>
-                <p className="text-muted-foreground">{desc}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
 
