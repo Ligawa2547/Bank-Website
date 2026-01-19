@@ -45,43 +45,32 @@ export default function HomePage() {
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">Experience banking reimagined with cutting-edge security, speed, and simplicity.</p>
             </div>
             <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-              {[
-                {
-                  title: "Instant Transfers",
-                  desc: "Move money securely in seconds using our real-time payment rails. No delays, no complications.",
-                  icon: "send",
-                  bgColor: "from-blue-50 to-blue-100",
-                  borderColor: "border-blue-200",
-                  iconBg: "bg-blue-500",
-                  iconColor: "text-white",
-                },
-                {
-                  title: "Bank-Grade Security",
-                  desc: "Military-grade encryption protects your data 24/7. Two-factor authentication keeps your account secure.",
-                  icon: "shield-check",
-                  bgColor: "from-emerald-50 to-emerald-100",
-                  borderColor: "border-emerald-200",
-                  iconBg: "bg-emerald-500",
-                  iconColor: "text-white",
-                },
-                {
-                  title: "24/7 Support",
-                  desc: "Our dedicated support team is always available to help you with any questions or concerns.",
-                  icon: "headset",
-                  bgColor: "from-purple-50 to-purple-100",
-                  borderColor: "border-purple-200",
-                  iconBg: "bg-purple-500",
-                  iconColor: "text-white",
-                },
-              ].map(({ title, desc, icon, bgColor, borderColor, iconBg, iconColor }) => (
-                <div key={title} className={`group relative overflow-hidden rounded-2xl border ${borderColor} bg-gradient-to-br ${bgColor} p-8 hover:shadow-lg transition-all duration-300`}>
-                  <div className={`mb-6 inline-flex rounded-xl ${iconBg} ${iconColor} p-3`}>
-                    <i data-lucide={icon} className="h-6 w-6"></i>
-                  </div>
-                  <h3 className="mb-3 text-xl font-bold text-foreground">{title}</h3>
-                  <p className="text-foreground/80 leading-relaxed font-medium">{desc}</p>
+              {/* Feature 1: Instant Transfers */}
+              <div className="group relative overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-8 hover:shadow-lg transition-all duration-300">
+                <div className="mb-6 inline-flex rounded-xl bg-blue-500 text-white p-3">
+                  <i data-lucide="send" className="h-6 w-6"></i>
                 </div>
-              ))}
+                <h3 className="mb-3 text-xl font-bold text-foreground">Instant Transfers</h3>
+                <p className="text-foreground/80 leading-relaxed font-medium">Move money securely in seconds using our real-time payment rails. No delays, no complications.</p>
+              </div>
+
+              {/* Feature 2: Bank-Grade Security */}
+              <div className="group relative overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-8 hover:shadow-lg transition-all duration-300">
+                <div className="mb-6 inline-flex rounded-xl bg-emerald-500 text-white p-3">
+                  <i data-lucide="shield-check" className="h-6 w-6"></i>
+                </div>
+                <h3 className="mb-3 text-xl font-bold text-foreground">Bank-Grade Security</h3>
+                <p className="text-foreground/80 leading-relaxed font-medium">Military-grade encryption protects your data 24/7. Two-factor authentication keeps your account secure.</p>
+              </div>
+
+              {/* Feature 3: 24/7 Support */}
+              <div className="group relative overflow-hidden rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-8 hover:shadow-lg transition-all duration-300">
+                <div className="mb-6 inline-flex rounded-xl bg-purple-500 text-white p-3">
+                  <i data-lucide="headset" className="h-6 w-6"></i>
+                </div>
+                <h3 className="mb-3 text-xl font-bold text-foreground">24/7 Support</h3>
+                <p className="text-foreground/80 leading-relaxed font-medium">Our dedicated support team is always available to help you with any questions or concerns.</p>
+              </div>
             </div>
           </div>
         </section>

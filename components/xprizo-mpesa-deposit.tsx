@@ -1,8 +1,6 @@
 'use client'
 
-import React from "react"
-
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,15 +9,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Smartphone, CheckCircle, AlertCircle, RotateCw } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { initiateM2mDeposit, checkTransactionStatus } from '@/lib/xprizo/client'
-import { useAuth } from '@/lib/auth-provider'
 
-interface M2mDepositProps {
+interface XprizoM2mDepositProps {
   merchantWalletId: string
   onSuccess?: (transactionRef: string) => void
 }
 
-export function XprizoM2mDeposit({ merchantWalletId, onSuccess }: M2mDepositProps) {
-  const { profile } = useAuth()
+export function XprizoM2mDeposit({ merchantWalletId, onSuccess }: XprizoM2mDepositProps) {
   const { toast } = useToast()
   
   const [step, setStep] = useState<'input' | 'waiting' | 'success' | 'error'>('input')
