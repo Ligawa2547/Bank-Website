@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+import type { SupabaseClient } from "@supabase/supabase-js"
 import type { Session } from "@supabase/supabase-js"
 
 type SessionContextType = {
@@ -21,10 +21,24 @@ export function useSession() {
   return context
 }
 
-const supabaseClient = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-)
+// Lazy load Supabase client
+let supabaseClient: SupabaseClient | null = null
+
+async function getSupabaseClient() {
+  if (!supabaseClient) {
+    try {
+      const { createBrowserClient } = await import("@supabase/ssr")
+      supabaseClient = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
+    } catch (error) {
+      console.error("[v0] Failed to load Supabase client:", error)
+      return null
+    }
+  }
+  return supabaseClient
+}
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
@@ -32,7 +46,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const refreshSession = useCallback(async () => {
     try {
-      const { data, error } = await supabaseClient.auth.getSession()
+      const client = await getSupabaseClient()
+      if (!client) {
+        setSession(null)
+        return
+      }
+      const { data, error } = await client.auth.getSession()
       if (error) {
         console.error("Error refreshing session:", error)
         setSession(null)
@@ -50,7 +69,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     const getInitialSession = async () => {
       try {
-        const { data, error } = await supabaseClient.auth.getSession()
+        const client = await getSupabaseClient()
+        if (!client) {
+          if (mounted) {
+            setSession(null)
+            setIsLoading(false)
+          }
+          return
+        }
+        const { data, error } = await client.auth.getSession()
         if (error) {
           console.error("Error fetching initial session:", error)
           if (mounted) {
@@ -72,18 +99,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     getInitialSession()
 
-    const {
-      data: { subscription },
-    } = supabaseClient.auth.onAuthStateChange(async (_event, newSession) => {
-      if (mounted) {
-        setSession(newSession)
-        setIsLoading(false)
-      }
+    const setupAuthListener = async () => {
+      const client = await getSupabaseClient()
+      if (!client) return
+
+      const {
+        data: { subscription },
+      } = client.auth.onAuthStateChange(async (_event, newSession) => {
+        if (mounted) {
+          setSession(newSession)
+          setIsLoading(false)
+        }
+      })
+
+      return subscription
+    }
+
+    let unsubscribe: (() => void) | undefined
+    setupAuthListener().then((subscription) => {
+      unsubscribe = () => subscription?.unsubscribe()
     })
 
     return () => {
       mounted = false
-      subscription?.unsubscribe()
+      unsubscribe?.()
     }
   }, [])
 

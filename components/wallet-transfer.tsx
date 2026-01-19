@@ -100,10 +100,18 @@ export function WalletTransfer({ onTransferComplete }: { onTransferComplete?: ()
     }
 
     const amount = parseFloat(transferAmount)
-    const userBalance = profile?.account_balance ? parseFloat(profile.account_balance.toString()) : 0
+    
+    // Ensure balance is properly converted from any type
+    let userBalance = 0
+    if (profile?.account_balance) {
+      const balance = typeof profile.account_balance === 'string' 
+        ? parseFloat(profile.account_balance) 
+        : profile.account_balance
+      userBalance = isNaN(balance) ? 0 : balance
+    }
 
     if (amount > userBalance) {
-      setErrors(["Insufficient balance. Please check your account balance."])
+      setErrors([`Insufficient balance. Your balance: $${userBalance.toFixed(2)}, Transfer amount: $${amount.toFixed(2)}`])
       return
     }
 

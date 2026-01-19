@@ -1,7 +1,5 @@
 'use server'
 
-import { headers } from 'next/headers'
-
 const BASE_URL = 'https://wallet.xprizo.com'
 const XPRIZO_API_KEY = process.env.XPRIZO_API_KEY
 
@@ -13,7 +11,11 @@ export async function initiateM2mDeposit(payload: {
 }) {
   try {
     if (!XPRIZO_API_KEY) {
-      throw new Error('XPRIZO_API_KEY is not configured')
+      throw new Error('Xprizo API key is not configured. Please contact support.')
+    }
+
+    if (!payload.accountId) {
+      throw new Error('Merchant wallet ID is not configured. Please contact support.')
     }
 
     const response = await fetch(`${BASE_URL}/api/Transaction/MPesaDeposit`, {
@@ -27,12 +29,15 @@ export async function initiateM2mDeposit(payload: {
 
     if (!response.ok) {
       const error = await response.text()
-      throw new Error(`M-Pesa deposit failed: ${error}`)
+      const errorMsg = error ? `${response.status}: ${error}` : `HTTP ${response.status}`
+      throw new Error(`M-Pesa deposit failed: ${errorMsg}`)
     }
 
-    return await response.json()
+    const data = await response.json()
+    return data
   } catch (error) {
-    console.error('[Xprizo M2m] Error:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[Xprizo M2m] Error:', message)
     throw error
   }
 }

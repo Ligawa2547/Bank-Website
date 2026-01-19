@@ -75,6 +75,11 @@ export function XprizoM2mDeposit({ merchantWalletId, onSuccess }: XprizoM2mDepos
       return
     }
 
+    if (!merchantWalletId) {
+      setError('Merchant wallet ID is not configured. Please contact support.')
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -97,6 +102,7 @@ export function XprizoM2mDeposit({ merchantWalletId, onSuccess }: XprizoM2mDepos
       })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to initiate M-Pesa deposit'
+      console.error('[v0] M-Pesa error:', err)
       setError(errorMessage)
       toast({
         title: 'Error',
