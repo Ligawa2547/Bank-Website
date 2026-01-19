@@ -6,6 +6,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { ArrowDownLeft, RefreshCw, CheckCircle, XCircle, Info, DollarSign, Eye, EyeOff } from "lucide-react"
 import { CardPayment } from "@/components/card-payment"
+import { WalletTransfer } from "@/components/wallet-transfer"
+import { XprizoM2mDeposit } from "@/components/xprizo-mpesa-deposit"
+import { XprizoWalletTransfer } from "@/components/xprizo-wallet-transfer"
 import { useToast } from "@/hooks/use-toast"
 import { useSearchParams } from "next/navigation"
 import { useSupabase } from "@/providers/supabase-provider"
@@ -223,6 +226,18 @@ export default function TransfersPage() {
 
       {/* Payment Methods */}
       <div className="grid gap-6">
+        {/* Wallet to Wallet Transfer */}
+        <WalletTransfer onTransferComplete={handleRefresh} />
+
+        {/* Xprizo M-Pesa Deposit */}
+        <XprizoM2mDeposit 
+          merchantWalletId={process.env.NEXT_PUBLIC_XPRIZO_MERCHANT_ID || ""}
+          onSuccess={handleRefresh}
+        />
+
+        {/* Xprizo Wallet Transfer */}
+        <XprizoWalletTransfer onSuccess={handleRefresh} />
+
         <Card>
           <CardHeader>
             <CardTitle>Add Money to Your Account</CardTitle>
