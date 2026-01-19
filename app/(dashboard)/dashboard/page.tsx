@@ -215,26 +215,26 @@ export default function DashboardPage() {
       {/* Stats Cards */}
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
         {/* Total Balance - Primary */}
-        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-primary/90 to-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all">
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg hover:shadow-xl transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-semibold opacity-90">Total Balance</CardTitle>
-            <DollarSign className="h-5 w-5 opacity-80" />
+            <CardTitle className="text-sm font-bold text-white">Total Balance</CardTitle>
+            <DollarSign className="h-5 w-5 text-white/90" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(stats.totalBalance)}</div>
-            <p className="text-xs opacity-80 mt-1">Available balance</p>
+            <div className="text-3xl font-bold text-white">{formatCurrency(stats.totalBalance)}</div>
+            <p className="text-xs text-white/90 mt-1">Available balance</p>
           </CardContent>
         </Card>
 
         {/* Total Deposits - Secondary */}
-        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-secondary/80 to-secondary text-secondary-foreground shadow-lg hover:shadow-xl transition-all">
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-secondary to-secondary/80 text-white shadow-lg hover:shadow-xl transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-sm font-semibold opacity-90">Total Deposits</CardTitle>
-            <ArrowDownRight className="h-5 w-5 opacity-80" />
+            <CardTitle className="text-sm font-bold text-white">Total Deposits</CardTitle>
+            <ArrowDownRight className="h-5 w-5 text-white/90" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(stats.totalDeposits)}</div>
-            <p className="text-xs opacity-80 mt-1">All time deposits</p>
+            <div className="text-3xl font-bold text-white">{formatCurrency(stats.totalDeposits)}</div>
+            <p className="text-xs text-white/90 mt-1">All time deposits</p>
           </CardContent>
         </Card>
 

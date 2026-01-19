@@ -50,28 +50,36 @@ export default function HomePage() {
                   title: "Instant Transfers",
                   desc: "Move money securely in seconds using our real-time payment rails. No delays, no complications.",
                   icon: "send",
-                  color: "secondary",
+                  bgColor: "from-blue-50 to-blue-100",
+                  borderColor: "border-blue-200",
+                  iconBg: "bg-blue-500",
+                  iconColor: "text-white",
                 },
                 {
                   title: "Bank-Grade Security",
                   desc: "Military-grade encryption protects your data 24/7. Two-factor authentication keeps your account secure.",
                   icon: "shield-check",
-                  color: "accent",
+                  bgColor: "from-emerald-50 to-emerald-100",
+                  borderColor: "border-emerald-200",
+                  iconBg: "bg-emerald-500",
+                  iconColor: "text-white",
                 },
                 {
                   title: "24/7 Support",
                   desc: "Our dedicated support team is always available to help you with any questions or concerns.",
                   icon: "headset",
-                  color: "primary",
+                  bgColor: "from-purple-50 to-purple-100",
+                  borderColor: "border-purple-200",
+                  iconBg: "bg-purple-500",
+                  iconColor: "text-white",
                 },
-              ].map(({ title, desc, icon, color }) => (
-                <div key={title} className="group relative overflow-hidden rounded-2xl border border-border bg-card p-8 hover:border-secondary/50 hover:shadow-lg transition-all duration-300">
-                  <div className={`mb-6 inline-flex rounded-xl bg-${color}/10 p-3 text-${color}`}>
+              ].map(({ title, desc, icon, bgColor, borderColor, iconBg, iconColor }) => (
+                <div key={title} className={`group relative overflow-hidden rounded-2xl border ${borderColor} bg-gradient-to-br ${bgColor} p-8 hover:shadow-lg transition-all duration-300`}>
+                  <div className={`mb-6 inline-flex rounded-xl ${iconBg} ${iconColor} p-3`}>
                     <i data-lucide={icon} className="h-6 w-6"></i>
                   </div>
-                  <h3 className="mb-3 text-xl font-bold text-card-foreground">{title}</h3>
-                  <p className="text-muted-foreground leading-relaxed">{desc}</p>
-                  <div className="absolute inset-0 -z-10 bg-gradient-to-br from-secondary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <h3 className="mb-3 text-xl font-bold text-foreground">{title}</h3>
+                  <p className="text-foreground/80 leading-relaxed font-medium">{desc}</p>
                 </div>
               ))}
             </div>
