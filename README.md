@@ -89,7 +89,7 @@ No license is granted for reuse, redistribution, or reverse engineering.
 **Developed By:** Alghahim  
 **Website:** https://alghahim.co.ke  
 **Project Classification:** Proprietary FinTech System  
-**Initial Development Date:** [Insert date]
+**Initial Development Date:** 12/02/2024
 
 ---
 
