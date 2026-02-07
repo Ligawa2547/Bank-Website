@@ -39,9 +39,9 @@ export default function AdminLayout({
           return
         }
 
-        // Check if user email is from iaenb.com domain
+        // Check if user email is from bank.alghahim.co.ke domain
         const email = session.user.email
-        if (!email || !email.endsWith("@iaenb.com")) {
+        if (!email || !email.endsWith("@bank.alghahim.co.ke")) {
           await supabase.auth.signOut()
           router.push("/admin/login")
           return
