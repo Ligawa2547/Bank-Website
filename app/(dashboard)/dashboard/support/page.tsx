@@ -1,18 +1,18 @@
-"use client"
+'use client'
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { useToast } from "@/components/ui/use-toast"
-import { useAuth } from "@/lib/auth-provider"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { SupportTicket, SupportMessage } from "@/types/user"
+import React, { useState, useEffect } from 'react'
+import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/lib/auth-provider'
+import type { SupportTicket, SupportMessage } from '@/lib/support/support-types'
+import { getStaffChats, getChatMessages, closeChat } from '@/lib/support/chat-service'
+import { getStaffCalls, endCall, getCallDuration } from '@/lib/support/call-service'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { PlusCircle, Send, MessageSquare, Clock, CheckCircle, AlertCircle, XCircle } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export default function SupportPage() {
   const { user, profile } = useAuth()

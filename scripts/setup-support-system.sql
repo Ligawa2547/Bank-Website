@@ -3,7 +3,7 @@
 -- Create support_staff table
 CREATE TABLE IF NOT EXISTS support_staff (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL UNIQUE,
+  user_id UUID NOT NULL,
   staff_name TEXT NOT NULL,
   staff_email TEXT NOT NULL,
   phone TEXT,
@@ -16,8 +16,7 @@ CREATE TABLE IF NOT EXISTS support_staff (
   max_concurrent_calls INT DEFAULT 2,
   last_activity_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create chat_sessions table
@@ -36,7 +35,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
   transfer_reason TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
   FOREIGN KEY (assigned_staff_id) REFERENCES support_staff(id) ON DELETE SET NULL,
   FOREIGN KEY (transferred_from_staff_id) REFERENCES support_staff(id) ON DELETE SET NULL
 );
@@ -55,7 +54,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   read_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
-  FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE SET NULL
+  FOREIGN KEY (sender_id) REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
 -- Create voice_calls table
@@ -77,7 +76,7 @@ CREATE TABLE IF NOT EXISTS voice_calls (
   transferred_from_staff_id UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
   FOREIGN KEY (assigned_staff_id) REFERENCES support_staff(id) ON DELETE SET NULL,
   FOREIGN KEY (transferred_from_staff_id) REFERENCES support_staff(id) ON DELETE SET NULL
 );
@@ -134,7 +133,7 @@ CREATE TABLE IF NOT EXISTS support_activity_logs (
   user_agent TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (staff_id) REFERENCES support_staff(id) ON DELETE SET NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
 -- Create support_settings table
@@ -145,7 +144,7 @@ CREATE TABLE IF NOT EXISTS support_settings (
   updated_by UUID,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (updated_by) REFERENCES admins(id) ON DELETE SET NULL
+  FOREIGN KEY (updated_by) REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
 -- Create Indexes for performance
