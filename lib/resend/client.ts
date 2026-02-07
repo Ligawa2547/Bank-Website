@@ -13,7 +13,7 @@ export interface EmailOptions {
   from?: string
 }
 
-export async function sendEmail({ to, subject, html, from = "IAE Bank <noreply@iaenb.com>" }: EmailOptions) {
+export async function sendEmail({ to, subject, html, from = "Alghahim Virtual Bank <noreply@bank.alghahim.co.ke>" }: EmailOptions) {
   try {
     const { data, error } = await resend.emails.send({
       from,
