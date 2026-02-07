@@ -2,10 +2,10 @@ import type { Metadata } from "next"
 import LoginClient from "./login-client"
 
 export const metadata: Metadata = {
-  title: "Login - Access Your Account",
+  title: "Login - Access Your Account - Alghahim Virtual Bank",
   description:
     "Securely log in to your Alghahim Virtual Bank account to manage your finances, view transactions, and access all banking services.",
-  keywords: ["login", "sign in", "account access", "secure login", "banking login"],
+  keywords: ["login", "sign in", "account access", "secure login", "banking login", "Alghahim Virtual Bank"],
   openGraph: {
     title: "Login - Alghahim Virtual Bank",
     description: "Securely access your Alghahim Virtual Bank account",

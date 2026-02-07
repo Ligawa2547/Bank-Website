@@ -32,9 +32,9 @@ type AuthContextType = {
   isLoading: boolean
   refreshUserProfile: () => Promise<void>
   /* auth helpers */
-  signUp: (email: string, password: string) => Promise<{ error: any }>
-  signIn: (email: string, password: string) => Promise<{ error: any }>
-  signInWithMagicLink: (email: string) => Promise<{ error: any }>
+  signUp: (email: string, password: string, metadata?: any) => Promise<void>
+  signIn: (email: string, password: string) => Promise<any>
+  signInWithMagicLink: (email: string) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -178,21 +178,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchUserProfile])
 
   /* --------------------- auth helpers ---------------------------- */
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, metadata?: any) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: metadata,
+      },
     })
-    return { error }
+    if (error) throw error
   }
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    return { error }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        throw error
+      }
+
+      if (data.user && !data.user.email_confirmed_at) {
+        // User exists but email not confirmed
+        await supabase.auth.signOut()
+        const err = new Error("Email not confirmed")
+        ;(err as any).code = "email_not_confirmed"
+        throw err
+      }
+
+      return data
+    } catch (error) {
+      throw error
+    }
   }
 
   const signInWithMagicLink = async (email: string) => {
@@ -200,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     })
-    return { error }
+    if (error) throw error
   }
 
   const signOut = async () => {

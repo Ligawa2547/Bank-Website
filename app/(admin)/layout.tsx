@@ -21,13 +21,13 @@ export default function AdminLayout({
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [logoError, setLogoError] = useState(false)
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
   const router = useRouter()
 
   useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
     const checkAdminAccess = async () => {
       try {
         const {
@@ -57,7 +57,7 @@ export default function AdminLayout({
     }
 
     checkAdminAccess()
-  }, [supabase, router])
+  }, [router])
 
   if (loading) {
     return (

@@ -30,14 +30,13 @@ export function WalletTransfer({ onTransferComplete }: { onTransferComplete?: ()
   const [isSearching, setIsSearching] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
-  
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
 
   const validateAccountNumber = async () => {
     setErrors([])
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
     
     // Basic validation
     if (!recipientAccountNo.trim()) {
@@ -87,6 +86,10 @@ export function WalletTransfer({ onTransferComplete }: { onTransferComplete?: ()
 
   const handleTransfer = async () => {
     setErrors([])
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
 
     // Validation
     if (!recipientDetails) {

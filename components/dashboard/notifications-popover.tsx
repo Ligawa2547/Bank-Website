@@ -15,10 +15,6 @@ export function NotificationsPopover() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isOpen, setIsOpen] = useState(false)
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
 
   useEffect(() => {
     if (!user || !profile?.account_number) {
@@ -29,6 +25,10 @@ export function NotificationsPopover() {
     const fetchNotifications = async () => {
       setIsLoading(true)
       try {
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        )
         const { data, error } = await supabase
           .from("notifications")
           .select("*")
