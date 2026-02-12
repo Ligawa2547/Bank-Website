@@ -2,32 +2,50 @@
 
 import { useEffect } from "react"
 
+declare global {
+  interface Window {
+    __zoho_loaded?: boolean
+    __zoho_error_handler_installed?: boolean
+    $zoho?: any
+  }
+}
+
 export function FloatingChat() {
   useEffect(() => {
-    // Skip Zoho widget loading on client side if disabled
-    const isWidgetDisabled = process.env.NEXT_PUBLIC_DISABLE_ZOHO_WIDGET === "true"
-    if (isWidgetDisabled) {
+    // Skip Zoho widget loading on client side if disabled (default to disabled due to compatibility issues)
+    const isWidgetEnabled = process.env.NEXT_PUBLIC_ENABLE_ZOHO_WIDGET === "true"
+    if (!isWidgetEnabled) {
       return
     }
 
     try {
+      // Install global error handler to catch and suppress Zoho errors
+      if (typeof window !== "undefined" && !window.__zoho_error_handler_installed) {
+        window.__zoho_error_handler_installed = true
+
+        // Wrap the entire Zoho loading in a try-catch to isolate errors
+        const originalError = window.onerror
+        window.onerror = function (msg: any, url: any, lineNo: any, colNo: any, error: any) {
+          // Suppress errors from Zoho widget
+          if (url && url.includes("zoho")) {
+            console.warn("[v0] Suppressed Zoho SalesIQ error to prevent app crash:", msg)
+            return true // Return true to prevent error propagation
+          }
+          // Call original error handler if it exists
+          if (typeof originalError === "function") {
+            return originalError(msg, url, lineNo, colNo, error)
+          }
+          return false
+        }
+      }
+
       // Check if Zoho is already loaded to prevent duplicate loading
       if (typeof window !== "undefined" && !window.__zoho_loaded) {
         window.__zoho_loaded = true
         window.$zoho = window.$zoho || {}
         window.$zoho.salesiq = window.$zoho.salesiq || {}
 
-        // Set up global error handler for widget
-        const handleZohoError = (event: ErrorEvent) => {
-          // Only log errors from Zoho, not all errors
-          if (event.filename && event.filename.includes("zoho")) {
-            console.warn("[v0] Zoho SalesIQ widget error:", event.message)
-          }
-        }
-
-        window.addEventListener("error", handleZohoError, true)
-
-        // Load the Zoho SalesIQ widget script with better error handling
+        // Load the Zoho SalesIQ widget script
         const script = document.createElement("script")
         script.type = "text/javascript"
         script.src = "https://salesiq.zoho.com/widget"
@@ -38,36 +56,32 @@ export function FloatingChat() {
         let scriptLoadTimeout: NodeJS.Timeout | null = null
 
         script.onerror = () => {
-          console.warn("[v0] Zoho SalesIQ widget failed to load - this is optional and won't affect core functionality")
+          console.warn("[v0] Zoho SalesIQ widget failed to load - continuing without it")
           window.__zoho_loaded = false
           if (scriptLoadTimeout) clearTimeout(scriptLoadTimeout)
-          window.removeEventListener("error", handleZohoError, true)
         }
 
         script.onload = () => {
-          console.log("[v0] Zoho SalesIQ widget loaded successfully")
+          console.log("[v0] Zoho SalesIQ widget loaded")
           if (scriptLoadTimeout) clearTimeout(scriptLoadTimeout)
         }
 
         // Set a timeout to cleanup if script takes too long
         scriptLoadTimeout = setTimeout(() => {
-          console.warn("[v0] Zoho SalesIQ widget load timeout - proceeding without it")
+          console.warn("[v0] Zoho SalesIQ widget load timeout")
           window.__zoho_loaded = false
-          window.removeEventListener("error", handleZohoError, true)
-        }, 10000) // 10 second timeout
+        }, 15000)
 
         document.body.appendChild(script)
 
         return () => {
-          // Cleanup
           if (scriptLoadTimeout) clearTimeout(scriptLoadTimeout)
-          window.removeEventListener("error", handleZohoError, true)
         }
       }
     } catch (error) {
-      console.warn("[v0] Zoho SalesIQ initialization error (optional feature):", error instanceof Error ? error.message : String(error))
+      console.warn("[v0] Zoho SalesIQ initialization skipped:", error instanceof Error ? error.message : String(error))
     }
   }, [])
 
-  return null // Zoho SalesIQ renders its own widget or nothing if disabled
+  return null // Zoho SalesIQ renders its own widget or nothing
 }
