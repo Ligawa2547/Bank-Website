@@ -34,10 +34,18 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
       try {
         const {
           data: { user },
+          error,
         } = await supabase.auth.getUser()
-        setUser(user)
+        
+        if (error) {
+          console.warn("[v0] Supabase getUser error:", error.message)
+          setUser(null)
+        } else {
+          setUser(user)
+        }
       } catch (error) {
-        console.error("Error getting user:", error)
+        console.error("[v0] Error getting user:", error instanceof Error ? error.message : String(error))
+        setUser(null)
       } finally {
         setLoading(false)
       }
@@ -46,14 +54,20 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     getUser()
 
     // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+    try {
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(async (event, session) => {
+        setUser(session?.user ?? null)
+        setLoading(false)
+      })
 
-    return () => subscription.unsubscribe()
+      return () => subscription.unsubscribe()
+    } catch (error) {
+      console.error("[v0] Auth state listener error:", error instanceof Error ? error.message : String(error))
+      setLoading(false)
+      return () => {}
+    }
   }, [supabase])
 
   return <Context.Provider value={{ supabase, user, loading }}>{children}</Context.Provider>

@@ -78,7 +78,19 @@ export default function DashboardPage() {
         .single()
 
       if (profileError) {
-        console.error("Error fetching profile:", profileError)
+        console.error("[v0] Error fetching profile:", {
+          message: profileError.message,
+          code: profileError.code,
+          details: profileError.details,
+        })
+        setUserProfile(null)
+        setStats({
+          totalBalance: 0,
+          totalDeposits: 0,
+          totalWithdrawals: 0,
+          pendingTransactions: 0,
+        })
+        setIsLoading(false)
         return
       }
 
@@ -93,7 +105,19 @@ export default function DashboardPage() {
         .limit(10)
 
       if (transactionsError) {
-        console.error("Error fetching transactions:", transactionsError)
+        console.error("[v0] Error fetching transactions:", {
+          message: transactionsError.message,
+          code: transactionsError.code,
+          details: transactionsError.details,
+        })
+        setRecentTransactions([])
+        setStats({
+          totalBalance: profile?.account_balance || 0,
+          totalDeposits: 0,
+          totalWithdrawals: 0,
+          pendingTransactions: 0,
+        })
+        setIsLoading(false)
         return
       }
 
@@ -119,7 +143,15 @@ export default function DashboardPage() {
 
       setRecentTransactions(transactions || [])
     } catch (error) {
-      console.error("Error loading dashboard data:", error)
+      console.error("[v0] Dashboard data load exception:", error instanceof Error ? error.message : String(error))
+      // Set default state on error
+      setStats({
+        totalBalance: 0,
+        totalDeposits: 0,
+        totalWithdrawals: 0,
+        pendingTransactions: 0,
+      })
+      setRecentTransactions([])
     } finally {
       setIsLoading(false)
     }
