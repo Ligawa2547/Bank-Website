@@ -6,16 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { FileDownload, Mail, Eye, Loader2, AlertCircle } from 'lucide-react'
-import { useState as useStateCallback } from 'react'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -213,7 +204,7 @@ export default function AgreementsPage() {
         </Alert>
       )}
 
-      {/* Agreements Table */}
+      {/* Customers List */}
       <Card>
         <CardHeader>
           <CardTitle>Customers & Agreements</CardTitle>
@@ -221,77 +212,74 @@ export default function AgreementsPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8">
+            <div className="text-center py-12">
               <p className="text-muted-foreground">No customers found</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Account Number</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        {user.first_name} {user.last_name}
-                      </TableCell>
-                      <TableCell className="text-sm">{user.email}</TableCell>
-                      <TableCell className="font-mono text-sm">{user.account_no}</TableCell>
-                      <TableCell className="text-sm">
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewAgreement(user)}
-                          disabled={downloadingId === user.id || resendingId === user.id}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDownloadAgreement(user)}
-                          disabled={downloadingId === user.id || resendingId === user.id}
-                        >
-                          {downloadingId === user.id ? (
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                          ) : (
-                            <FileDownload className="h-4 w-4 mr-1" />
-                          )}
-                          Download
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleResendAgreement(user)}
-                          disabled={resendingId === user.id || downloadingId === user.id}
-                        >
-                          {resendingId === user.id ? (
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                          ) : (
-                            <Mail className="h-4 w-4 mr-1" />
-                          )}
-                          Resend
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="space-y-4">
+              {filteredUsers.map((user) => (
+                <div key={user.id} className="border border-border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold">Name</p>
+                      <p className="font-semibold">{user.first_name} {user.last_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold">Email</p>
+                      <p className="text-sm">{user.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold">Account</p>
+                      <p className="font-mono text-sm">{user.account_no}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold">Created</p>
+                      <p className="text-sm">{new Date(user.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleViewAgreement(user)}
+                      disabled={downloadingId === user.id || resendingId === user.id}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDownloadAgreement(user)}
+                      disabled={downloadingId === user.id || resendingId === user.id}
+                    >
+                      {downloadingId === user.id ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <FileDownload className="h-4 w-4 mr-2" />
+                      )}
+                      Download
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleResendAgreement(user)}
+                      disabled={resendingId === user.id || downloadingId === user.id}
+                    >
+                      {resendingId === user.id ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Mail className="h-4 w-4 mr-2" />
+                      )}
+                      Resend
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
