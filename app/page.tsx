@@ -50,8 +50,8 @@ export default function HomePage() {
                 <div className="mb-6 inline-flex rounded-xl bg-blue-500 text-white p-3">
                   <i data-lucide="send" className="h-6 w-6"></i>
                 </div>
-                <h3 className="mb-3 text-xl font-bold text-foreground">Instant Transfers</h3>
-                <p className="text-foreground/80 leading-relaxed font-medium">Move money securely in seconds using our real-time payment rails. No delays, no complications.</p>
+                <h3 className="mb-3 text-xl font-bold text-gray-900">Instant Transfers</h3>
+                <p className="text-gray-700 leading-relaxed font-medium">Move money securely in seconds using our real-time payment rails. No delays, no complications.</p>
               </div>
 
               {/* Feature 2: Bank-Grade Security */}
@@ -59,8 +59,8 @@ export default function HomePage() {
                 <div className="mb-6 inline-flex rounded-xl bg-emerald-500 text-white p-3">
                   <i data-lucide="shield-check" className="h-6 w-6"></i>
                 </div>
-                <h3 className="mb-3 text-xl font-bold text-foreground">Bank-Grade Security</h3>
-                <p className="text-foreground/80 leading-relaxed font-medium">Military-grade encryption protects your data 24/7. Two-factor authentication keeps your account secure.</p>
+                <h3 className="mb-3 text-xl font-bold text-gray-900">Bank-Grade Security</h3>
+                <p className="text-gray-700 leading-relaxed font-medium">Military-grade encryption protects your data 24/7. Two-factor authentication keeps your account secure.</p>
               </div>
 
               {/* Feature 3: 24/7 Support */}
@@ -68,8 +68,8 @@ export default function HomePage() {
                 <div className="mb-6 inline-flex rounded-xl bg-purple-500 text-white p-3">
                   <i data-lucide="headset" className="h-6 w-6"></i>
                 </div>
-                <h3 className="mb-3 text-xl font-bold text-foreground">24/7 Support</h3>
-                <p className="text-foreground/80 leading-relaxed font-medium">Our dedicated support team is always available to help you with any questions or concerns.</p>
+                <h3 className="mb-3 text-xl font-bold text-gray-900">24/7 Support</h3>
+                <p className="text-gray-700 leading-relaxed font-medium">Our dedicated support team is always available to help you with any questions or concerns.</p>
               </div>
             </div>
           </div>
