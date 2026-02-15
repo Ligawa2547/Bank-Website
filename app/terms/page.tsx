@@ -283,19 +283,19 @@ export default function TermsPage() {
                   <p>If you have any questions about these Terms & Conditions, please contact us at:</p>
                   <div className="mt-4 p-6 bg-muted rounded-lg border border-border space-y-2">
                     <p>
-                      <span className="font-semibold">Email:</span> support@bank.com
+                      <span className="font-semibold">Email:</span> support@bank.aghq.co.ke
                     </p>
                     <p>
-                      <span className="font-semibold">Address:</span> 123 Banking Street, Finance City, FC 12345
+                      <span className="font-semibold">Address:</span> Alghahim Financial Services, Nairobi, Kenya
                     </p>
                     <p>
-                      <span className="font-semibold">Phone:</span> +1 (555) 123-4567
+                      <span className="font-semibold">Phone:</span> +254 (20) 123-4567
                     </p>
                     <p>
-                      <span className="font-semibold">Hours:</span> Monday - Friday, 9:00 AM - 6:00 PM EST
+                      <span className="font-semibold">Hours:</span> Monday - Friday, 9:00 AM - 5:00 PM EAT
                     </p>
                     <p>
-                      <span className="font-semibold">Legal Department:</span> legal@bank.com
+                      <span className="font-semibold">Legal Department:</span> legal@bank.aghq.co.ke
                     </p>
                   </div>
                 </section>

@@ -19,9 +19,9 @@ export function getTransactionEmailTemplate(
     <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
       <div style="max-width: 600px; margin: 0 auto; background-color: white;">
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center;">
-          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">Alghahim Virtual Bank</h1>
-          <p style="color: #e0e7ff; margin: 10px 0 0 0; font-size: 16px;">Your trusted banking partner</p>
+        <div style="background: linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%); padding: 30px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">AV Bank</h1>
+          <p style="color: #e0e7ff; margin: 10px 0 0 0; font-size: 16px;">Alghahim Financial Services</p>
         </div>
         
         <!-- Content -->

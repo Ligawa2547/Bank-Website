@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -60,6 +61,12 @@ export function AdminSidebar() {
       icon: BarChart3,
       href: "/admin/reports",
       active: pathname.startsWith("/admin/reports"),
+    },
+    {
+      title: "Legal Agreements",
+      icon: FileText,
+      href: "/admin/agreements",
+      active: pathname.startsWith("/admin/agreements"),
     },
     {
       title: "System Settings",

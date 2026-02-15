@@ -47,6 +47,9 @@
     "react-dom": "19.0.0",
     "react-toastify": "11.0.5",
     "resend": "6.0.2",
+    "@react-pdf/renderer": "latest",
+    "html2canvas": "latest",
+    "jspdf": "latest",
     "tailwind-merge": "2.5.5",
     "tailwindcss-animate": "1.0.7",
     "zod": "3.24.1"

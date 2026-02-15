@@ -7,7 +7,7 @@ export interface EmailOptions {
   from?: string
 }
 
-export async function sendEmail({ to, subject, html, from = "IAE Bank <noreply@iaenb.com>" }: EmailOptions) {
+export async function sendEmail({ to, subject, html, from = "AV Bank <noreply@bank.aghq.co.ke>" }: EmailOptions) {
   if (!process.env.RESEND_API_KEY) {
     throw new Error("RESEND_API_KEY environment variable is required")
   }

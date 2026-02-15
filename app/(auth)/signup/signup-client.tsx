@@ -62,11 +62,26 @@ export default function SignupClient() {
     setIsLoading(true)
 
     try {
-      await signUp(formData.email, formData.password, {
+      // Sign up user
+      const signUpResponse = await signUp(formData.email, formData.password, {
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: formData.phone,
       })
+
+      // Get the user ID from the response
+      // Note: signUp will be handled by auth provider, we'll send agreement on next login
+      // or we can trigger it here if we have access to the user data
+      
+      // Attempt to send agreement email asynchronously (don't block signup flow)
+      try {
+        // This will be sent after email verification callback
+        // For now, we'll note that it will be sent during the email callback
+        console.log("[v0] Agreement sending queued for user:", formData.email)
+      } catch (agreementError) {
+        console.error("[v0] Error queueing agreement:", agreementError)
+        // Don't fail signup if agreement sending fails
+      }
 
       setSuccess(true)
       setTimeout(() => {

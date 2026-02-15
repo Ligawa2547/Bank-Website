@@ -327,16 +327,16 @@ export default function PrivacyPage() {
                   <p>If you have questions about this Privacy Policy or our privacy practices, please contact us at:</p>
                   <div className="mt-4 p-6 bg-muted rounded-lg border border-border space-y-2">
                     <p>
-                      <span className="font-semibold">Email:</span> privacy@bank.com
+                      <span className="font-semibold">Email:</span> privacy@bank.aghq.co.ke
                     </p>
                     <p>
-                      <span className="font-semibold">Address:</span> 123 Banking Street, Finance City, FC 12345
+                      <span className="font-semibold">Address:</span> Alghahim Financial Services, Nairobi, Kenya
                     </p>
                     <p>
-                      <span className="font-semibold">Phone:</span> +1 (555) 123-4567
+                      <span className="font-semibold">Phone:</span> +254 (20) 123-4567
                     </p>
                     <p>
-                      <span className="font-semibold">Data Protection Officer:</span> dpo@bank.com
+                      <span className="font-semibold">Data Protection Officer:</span> dpo@bank.aghq.co.ke
                     </p>
                     <p>
                       <span className="font-semibold">Response Time:</span> Within 30 days
