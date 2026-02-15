@@ -26,7 +26,8 @@ export default function AdminLogin() {
   const supabase = createClientComponentClient()
 
   const validateAdminEmail = (email: string) => {
-    return email.endsWith("@iaenb.com")
+    const allowedDomains = ["@bank.aghq.co.ke", "@alghahim.co.ke", "@iaenb.com"]
+    return allowedDomains.some(domain => email.endsWith(domain))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,7 +36,7 @@ export default function AdminLogin() {
 
     // Validate admin email domain
     if (!validateAdminEmail(email)) {
-      setError("Access denied. Only @iaenb.com email addresses are permitted for admin access.")
+      setError("Access denied. Only authorized email addresses are permitted for admin access.")
       return
     }
 
@@ -60,13 +61,13 @@ export default function AdminLogin() {
         // Double-check the email domain after successful authentication
         if (!validateAdminEmail(data.user.email || "")) {
           await supabase.auth.signOut()
-          setError("Access denied. Admin access is restricted to @iaenb.com email addresses.")
+          setError("Access denied. Admin access is restricted to authorized email addresses.")
           return
         }
 
         toast({
           title: "Login Successful",
-          description: "Welcome to the I&E National Bank Admin Portal.",
+          description: "Welcome to the AV Bank Admin Portal.",
         })
 
         // Redirect to admin dashboard
@@ -87,7 +88,7 @@ export default function AdminLogin() {
           <Shield className="h-6 w-6 text-red-600" />
         </div>
         <CardTitle className="text-2xl font-bold">Admin Login</CardTitle>
-        <CardDescription>Sign in to access the I&E National Bank admin portal</CardDescription>
+        <CardDescription>Sign in to access the AV Bank admin portal</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -103,13 +104,13 @@ export default function AdminLogin() {
             <Input
               id="email"
               type="email"
-              placeholder="admin@iaenb.com"
+              placeholder="admin@bank.aghq.co.ke"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full"
             />
-            <p className="text-xs text-gray-500">Only @iaenb.com email addresses are permitted</p>
+            <p className="text-xs text-gray-500">Enter your authorized admin email</p>
           </div>
 
           <div className="space-y-2">

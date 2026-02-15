@@ -39,9 +39,12 @@ export default function AdminLayout({
           return
         }
 
-        // Check if user email is from iaenb.com domain
+        // Check if user email is from allowed domains
         const email = session.user.email
-        if (!email || !email.endsWith("@iaenb.com")) {
+        const allowedDomains = ["@bank.aghq.co.ke", "@alghahim.co.ke", "@iaenb.com"]
+        const isAuthorized = email && allowedDomains.some(domain => email.endsWith(domain))
+        
+        if (!isAuthorized) {
           await supabase.auth.signOut()
           router.push("/admin/login")
           return
@@ -79,12 +82,12 @@ export default function AdminLayout({
           <div className="flex items-center gap-2">
             {logoError ? (
               <div className="h-8 w-8 bg-white rounded-md flex items-center justify-center text-red-900 font-bold text-sm">
-                I&E
+                AV
               </div>
             ) : (
               <Image
                 src="/images/iae-logo.png"
-                alt="I&E National Bank"
+                alt="AV Bank"
                 width={32}
                 height={32}
                 className="h-8 w-auto"

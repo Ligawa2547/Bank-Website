@@ -11,10 +11,10 @@ export default function AdminAuthLayout({
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="mx-auto mb-4 w-16 h-16 relative">
-            <Image src="/images/iae-logo.png" alt="I&E National Bank" fill className="object-contain" />
+            <Image src="/images/iae-logo.png" alt="AV Bank" fill className="object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">I&E National Bank</h1>
-          <p className="text-gray-600">Admin Portal</p>
+          <h1 className="text-2xl font-bold text-gray-900">AV Bank</h1>
+          <p className="text-gray-600">Alghahim Financial Services - Admin Portal</p>
         </div>
         {children}
       </div>

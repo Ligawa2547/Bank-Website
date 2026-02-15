@@ -35,7 +35,8 @@ export default function AdminSignup() {
   const supabase = createClientComponentClient()
 
   const validateAdminEmail = (email: string) => {
-    return email.endsWith("@iaenb.com")
+    const allowedDomains = ["@bank.aghq.co.ke", "@alghahim.co.ke", "@iaenb.com"]
+    return allowedDomains.some(domain => email.endsWith(domain))
   }
 
   const validatePassword = (password: string) => {
@@ -53,7 +54,7 @@ export default function AdminSignup() {
 
     // Validate admin email domain
     if (!validateAdminEmail(formData.email)) {
-      setError("Access denied. Only @iaenb.com email addresses are permitted.")
+      setError("Access denied. Only authorized email addresses are permitted.")
       return
     }
 
