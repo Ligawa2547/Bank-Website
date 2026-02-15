@@ -333,8 +333,8 @@ export default function HomePage() {
             </h2>
             <div className="grid gap-6 sm:gap-8 md:grid-cols-2 max-w-4xl mx-auto">
               <div className="bg-white p-6 sm:p-8 rounded-lg shadow-md border border-gray-100">
-                <h3 className="text-lg sm:text-xl font-bold mb-4">Have Questions?</h3>
-                <p className="mb-6 text-sm sm:text-base">
+                <h3 className="text-lg sm:text-xl font-bold mb-4 text-[#0A5483]">Have Questions?</h3>
+                <p className="mb-6 text-sm sm:text-base text-gray-600">
                   Our support team is available to help you with any questions or issues you may have.
                 </p>
                 <Button className="w-full bg-[#8CC63F] hover:bg-[#7AB62F] text-white" asChild>
@@ -342,8 +342,8 @@ export default function HomePage() {
                 </Button>
               </div>
               <div className="bg-white p-6 sm:p-8 rounded-lg shadow-md border border-gray-100">
-                <h3 className="text-lg sm:text-xl font-bold mb-4">Join Our Community</h3>
-                <p className="mb-6 text-sm sm:text-base">
+                <h3 className="text-lg sm:text-xl font-bold mb-4 text-[#0A5483]">Join Our Community</h3>
+                <p className="mb-6 text-sm sm:text-base text-gray-600">
                   Join thousands of satisfied customers who trust us with their banking needs.
                 </p>
                 <Button className="w-full bg-[#8CC63F] hover:bg-[#7AB62F] text-white" asChild>
