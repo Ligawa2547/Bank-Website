@@ -311,7 +311,11 @@ export default function AdminEmailManagementPage() {
                       <Label>Preview</Label>
                       <div
                         className="border rounded-lg p-4 bg-white"
-                        dangerouslySetInnerHTML={{ __html: formData.html }}
+                        dangerouslySetInnerHTML={{ 
+                          __html: formData.html
+                            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                            .replace(/on\w+\s*=/gi, 'data-blocked-')
+                        }}
                       />
                     </div>
                   )}
