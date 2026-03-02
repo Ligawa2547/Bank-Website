@@ -30,7 +30,13 @@ export default function LoginClient() {
 
     try {
       await signIn(email, password)
-      router.push("/dashboard")
+      // Redirect to app subdomain dashboard
+      const appUrl = typeof window !== 'undefined' 
+        ? window.location.hostname.includes('localhost')
+          ? 'http://localhost:3001/'
+          : 'https://app.bank.alghahim.co.ke/'
+        : '/'
+      window.location.href = appUrl
     } catch (error: any) {
       setError(error.message || "An error occurred during login")
     } finally {
@@ -43,10 +49,10 @@ export default function LoginClient() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <Image src="/images/iae-logo.png" alt="IAE Bank Logo" width={80} height={80} className="rounded-lg" />
+            <Image src="/images/logo.png" alt="Alghahim Virtual Bank Logo" width={80} height={80} className="rounded-lg" />
           </div>
           <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-          <CardDescription>Sign in to your IAE Bank account to access your dashboard</CardDescription>
+          <CardDescription>Sign in to your Alghahim Virtual Bank account to access your dashboard</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
