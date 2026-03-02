@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createBrowserClient } from '@supabase/ssr'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2, Send, Mail, CheckCircle, AlertCircle, Clock, Eye, EyeOff } from 'lucide-react'
+import { sanitizeHtml } from '@/lib/html-sanitizer'
 
 interface EmailMessage {
   id: string
@@ -312,9 +313,7 @@ export default function AdminEmailManagementPage() {
                       <div
                         className="border rounded-lg p-4 bg-white"
                         dangerouslySetInnerHTML={{ 
-                          __html: formData.html
-                            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-                            .replace(/on\w+\s*=/gi, 'data-blocked-')
+                          __html: sanitizeHtml(formData.html)
                         }}
                       />
                     </div>
