@@ -5,9 +5,9 @@
 ### Step 1: Database Setup
 The support system tables have already been created. Verify they exist:
 
-```bash
+\`\`\`bash
 SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE 'support_%';
-```
+\`\`\`
 
 Expected tables:
 - `support_staff`
@@ -23,7 +23,7 @@ Expected tables:
 ### Step 2: Environment Variables
 Add support system variables to `.env.local`:
 
-```bash
+\`\`\`bash
 # Minimal Setup (uses Google STUN servers)
 NEXT_PUBLIC_WS_SIGNALING_URL=wss://signaling.bank.alghahim.co.ke
 WS_SIGNALING_SECURE=true
@@ -32,7 +32,7 @@ WS_SIGNALING_SECURE=true
 NEXT_PUBLIC_TURN_URL=turn:turnserver.bank.alghahim.co.ke:3478
 TURN_USERNAME=support_user
 TURN_CREDENTIAL=secure_password
-```
+\`\`\`
 
 For development, you can use free Google STUN servers. For production, configure your own TURN server.
 
@@ -40,7 +40,7 @@ For development, you can use free Google STUN servers. For production, configure
 
 In your customer dashboard page (`app/(dashboard)/dashboard/page.tsx`):
 
-```tsx
+\`\`\`tsx
 import { FloatingChatWidget } from '@/components/support/floating-chat-widget'
 import { useAuth } from '@/lib/auth-provider'
 
@@ -64,13 +64,13 @@ export default function Dashboard() {
     </div>
   )
 }
-```
+\`\`\`
 
 ### Step 4: Add Support Admin Panel Link
 
 In your admin dashboard sidebar/navigation (`app/(admin)/layout.tsx` or similar):
 
-```tsx
+\`\`\`tsx
 <nav>
   {/* Existing nav items */}
   
@@ -79,18 +79,18 @@ In your admin dashboard sidebar/navigation (`app/(admin)/layout.tsx` or similar)
     Support Management
   </Link>
 </nav>
-```
+\`\`\`
 
 ### Step 5: Add Support Staff Dashboard
 
 In your staff/dashboard navigation:
 
-```tsx
+\`\`\`tsx
 <Link href="/dashboard/support">
   <HeadsetIcon className="mr-2 h-4 w-4" />
   Support Queue
 </Link>
-```
+\`\`\`
 
 ## WebSocket Signaling Server Setup (Production)
 
@@ -100,7 +100,7 @@ In your staff/dashboard navigation:
 
 Create `/servers/signaling-server.js`:
 
-```javascript
+\`\`\`javascript
 const WebSocket = require('ws');
 const express = require('express');
 const http = require('http');
@@ -135,25 +135,25 @@ wss.on('connection', (ws) => {
 server.listen(3001, () => {
   console.log('Signaling server running on port 3001');
 });
-```
+\`\`\`
 
 Deploy to your infrastructure (AWS EC2, DigitalOcean, etc.)
 
 2. **Set Environment Variable**
 
-```bash
+\`\`\`bash
 NEXT_PUBLIC_WS_SIGNALING_URL=wss://signaling.bank.alghahim.co.ke
-```
+\`\`\`
 
 ### Option B: Managed Service
 
 Use Twilio TURN service:
 
-```env
+\`\`\`env
 NEXT_PUBLIC_TURN_URL=turn:nats.twilio.com:443?transport=udp
 TURN_USERNAME=your_twilio_account
 TURN_CREDENTIAL=your_twilio_token
-```
+\`\`\`
 
 ## Role Assignment & Permissions
 
@@ -166,7 +166,7 @@ TURN_CREDENTIAL=your_twilio_token
 
 ### Roles Hierarchy
 
-```
+\`\`\`
 Super Admin (bank.alghahim.co.ke)
 ├── Admin (bank.alghahim.co.ke)
 │   └── Can add/remove staff, view all metrics
@@ -176,7 +176,7 @@ Super Admin (bank.alghahim.co.ke)
 │   └── Can monitor team, reassign within team
 └── Support Agent
     └── Can handle chats/calls, pick from queue
-```
+\`\`\`
 
 ## Real-Time Features Configuration
 
@@ -184,22 +184,22 @@ Super Admin (bank.alghahim.co.ke)
 
 In `lib/support-config.ts`:
 
-```typescript
+\`\`\`typescript
 CHAT_CONFIG: {
   auto_assign_enabled: true,  // Enable auto-assignment
   max_concurrent_chats_per_agent: 5,
 }
-```
+\`\`\`
 
 When auto-assign is enabled, chats are automatically assigned to the first available agent.
 
 ### Configure Queue Behavior
 
-```typescript
+\`\`\`typescript
 CHAT_CONFIG: {
   queue_timeout_seconds: 300,  // 5 minutes before abandoned
 }
-```
+\`\`\`
 
 Chats/calls are marked as abandoned if not answered within this time.
 
@@ -216,14 +216,14 @@ The system sends notifications via Resend API (already integrated):
 
 Update in `lib/support/notification-service.ts`:
 
-```typescript
+\`\`\`typescript
 const NOTIFICATION_CONFIG = {
   notifyStaffOnNewChat: true,
   notifyAdminOnEscalation: true,
   notifyCustomerOnResolution: true,
   emailFrom: 'support@bank.alghahim.co.ke',
 }
-```
+\`\`\`
 
 ## Monitoring & Metrics
 
@@ -243,7 +243,7 @@ const NOTIFICATION_CONFIG = {
 
 ### Query Metrics Directly
 
-```typescript
+\`\`\`typescript
 // Get chat statistics
 const { data: chatStats } = await supabase
   .from('chat_sessions')
@@ -260,7 +260,7 @@ const { data: callStats } = await supabase
 const { data: staffUtil } = await supabase
   .from('support_staff')
   .select('staff_name, current_chat_count, current_call_count')
-```
+\`\`\`
 
 ## Sensitive Data Handling
 
@@ -273,7 +273,7 @@ The system automatically masks sensitive information in chats:
 
 To customize masking patterns:
 
-```typescript
+\`\`\`typescript
 // In lib/support-config.ts
 SENSITIVE_PATTERNS: {
   account_number: /\b\d{10,20}\b/g,
@@ -281,13 +281,13 @@ SENSITIVE_PATTERNS: {
   card_number: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g,
   custom_pattern: /your_regex_here/g,
 }
-```
+\`\`\`
 
 ## Testing the Integration
 
 ### 1. Test Chat Flow
 
-```bash
+\`\`\`bash
 curl -X POST http://localhost:3000/api/support/chat/start \
   -H "Content-Type: application/json" \
   -d '{
@@ -295,11 +295,11 @@ curl -X POST http://localhost:3000/api/support/chat/start \
     "customerEmail": "customer@bank.alghahim.co.ke",
     "customerName": "John Doe"
   }'
-```
+\`\`\`
 
 ### 2. Test Voice Call Flow
 
-```bash
+\`\`\`bash
 curl -X POST http://localhost:3000/api/support/call/start \
   -H "Content-Type: application/json" \
   -d '{
@@ -308,15 +308,15 @@ curl -X POST http://localhost:3000/api/support/call/start \
     "customerName": "John Doe",
     "callType": "voice"
   }'
-```
+\`\`\`
 
 ### 3. Check Database Records
 
-```sql
+\`\`\`sql
 SELECT * FROM chat_sessions ORDER BY created_at DESC LIMIT 5;
 SELECT * FROM voice_calls ORDER BY created_at DESC LIMIT 5;
 SELECT * FROM support_staff WHERE is_active = true;
-```
+\`\`\`
 
 ## Subdomain Configuration
 
@@ -363,7 +363,7 @@ Indexes are automatically created on:
 - `support_activity_logs.created_at`
 
 ### Query Optimization
-```typescript
+\`\`\`typescript
 // ✅ Good: Indexed columns
 const chats = await supabase
   .from('chat_sessions')
@@ -376,7 +376,7 @@ const chats = await supabase
   .from('chat_sessions')
   .select('*')
   .eq('customer_email', email)  // Not indexed
-```
+\`\`\`
 
 ## Next Steps
 

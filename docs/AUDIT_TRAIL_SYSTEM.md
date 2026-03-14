@@ -27,7 +27,7 @@ The audit trail system provides comprehensive tracking of all system activities,
 ### audit_logs
 Tracks all system activities and changes.
 
-```sql
+\`\`\`sql
 - id: Unique identifier
 - user_id: User who performed the action
 - admin_id: Admin who performed the action
@@ -41,12 +41,12 @@ Tracks all system activities and changes.
 - status: success or failure
 - error_message: Error details if failed
 - timestamp: When the action occurred
-```
+\`\`\`
 
 ### login_logs
 Tracks all user authentication events.
 
-```sql
+\`\`\`sql
 - id: Unique identifier
 - user_id: User who logged in
 - email: Email address used
@@ -62,12 +62,12 @@ Tracks all user authentication events.
 - city: City of login
 - latitude/longitude: Geographic coordinates
 - timestamp: When login occurred
-```
+\`\`\`
 
 ### admin_activity_logs
 Tracks all admin actions with impact assessment.
 
-```sql
+\`\`\`sql
 - id: Unique identifier
 - admin_id: Admin user ID
 - email: Admin email
@@ -79,12 +79,12 @@ Tracks all admin actions with impact assessment.
 - user_agent: Admin's browser info
 - impact: high, medium, or low
 - timestamp: When action occurred
-```
+\`\`\`
 
 ### security_events
 Tracks suspicious activities and security incidents.
 
-```sql
+\`\`\`sql
 - id: Unique identifier
 - user_id: User involved in event
 - event_type: Type of security event
@@ -97,12 +97,12 @@ Tracks suspicious activities and security incidents.
 - resolved_by: Admin who resolved it
 - resolved_at: Resolution timestamp
 - timestamp: When event occurred
-```
+\`\`\`
 
 ### email_audit
 Tracks all emails sent to and from `@bank.alghahim.co.ke` domain.
 
-```sql
+\`\`\`sql
 - id: Unique identifier
 - recipient_email: Email recipient
 - sender_email: Email sender
@@ -112,7 +112,7 @@ Tracks all emails sent to and from `@bank.alghahim.co.ke` domain.
 - forwarded_at: Timestamp of forwarding
 - status: received, forwarded, failed
 - timestamp: When email was received
-```
+\`\`\`
 
 ## Implementation Guide
 
@@ -120,7 +120,7 @@ Tracks all emails sent to and from `@bank.alghahim.co.ke` domain.
 
 Use the `logAuditEvent` function from `lib/audit/logger.ts`:
 
-```typescript
+\`\`\`typescript
 import { logAuditEvent } from "@/lib/audit/logger"
 
 await logAuditEvent({
@@ -137,13 +137,13 @@ await logAuditEvent({
   userAgent: request.headers.get("user-agent"),
   status: "success",
 })
-```
+\`\`\`
 
 ### 2. **Logging Login Events**
 
 Use the `logLoginEvent` function in your auth handler:
 
-```typescript
+\`\`\`typescript
 import { logLoginEvent } from "@/lib/audit/logger"
 
 await logLoginEvent({
@@ -154,13 +154,13 @@ await logLoginEvent({
   success: true,
   loginMethod: "password",
 })
-```
+\`\`\`
 
 ### 3. **Logging Admin Actions**
 
 Use the `logAdminActivity` function:
 
-```typescript
+\`\`\`typescript
 import { logAdminActivity } from "@/lib/audit/logger"
 
 await logAdminActivity({
@@ -173,13 +173,13 @@ await logAdminActivity({
   ipAddress: request.ip,
   impact: "high",
 })
-```
+\`\`\`
 
 ### 4. **Logging Security Events**
 
 Use the `logSecurityEvent` function:
 
-```typescript
+\`\`\`typescript
 import { logSecurityEvent } from "@/lib/audit/logger"
 
 await logSecurityEvent(
@@ -189,15 +189,15 @@ await logSecurityEvent(
   "high",
   request.ip
 )
-```
+\`\`\`
 
 ### 5. **Email Forwarding Configuration**
 
 Set the super admin email in environment variables:
 
-```env
+\`\`\`env
 SUPER_ADMIN_EMAIL=admin@bank.alghahim.co.ke
-```
+\`\`\`
 
 The system automatically forwards all emails sent to `@bank.alghahim.co.ke` domain to the super admin email.
 
@@ -233,7 +233,7 @@ Access the audit trail dashboard at: `https://admin.bank.alghahim.co.ke/admin/au
 
 **POST** `/api/admin/email-forward`
 
-```json
+\`\`\`json
 {
   "senderEmail": "user@example.com",
   "subject": "Important Message",
@@ -241,15 +241,15 @@ Access the audit trail dashboard at: `https://admin.bank.alghahim.co.ke/admin/au
   "recipientEmail": "support@bank.alghahim.co.ke",
   "messageId": "resend-message-id"
 }
-```
+\`\`\`
 
 **Response:**
-```json
+\`\`\`json
 {
   "success": true,
   "messageId": "forwarded-message-id"
 }
-```
+\`\`\`
 
 ## Row Level Security (RLS) Policies
 

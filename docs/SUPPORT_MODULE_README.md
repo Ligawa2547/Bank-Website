@@ -16,29 +16,29 @@ A production-ready customer support module for the Alghahim Virtual Banking plat
 ## Files & Structure
 
 ### Database
-```
+\`\`\`
 scripts/
 └── setup-support-system.sql          # Complete database schema (9 tables with RLS)
-```
+\`\`\`
 
 ### Configuration
-```
+\`\`\`
 lib/
 ├── support-config.ts                 # System configuration & defaults
 └── support/
     ├── webrtc-signaling.ts           # WebRTC signaling utilities
     ├── chat-service.ts               # Chat operations & database
     └── call-service.ts               # Voice call operations & database
-```
+\`\`\`
 
 ### Components
-```
+\`\`\`
 components/support/
 └── floating-chat-widget.tsx          # Floating chat widget for customers
-```
+\`\`\`
 
 ### Pages & Routes
-```
+\`\`\`
 app/
 ├── (dashboard)/dashboard/support/page.tsx      # Staff support dashboard
 ├── (admin)/admin/support/page.tsx              # Admin support management
@@ -47,33 +47,33 @@ app/
 │   └── call/start/route.ts                    # Create new voice call
 ├── api/admin/send-email/route.ts              # Email sending API
 └── api/admin/email-forward/route.ts           # Email forwarding API
-```
+\`\`\`
 
 ### Documentation
-```
+\`\`\`
 docs/
 ├── SUPPORT_SYSTEM.md                 # Detailed system documentation
 ├── SUPPORT_INTEGRATION_GUIDE.md      # Step-by-step integration
 └── SUPPORT_MODULE_README.md          # This file
-```
+\`\`\`
 
 ### Configuration Example
-```
+\`\`\`
 .env.support.example                  # Environment variables template
-```
+\`\`\`
 
 ## Quick Start
 
 ### 1. Database Setup ✓
 Tables already created via migration script:
-```bash
+\`\`\`bash
 # Verify tables exist
 psql -c "SELECT table_name FROM information_schema.tables 
          WHERE table_schema='public' AND table_name LIKE 'support_%';"
-```
+\`\`\`
 
 ### 2. Configure Environment
-```bash
+\`\`\`bash
 # Copy and configure environment variables
 cp .env.support.example .env.local
 
@@ -82,10 +82,10 @@ NEXT_PUBLIC_WS_SIGNALING_URL=wss://signaling.bank.alghahim.co.ke
 WS_SIGNALING_SECURE=true
 SUPPORT_FEATURE_VOICE_CALLS=true
 SUPPORT_FEATURE_TEXT_CHAT=true
-```
+\`\`\`
 
 ### 3. Add to Dashboard
-```tsx
+\`\`\`tsx
 // app/(dashboard)/dashboard/page.tsx
 import { FloatingChatWidget } from '@/components/support/floating-chat-widget'
 
@@ -101,7 +101,7 @@ export default function Dashboard() {
     </div>
   )
 }
-```
+\`\`\`
 
 ### 4. Access Dashboards
 - **Staff**: http://localhost:3000/dashboard/support
@@ -126,7 +126,7 @@ export default function Dashboard() {
 
 ### Data Flow
 
-```
+\`\`\`
 Customer Dashboard
     ↓
 [Floating Chat Widget] ←→ [Real-Time Chat API]
@@ -138,11 +138,11 @@ Customer Dashboard
 [Staff Dashboard] ←→ [Queue Management]
          ↓                       ↓
 [Admin Dashboard] ←→ [Analytics & Monitoring]
-```
+\`\`\`
 
 ### Role-Based Access Control
 
-```
+\`\`\`
 Super Admin (all permissions)
     ├── Admin
     │   ├── Staff Management
@@ -166,7 +166,7 @@ Super Admin (all permissions)
         ├── Start Chat
         ├── Voice Call
         └── View History
-```
+\`\`\`
 
 ## Key Features
 
@@ -207,26 +207,26 @@ Super Admin (all permissions)
 ## Configuration Options
 
 ### Chat Settings
-```typescript
+\`\`\`typescript
 CHAT_CONFIG: {
   max_concurrent_chats_per_agent: 5,
   message_max_length: 5000,
   auto_assign_enabled: true,
   queue_timeout_seconds: 300,
 }
-```
+\`\`\`
 
 ### Call Settings
-```typescript
+\`\`\`typescript
 CALL_CONFIG: {
   max_duration_seconds: 3600,        // 1 hour
   ring_timeout_seconds: 30,
   call_decline_timeout_seconds: 60,
 }
-```
+\`\`\`
 
 ### Audio Quality
-```typescript
+\`\`\`typescript
 MEDIA_CONFIG: {
   audio: {
     echoCancellation: true,
@@ -235,7 +235,7 @@ MEDIA_CONFIG: {
     sampleRate: 48000,
   }
 }
-```
+\`\`\`
 
 ### Sensitive Data Masking
 Automatic masking patterns for:
@@ -249,30 +249,30 @@ Customize in `lib/support-config.ts`
 ## API Endpoints
 
 ### Chat APIs
-```
+\`\`\`
 POST   /api/support/chat/start              Create chat session
 POST   /api/support/chat/message            Send message
 GET    /api/support/chat/:sessionId/messages Get message history
 POST   /api/support/chat/:sessionId/assign  Assign to staff
 POST   /api/support/chat/:sessionId/close   Close chat
-```
+\`\`\`
 
 ### Call APIs
-```
+\`\`\`
 POST   /api/support/call/start              Create voice call
 POST   /api/support/call/:callId/answer     Answer incoming call
 POST   /api/support/call/:callId/end        End active call
 GET    /api/support/call/queue              Get call queue
-```
+\`\`\`
 
 ### Admin APIs
-```
+\`\`\`
 GET    /api/admin/support/stats             Get system statistics
 GET    /api/admin/support/staff             List all staff
 POST   /api/admin/support/staff             Add new staff
 PUT    /api/admin/support/staff/:staffId    Update staff
 DELETE /api/admin/support/staff/:staffId    Remove staff
-```
+\`\`\`
 
 ## Security Features
 
@@ -367,19 +367,19 @@ DELETE /api/admin/support/staff/:staffId    Remove staff
 ## Development vs Production
 
 ### Development
-```bash
+\`\`\`bash
 # Use free Google STUN servers
 NEXT_PUBLIC_STUN_URLS=stun:stun.l.google.com:19302
 NEXT_PUBLIC_WS_SIGNALING_URL=ws://localhost:3001
-```
+\`\`\`
 
 ### Production
-```bash
+\`\`\`bash
 # Use dedicated TURN server
 NEXT_PUBLIC_TURN_URL=turn:turnserver.bank.alghahim.co.ke:3478
 NEXT_PUBLIC_WS_SIGNALING_URL=wss://signaling.bank.alghahim.co.ke
 WS_SIGNALING_SECURE=true
-```
+\`\`\`
 
 ## Monitoring & Alerting
 

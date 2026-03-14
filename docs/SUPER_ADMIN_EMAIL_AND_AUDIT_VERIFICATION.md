@@ -33,17 +33,17 @@ Your Alghahim Virtual Bank system has been configured with:
 ## Required Environment Variables
 
 ### Email Forwarding
-```
+\`\`\`
 RESEND_API_KEY=your_resend_api_key
 SUPER_ADMIN_EMAIL=admin@bank.alghahim.co.ke
-```
+\`\`\`
 
 ### Supabase (already configured)
-```
+\`\`\`
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-```
+\`\`\`
 
 ## Features Implemented
 
@@ -147,11 +147,11 @@ All emails tracked in:
 ## Dashboard Features
 
 ### Navigation
-```
+\`\`\`
 /admin
   └── audit-trail (Comprehensive audit dashboard)
   └── email-management (Email sending and history)
-```
+\`\`\`
 
 ### Audit Trail Dashboard
 **4 Tabs:**

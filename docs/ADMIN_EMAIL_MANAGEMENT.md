@@ -88,17 +88,17 @@ Sends an email from the admin panel.
 **Authentication:** Required (admin user)
 
 **Request Body:**
-```json
+\`\`\`json
 {
   "to": "recipient@example.com",
   "subject": "Email Subject",
   "html": "<html>Email content</html>",
   "from": "Alghahim Virtual Bank <noreply@bank.alghahim.co.ke>" // optional
 }
-```
+\`\`\`
 
 **Response:**
-```json
+\`\`\`json
 {
   "success": true,
   "message": "Email sent successfully",
@@ -106,14 +106,14 @@ Sends an email from the admin panel.
     "id": "email-id-from-resend"
   }
 }
-```
+\`\`\`
 
 **Error Response:**
-```json
+\`\`\`json
 {
   "error": "Error message describing what went wrong"
 }
-```
+\`\`\`
 
 ### Resend Configuration
 
@@ -129,7 +129,7 @@ The system uses Resend for email delivery:
 
 All email tables have RLS enabled with policies restricting access to admin users:
 
-```sql
+\`\`\`sql
 -- Example RLS policy
 CREATE POLICY "Admins can view email logs" ON email_logs
   FOR SELECT
@@ -138,7 +138,7 @@ CREATE POLICY "Admins can view email logs" ON email_logs
       SELECT 1 FROM admins WHERE admins.id = auth.uid()
     )
   );
-```
+\`\`\`
 
 #### Admin Verification
 
@@ -187,7 +187,7 @@ Email templates can be created for common communications:
 
 Required environment variables:
 
-```bash
+\`\`\`bash
 # Resend Configuration
 RESEND_API_KEY=your_resend_api_key
 
@@ -195,7 +195,7 @@ RESEND_API_KEY=your_resend_api_key
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-```
+\`\`\`
 
 ## Error Handling
 

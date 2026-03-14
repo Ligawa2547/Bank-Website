@@ -222,7 +222,7 @@ Both include:
 
 ## Deployment Checklist
 
-```
+\`\`\`
 Database:
   ✅ Tables created with RLS policies
   ✅ Indexes optimized for queries
@@ -259,7 +259,7 @@ Testing:
   ⚠️  WebRTC audio - Requires WebSocket server
   ⚠️  Queue management - Database verified
   ⚠️  RLS policies - Implemented and ready
-```
+\`\`\`
 
 ## What's Ready to Deploy
 

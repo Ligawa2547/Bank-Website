@@ -43,7 +43,7 @@ Handles authentication across subdomains:
 
 Set these in your `.env.local` or Vercel dashboard:
 
-```bash
+\`\`\`bash
 # Multi-subdomain URLs
 BASE_URL=https://bank.alghahim.co.ke
 NEXT_PUBLIC_APP_URL=https://app.bank.alghahim.co.ke
@@ -54,23 +54,23 @@ NEXT_PUBLIC_BASE_URL=https://bank.alghahim.co.ke
 NEXT_PUBLIC_DEV_APP_URL=http://localhost:3001
 NEXT_PUBLIC_DEV_ADMIN_URL=http://localhost:3002
 NEXT_PUBLIC_DEV_BASE_URL=http://localhost:3000
-```
+\`\`\`
 
 ## Implementation Steps
 
 ### Step 1: DNS/Subdomain Setup
 Configure your DNS records:
-```
+\`\`\`
 bank.alghahim.co.ke          A  -> Your IP / CNAME -> vercel.com
 app.bank.alghahim.co.ke      CNAME -> your-project.vercel.app
 admin.bank.alghahim.co.ke    CNAME -> your-project.vercel.app
 *.bank.alghahim.co.ke        CNAME -> your-project.vercel.app (wildcard)
-```
+\`\`\`
 
 ### Step 2: Update next.config.js
 Ensure your Next.js config supports the hostname-based routing:
 
-```javascript
+\`\`\`javascript
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable hostname-based routing
@@ -88,7 +88,7 @@ const nextConfig = {
 }
 
 module.exports = nextConfig
-```
+\`\`\`
 
 ### Step 3: Update Supabase Auth Settings
 In your Supabase project settings:
@@ -102,7 +102,7 @@ In your Supabase project settings:
 ### Step 4: Update Application Code
 Use the subdomain utilities in your components:
 
-```typescript
+\`\`\`typescript
 import { getAppUrl, getAdminUrl, getCurrentSubdomain } from '@/lib/subdomain-utils'
 import { getSupabaseClient, verifyAdminAccess } from '@/lib/auth-config'
 
@@ -126,13 +126,13 @@ export async function AdminLayout() {
   
   return <AdminPanel />
 }
-```
+\`\`\`
 
 ### Step 5: Local Development
 
 Run three development servers on different ports:
 
-```bash
+\`\`\`bash
 # Terminal 1 - Main domain (port 3000)
 npm run dev
 
@@ -141,7 +141,7 @@ PORT=3001 npm run dev
 
 # Terminal 3 - Admin subdomain (port 3002)
 PORT=3002 npm run dev
-```
+\`\`\`
 
 Access locally via:
 - Main: `http://localhost:3000`
@@ -151,7 +151,7 @@ Access locally via:
 ## File Structure
 
 After implementation, your file structure will remain mostly the same:
-```
+\`\`\`
 app/
 ├── (auth)/                 # Auth routes (login, signup, reset password)
 ├── (dashboard)/            # Customer dashboard routes
@@ -168,7 +168,7 @@ app/
 │       └── settings/
 ├── layout.tsx             # Root layout
 └── page.tsx               # Main marketing page
-```
+\`\`\`
 
 The middleware handles the mapping:
 - `bank.alghahim.co.ke/` → Shows `app/page.tsx` (marketing)
@@ -227,7 +227,7 @@ Vercel will automatically serve all subdomains from the same deployment.
 ## Testing
 
 ### Test Subdomain Routing
-```bash
+\`\`\`bash
 # Test main domain only shows public pages
 curl -H "Host: localhost:3000" http://localhost:3000/dashboard
 # Should redirect to localhost:3001
@@ -239,7 +239,7 @@ curl -H "Host: localhost:3001" http://localhost:3001/
 # Test admin without auth
 curl -H "Host: localhost:3002" http://localhost:3002/admin
 # Should redirect to login
-```
+\`\`\`
 
 ### Test Authentication Persistence
 1. Login on `app.bank.alghahim.co.ke`
