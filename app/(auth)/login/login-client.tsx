@@ -175,7 +175,7 @@ export default function LoginClient() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <Image src="/images/iae-logo.png" alt="IAE Bank Logo" width={80} height={80} className="rounded-lg" />
+            <Image src="/images/logo.png" alt="Alghahim Virtual Bank Logo" width={80} height={80} className="rounded-lg" />
           </div>
           <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
           <CardDescription>Sign in to your Alghahim Virtual Bank account to access your dashboard</CardDescription>

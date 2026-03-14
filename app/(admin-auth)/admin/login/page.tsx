@@ -26,7 +26,7 @@ export default function AdminLogin() {
   const supabase = createClientComponentClient()
 
   const validateAdminEmail = (email: string) => {
-    return email.endsWith("@iaenb.com")
+    return email.endsWith("@bank.alghahim.co.ke") || email.endsWith("@alghahim.co.ke")
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

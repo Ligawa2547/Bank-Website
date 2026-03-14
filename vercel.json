@@ -1,0 +1,34 @@
+{
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "installCommand": "npm ci",
+  "framework": "nextjs",
+  "env": [
+    {
+      "key": "BASE_URL",
+      "value": "https://bank.alghahim.co.ke",
+      "type": "plain"
+    },
+    {
+      "key": "NEXT_PUBLIC_APP_URL",
+      "value": "https://app.bank.alghahim.co.ke",
+      "type": "plain"
+    },
+    {
+      "key": "NEXT_PUBLIC_ADMIN_URL",
+      "value": "https://admin.bank.alghahim.co.ke",
+      "type": "plain"
+    },
+    {
+      "key": "NEXT_PUBLIC_BASE_URL",
+      "value": "https://bank.alghahim.co.ke",
+      "type": "plain"
+    }
+  ],
+  "functions": {
+    "middleware.ts": {
+      "memory": 128,
+      "maxDuration": 10
+    }
+  }
+}
