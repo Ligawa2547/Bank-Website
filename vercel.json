@@ -1,7 +1,7 @@
 {
-  "buildCommand": "next build",
-  "devCommand": "next dev",
-  "installCommand": "npm ci",
+  "buildCommand": "pnpm build",
+  "devCommand": "pnpm dev",
+  "installCommand": "pnpm install",
   "framework": "nextjs",
   "env": {
     "BASE_URL": "https://bank.alghahim.co.ke",
