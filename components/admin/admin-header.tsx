@@ -29,10 +29,6 @@ export function AdminHeader() {
   const { user } = useAuth()
   const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
   const router = useRouter()
 
   useEffect(() => {
@@ -43,6 +39,10 @@ export function AdminHeader() {
 
   const fetchNotifications = async () => {
     try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
       const { data, error } = await supabase
         .from("admin_notifications")
         .select("*")
@@ -60,6 +60,10 @@ export function AdminHeader() {
 
   const handleLogout = async () => {
     try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
       await supabase.auth.signOut()
       router.push("/admin/login")
     } catch (error) {

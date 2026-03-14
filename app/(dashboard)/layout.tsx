@@ -8,7 +8,7 @@ import { Header } from "@/components/dashboard/header"
 import { InactivityMonitor } from "@/components/inactivity-monitor"
 import { AuthProvider } from "@/lib/auth-provider"
 import { SupabaseProvider } from "@/providers/supabase-provider"
-import { useSession } from "@/providers/session-provider"
+import { SessionProvider, useSession } from "@/providers/session-provider"
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { session, isLoading } = useSession()
@@ -87,7 +87,9 @@ export default function DashboardLayout({
   return (
     <AuthProvider>
       <SupabaseProvider>
-        <DashboardContent>{children}</DashboardContent>
+        <SessionProvider>
+          <DashboardContent>{children}</DashboardContent>
+        </SessionProvider>
       </SupabaseProvider>
     </AuthProvider>
   )

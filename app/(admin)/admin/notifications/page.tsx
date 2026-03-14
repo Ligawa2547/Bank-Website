@@ -12,6 +12,8 @@ import { createBrowserClient } from "@supabase/ssr"
 import { Send, Users, Bell, Search } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
+export const dynamic = "force-dynamic"
+
 interface User {
   id: string
   email: string
@@ -42,17 +44,18 @@ export default function NotificationManagement() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const { toast } = useToast()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
 
   useEffect(() => {
     fetchData()
   }, [])
 
+
   const fetchData = async () => {
     try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
       setLoading(true)
 
       // Fetch users
@@ -125,6 +128,11 @@ export default function NotificationManagement() {
     setSending(true)
 
     try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
+      
       // Get account numbers for selected users
       const selectedUserData = users.filter((user) => selectedUsers.includes(user.id))
 

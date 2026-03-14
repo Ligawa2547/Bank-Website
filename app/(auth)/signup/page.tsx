@@ -2,10 +2,10 @@ import type { Metadata } from "next"
 import SignupClient from "./signup-client"
 
 export const metadata: Metadata = {
-  title: "Sign Up - Create Your Account",
+  title: "Sign Up - Create Your Account - Alghahim Virtual Bank",
   description:
     "Join Alghahim Virtual Bank today and enjoy secure online banking, easy money transfers, competitive loan rates, and comprehensive financial services.",
-  keywords: ["sign up", "create account", "register", "new account", "join bank"],
+  keywords: ["sign up", "create account", "register", "new account", "join bank", "Alghahim Virtual Bank"],
   openGraph: {
     title: "Sign Up - Alghahim Virtual Bank",
     description: "Create your secure Alghahim Virtual Bank account today",

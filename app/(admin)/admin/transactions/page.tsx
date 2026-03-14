@@ -63,8 +63,6 @@ export default function AdminTransactionsPage() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const { toast } = useToast()
 
-  const supabase = createClient()
-
   useEffect(() => {
     fetchTransactions()
   }, [])
@@ -75,6 +73,7 @@ export default function AdminTransactionsPage() {
 
   const fetchTransactions = async () => {
     try {
+      const supabase = createClient()
       setLoading(true)
 
       // Fetch transactions with user details

@@ -20,10 +20,6 @@ export function PaystackPayment({ onSuccess, onCancel }: PaystackPaymentProps) {
   const [isLoading, setIsLoading] = useState(false)
   const { user, profile } = useAuth()
   const router = useRouter()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,6 +37,10 @@ export function PaystackPayment({ onSuccess, onCancel }: PaystackPaymentProps) {
     setIsLoading(true)
 
     try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
       // Generate a unique reference
       const reference = `dep_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
 
