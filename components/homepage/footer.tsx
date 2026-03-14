@@ -2,8 +2,14 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { Facebook, Twitter, Linkedin, Instagram, Mail, Phone, MapPin } from "lucide-react"
+import { Facebook, Linkedin, Instagram, Mail, Phone, MapPin } from "lucide-react"
 import { useState } from "react"
+
+const XLogo = () => (
+  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.514l-5.106-6.675L2.306 21.75H-1v-3.308l7.227-8.26L-1.424 2.25h6.514l5.106 6.675L18.244 2.25zM16.874 19.269h1.828L6.288 3.922H4.382L16.874 19.269z" />
+  </svg>
+)
 
 export function HomepageFooter() {
   const [logoError, setLogoError] = useState(false)
@@ -17,19 +23,19 @@ export function HomepageFooter() {
             <Link href="/" className="flex items-center gap-2">
               {logoError ? (
                 <div className="h-8 w-8 bg-white rounded-md flex items-center justify-center text-[#0A3D62] font-bold text-sm">
-                  I&E
+                  AV
                 </div>
               ) : (
                 <Image
                   src="/images/iae-logo.png"
-                  alt="I&E National Bank"
+                  alt="Alghahim Virtual Bank"
                   width={32}
                   height={32}
                   className="h-8 w-auto"
                   onError={() => setLogoError(true)}
                 />
               )}
-              <span className="font-bold text-xl">I&E National Bank</span>
+              <span className="font-bold text-xl">Alghahim Virtual Bank</span>
             </Link>
             <p className="text-blue-200 text-sm">
               Your trusted banking partner for modern financial solutions. Experience seamless banking with cutting-edge
@@ -40,7 +46,7 @@ export function HomepageFooter() {
                 <Facebook className="h-5 w-5" />
               </a>
               <a href="#" className="text-blue-200 hover:text-white transition-colors">
-                <Twitter className="h-5 w-5" />
+                <XLogo />
               </a>
               <a href="#" className="text-blue-200 hover:text-white transition-colors">
                 <Linkedin className="h-5 w-5" />
@@ -134,7 +140,7 @@ export function HomepageFooter() {
         {/* Bottom Section */}
         <div className="border-t border-blue-800 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="text-sm text-blue-200">© 2024 I&E National Bank. All rights reserved.</div>
+            <div className="text-sm text-blue-200">© 2026 Alghahim Virtual Bank. All rights reserved.</div>
             <div className="flex space-x-6 text-sm">
               <Link href="/privacy" className="text-blue-200 hover:text-white transition-colors">
                 Privacy Policy

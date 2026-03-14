@@ -67,73 +67,71 @@ export function AccountDetailsCard() {
           </Link>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <User className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">
-                  {profile.first_name} {profile.last_name}
-                </p>
-                <p className="text-sm text-muted-foreground">Full Name</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <Mail className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">{profile.email}</p>
-                <p className="text-sm text-muted-foreground">Email Address</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <Phone className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">{profile.phone || "Not provided"}</p>
-                <p className="text-sm text-muted-foreground">Phone Number</p>
-              </div>
-            </div>
+      <CardContent className="space-y-4">
+        {/* Full Name */}
+        <div className="flex items-center space-x-3 pb-3 border-b">
+          <User className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-muted-foreground">Full Name</p>
+            <p className="font-medium truncate">
+              {profile.first_name} {profile.last_name}
+            </p>
           </div>
+        </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <MapPin className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">{profile.address || "Not provided"}</p>
-                <p className="text-sm text-muted-foreground">Address</p>
-              </div>
-            </div>
+        {/* Email */}
+        <div className="flex items-center space-x-3 pb-3 border-b">
+          <Mail className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-muted-foreground">Email Address</p>
+            <p className="font-medium truncate">{profile.email}</p>
+          </div>
+        </div>
 
-            <div className="flex items-center space-x-3">
-              <Calendar className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">
-                  {profile.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString() : "Not provided"}
-                </p>
-                <p className="text-sm text-muted-foreground">Date of Birth</p>
-              </div>
-            </div>
+        {/* Phone */}
+        <div className="flex items-center space-x-3 pb-3 border-b">
+          <Phone className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-muted-foreground">Phone Number</p>
+            <p className="font-medium">{profile.phone || "Not provided"}</p>
+          </div>
+        </div>
 
-            <div className="flex items-center space-x-3">
-              <Shield className="h-5 w-5 text-muted-foreground" />
-              <div className="flex items-center space-x-2">
-                {getVerificationStatus()}
-                <div>
-                  <p className="text-sm text-muted-foreground">KYC Status</p>
-                </div>
-              </div>
-            </div>
+        {/* Address */}
+        <div className="flex items-center space-x-3 pb-3 border-b">
+          <MapPin className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-muted-foreground">Address</p>
+            <p className="font-medium">{profile.address || "Not provided"}</p>
+          </div>
+        </div>
+
+        {/* Date of Birth */}
+        <div className="flex items-center space-x-3 pb-3 border-b">
+          <Calendar className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-muted-foreground">Date of Birth</p>
+            <p className="font-medium">
+              {profile.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString() : "Not provided"}
+            </p>
+          </div>
+        </div>
+
+        {/* KYC Status */}
+        <div className="flex items-center space-x-3 pt-2">
+          <Shield className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-muted-foreground">KYC Status</p>
+            <div className="mt-1">{getVerificationStatus()}</div>
           </div>
         </div>
 
         {profile.kyc_status !== "verified" && (
-          <div className="border-t pt-4">
+          <div className="mt-4 border-t pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Complete Your Verification</p>
-                <p className="text-sm text-muted-foreground">Verify your identity to unlock all features</p>
+                <p className="font-medium text-sm">Complete Your Verification</p>
+                <p className="text-xs text-muted-foreground">Verify your identity to unlock all features</p>
               </div>
               <Link href="/dashboard/kyc">
                 <Button size="sm">Complete KYC</Button>

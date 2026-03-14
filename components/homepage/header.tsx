@@ -18,19 +18,19 @@ export function HomepageHeader() {
           <Link href="/" className="flex items-center gap-2">
             {logoError ? (
               <div className="h-8 w-8 bg-[#0A3D62] rounded-md flex items-center justify-center text-white font-bold text-sm">
-                I&E
+                AV
               </div>
             ) : (
               <Image
                 src="/images/iae-logo.png"
-                alt="I&E National Bank"
+                alt="Alghahim Virtual Bank"
                 width={32}
                 height={32}
                 className="h-8 w-auto"
                 onError={() => setLogoError(true)}
               />
             )}
-            <span className="font-bold text-xl text-[#0A3D62]">I&E National Bank</span>
+            <span className="font-bold text-xl text-[#0A3D62]">Alghahim Virtual Bank</span>
           </Link>
 
           {/* Desktop Navigation */}

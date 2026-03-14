@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -49,7 +49,7 @@ export default function AdminKYCPendingPage() {
   const [reviewNotes, setReviewNotes] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
 
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -331,7 +331,8 @@ export default function AdminKYCPendingPage() {
                               <img
                                 src={
                                   selectedSubmission.document_front_url ||
-                                  "/placeholder.svg?height=200&width=300&query=document+front"
+                                  "/placeholder.svg?height=200&width=300&query=document+front" ||
+                                  "/placeholder.svg"
                                 }
                                 alt="Document Front"
                                 className="w-full h-48 object-cover rounded-lg border mt-2"
@@ -343,7 +344,8 @@ export default function AdminKYCPendingPage() {
                                 <img
                                   src={
                                     selectedSubmission.document_back_url ||
-                                    "/placeholder.svg?height=200&width=300&query=document+back"
+                                    "/placeholder.svg?height=200&width=300&query=document+back" ||
+                                    "/placeholder.svg"
                                   }
                                   alt="Document Back"
                                   className="w-full h-48 object-cover rounded-lg border mt-2"

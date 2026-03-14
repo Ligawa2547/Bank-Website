@@ -15,53 +15,63 @@ export default function HomePage() {
       <HomepageHeader />
       <main className="flex-1">
         {/* Hero */}
-        <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 pb-24 pt-32 text-center md:pt-40">
-          <h1 className="text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">
-            Banking that works <span className="text-green-600">for&nbsp;you</span>
+        <section className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 pb-24 pt-32 text-center md:pt-48">
+          <div className="inline-flex items-center gap-2 rounded-full border border-secondary/30 bg-secondary/5 px-4 py-1.5 text-sm font-medium text-secondary">
+            <span className="flex h-2 w-2 rounded-full bg-secondary"></span>
+            Trusted by thousands of users
+          </div>
+          <h1 className="text-5xl font-bold leading-tight tracking-tight md:text-7xl text-balance">
+            Banking that works <span className="bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent">for&nbsp;you</span>
           </h1>
-          <p className="mx-auto max-w-2xl text-muted-foreground md:text-lg">
-            Open an account, send money instantly, and manage your finances with I&#38;E Bank&#8217;s modern web
-            experience.
+          <p className="mx-auto max-w-2xl text-lg text-muted-foreground md:text-xl">
+            Open an account in minutes, send money instantly, and manage your finances with Alghahim Virtual Bank's secure and intuitive platform.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Button asChild size="lg">
-              <Link href="/signup">Create account</Link>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+            <Button asChild size="lg" className="rounded-full px-8 font-semibold shadow-lg hover:shadow-xl transition-all">
+              <Link href="/signup">Get Started</Link>
             </Button>
-            <Button variant="outline" size="lg" asChild>
-              <Link href="/login">Log&nbsp;in</Link>
+            <Button variant="outline" size="lg" className="rounded-full px-8 font-semibold border-2 hover:bg-muted bg-transparent" asChild>
+              <Link href="/login">Sign In</Link>
             </Button>
           </div>
         </section>
 
         {/* Keep all the existing sections from the original file */}
         {/* Features */}
-        <section className="w-full bg-gray-50 py-16">
-          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-4 md:grid-cols-3">
-            {[
-              {
-                title: "Instant transfers",
-                desc: "Move money in seconds using our real-time payment rails.",
-                icon: "arrows-up-down",
-              },
-              {
-                title: "Dark-mode ready",
-                desc: "Keep your eyes fresh with a beautiful light & dark UI.",
-                icon: "moon",
-              },
-              {
-                title: "Secure by design",
-                desc: "All data encrypted in transit and at rest, 2-factor ready.",
-                icon: "shield-check",
-              },
-            ].map(({ title, desc, icon }) => (
-              <div key={title} className="flex flex-col items-center text-center md:items-start md:text-left">
-                <div className="mb-4 rounded-md bg-green-100 p-3 text-green-700">
-                  <i data-lucide={icon} className="h-6 w-6"></i>
+        <section className="w-full py-24 bg-muted/30">
+          <div className="mx-auto max-w-6xl px-4">
+            <div className="mb-16 text-center">
+              <h2 className="text-3xl md:text-5xl font-bold mb-4 text-balance">Why choose Alghahim Virtual Bank?</h2>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">Experience banking reimagined with cutting-edge security, speed, and simplicity.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+              {/* Feature 1: Instant Transfers */}
+              <div className="group relative overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-8 hover:shadow-lg transition-all duration-300">
+                <div className="mb-6 inline-flex rounded-xl bg-blue-500 text-white p-3">
+                  <i data-lucide="send" className="h-6 w-6"></i>
                 </div>
-                <h3 className="mb-2 text-xl font-semibold">{title}</h3>
-                <p className="text-muted-foreground">{desc}</p>
+                <h3 className="mb-3 text-xl font-bold text-blue-900">Instant Transfers</h3>
+                <p className="text-blue-800 leading-relaxed font-medium">Move money securely in seconds using our real-time payment rails. No delays, no complications.</p>
               </div>
-            ))}
+
+              {/* Feature 2: Bank-Grade Security */}
+              <div className="group relative overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-8 hover:shadow-lg transition-all duration-300">
+                <div className="mb-6 inline-flex rounded-xl bg-emerald-500 text-white p-3">
+                  <i data-lucide="shield-check" className="h-6 w-6"></i>
+                </div>
+                <h3 className="mb-3 text-xl font-bold text-emerald-900">Bank-Grade Security</h3>
+                <p className="text-emerald-800 leading-relaxed font-medium">Military-grade encryption protects your data 24/7. Two-factor authentication keeps your account secure.</p>
+              </div>
+
+              {/* Feature 3: 24/7 Support */}
+              <div className="group relative overflow-hidden rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 p-8 hover:shadow-lg transition-all duration-300">
+                <div className="mb-6 inline-flex rounded-xl bg-purple-500 text-white p-3">
+                  <i data-lucide="headset" className="h-6 w-6"></i>
+                </div>
+                <h3 className="mb-3 text-xl font-bold text-purple-900">24/7 Support</h3>
+                <p className="text-purple-800 leading-relaxed font-medium">Our dedicated support team is always available to help you with any questions or concerns.</p>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -90,8 +100,8 @@ export default function HomePage() {
                   Financial Freedom at Your Fingertips
                 </h1>
                 <p className="text-base sm:text-lg md:text-xl text-blue-100">
-                  Experience seamless banking with I&E National Bank's innovative digital solutions designed for your
-                  lifestyle.
+                  Experience seamless banking with Alghahim Virtual Bank's innovative digital solutions designed for
+                  your lifestyle.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <Button size="lg" className="bg-[#8CC63F] text-white hover:bg-[#7AB62F]" asChild>
@@ -132,7 +142,7 @@ export default function HomePage() {
                 <div className="absolute -top-10 -right-10 w-32 h-32 sm:w-40 sm:h-40 bg-[#8CC63F]/20 rounded-full blur-3xl"></div>
                 <div className="absolute -bottom-10 -left-10 w-32 h-32 sm:w-40 sm:h-40 bg-[#0A5483]/30 rounded-full blur-3xl"></div>
                 <div className="relative bg-white/10 backdrop-blur-sm p-4 sm:p-6 rounded-2xl shadow-2xl border border-white/20 w-full max-w-sm">
-                  <img src="/images/iae-logo.png" alt="I&E National Bank" className="h-8 sm:h-12 w-auto mb-4" />
+                  <img src="/images/iae-logo.png" alt="Alghahim Virtual Bank" className="h-8 sm:h-12 w-auto mb-4" />
                   <div className="bg-gradient-to-r from-[#0A5483] to-[#0F7AB3] h-32 sm:h-40 rounded-lg mb-4 relative overflow-hidden">
                     <div className="absolute inset-0 opacity-20">
                       <div className="absolute top-4 right-4 w-8 sm:w-12 h-6 sm:h-8 border border-white/40 rounded"></div>
@@ -172,7 +182,7 @@ export default function HomePage() {
 
         <section className="py-12 sm:py-16 bg-white">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#0A5483] mb-4">Why Choose I&E National Bank?</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#0A5483] mb-4">Why Choose Alghahim Virtual Bank?</h2>
             <p className="text-gray-600 max-w-2xl mx-auto text-sm sm:text-base">
               We combine cutting-edge technology with personalized service to provide you with the best banking
               experience.
@@ -353,13 +363,13 @@ export default function HomePage() {
               {[
                 {
                   quote:
-                    "I&E National Bank has transformed how I manage my finances. Their savings goals feature helped me save for my dream vacation.",
+                    "Alghahim Virtual Bank has transformed how I manage my finances. Their savings goals feature helped me save for my dream vacation.",
                   author: "Sarah Johnson",
                   title: "Small Business Owner",
                 },
                 {
                   quote:
-                    "The security features at I&E National Bank give me peace of mind. I know my money and personal information are protected.",
+                    "The security features at Alghahim Virtual Bank give me peace of mind. I know my money and personal information are protected.",
                   author: "Michael Chen",
                   title: "Software Engineer",
                 },
@@ -387,7 +397,7 @@ export default function HomePage() {
           <div className="absolute inset-0 z-0">
             <img
               src="/images/bank-building.jpeg"
-              alt="I&E National Bank Building"
+              alt="Alghahim Virtual Bank Building"
               className="w-full h-full object-cover opacity-20"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-[#0A5483]/90 to-[#0F7AB3]/90"></div>
@@ -396,7 +406,7 @@ export default function HomePage() {
             <div className="max-w-3xl mx-auto text-center text-white">
               <h2 className="text-3xl sm:text-4xl font-bold mb-6">Ready to Experience Modern Banking?</h2>
               <p className="text-lg sm:text-xl mb-8">
-                Join thousands of satisfied customers who have transformed their financial journey with I&E National
+                Join thousands of satisfied customers who have transformed their financial journey with Alghahim Virtual
                 Bank.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">

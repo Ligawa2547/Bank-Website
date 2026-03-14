@@ -12,6 +12,8 @@ import { Loader2, Save, Settings, Shield, Bell, DollarSign, Wrench, BarChart3 } 
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
+export const dynamic = "force-dynamic"
+
 interface SystemSettings {
   general: {
     session_timeout: number
@@ -114,7 +116,6 @@ export default function AdminSettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState("")
   const [activeTab, setActiveTab] = useState("general")
-  const supabase = createClient()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -123,6 +124,7 @@ export default function AdminSettingsPage() {
 
   const fetchSettings = async () => {
     try {
+      const supabase = createClient()
       setIsLoading(true)
       setError("")
 
@@ -175,6 +177,7 @@ export default function AdminSettingsPage() {
 
   const saveSettings = async (category: keyof SystemSettings) => {
     try {
+      const supabase = createClient()
       setIsSaving(true)
       setError("")
 

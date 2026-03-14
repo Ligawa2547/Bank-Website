@@ -55,17 +55,17 @@ export default function DashboardPage() {
   const router = useRouter()
 
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && supabase) {
       if (!user) {
         router.push("/login")
       } else {
         loadDashboardData()
       }
     }
-  }, [authLoading, user, router])
+  }, [authLoading, user, supabase, router])
 
   const loadDashboardData = async () => {
-    if (!user) return
+    if (!user || !supabase) return
 
     try {
       setIsLoading(true)
@@ -78,7 +78,19 @@ export default function DashboardPage() {
         .single()
 
       if (profileError) {
-        console.error("Error fetching profile:", profileError)
+        console.error("[v0] Error fetching profile:", {
+          message: profileError.message,
+          code: profileError.code,
+          details: profileError.details,
+        })
+        setUserProfile(null)
+        setStats({
+          totalBalance: 0,
+          totalDeposits: 0,
+          totalWithdrawals: 0,
+          pendingTransactions: 0,
+        })
+        setIsLoading(false)
         return
       }
 
@@ -93,7 +105,19 @@ export default function DashboardPage() {
         .limit(10)
 
       if (transactionsError) {
-        console.error("Error fetching transactions:", transactionsError)
+        console.error("[v0] Error fetching transactions:", {
+          message: transactionsError.message,
+          code: transactionsError.code,
+          details: transactionsError.details,
+        })
+        setRecentTransactions([])
+        setStats({
+          totalBalance: profile?.account_balance || 0,
+          totalDeposits: 0,
+          totalWithdrawals: 0,
+          pendingTransactions: 0,
+        })
+        setIsLoading(false)
         return
       }
 
@@ -119,7 +143,15 @@ export default function DashboardPage() {
 
       setRecentTransactions(transactions || [])
     } catch (error) {
-      console.error("Error loading dashboard data:", error)
+      console.error("[v0] Dashboard data load exception:", error instanceof Error ? error.message : String(error))
+      // Set default state on error
+      setStats({
+        totalBalance: 0,
+        totalDeposits: 0,
+        totalWithdrawals: 0,
+        pendingTransactions: 0,
+      })
+      setRecentTransactions([])
     } finally {
       setIsLoading(false)
     }
@@ -186,22 +218,24 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-6 space-y-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back, {userProfile?.first_name || user?.user_metadata?.first_name || "User"}
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            Welcome back
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {userProfile?.first_name || user?.user_metadata?.first_name || "User"}, here's your financial overview
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild>
+        <div className="flex gap-3">
+          <Button asChild className="rounded-lg font-semibold shadow-md hover:shadow-lg transition-all">
             <Link href="/dashboard/transfers">
               <Plus className="mr-2 h-4 w-4" />
               Add Money
             </Link>
           </Button>
-          <Button variant="outline" asChild>
+          <Button variant="outline" asChild className="rounded-lg font-semibold border-2 bg-transparent">
             <Link href="/dashboard/transfers">
               <Send className="mr-2 h-4 w-4" />
               Transfer
@@ -211,48 +245,52 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Balance - Primary */}
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg hover:shadow-xl transition-all">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-sm font-bold text-white">Total Balance</CardTitle>
+            <DollarSign className="h-5 w-5 text-white/90" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalBalance)}</div>
-            <p className="text-xs text-muted-foreground">Available balance</p>
+            <div className="text-3xl font-bold text-white">{formatCurrency(stats.totalBalance)}</div>
+            <p className="text-xs text-white/90 mt-1">Available balance</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Deposits</CardTitle>
-            <ArrowDownRight className="h-4 w-4 text-green-500" />
+        {/* Total Deposits - Secondary */}
+        <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-secondary to-secondary/80 text-white shadow-lg hover:shadow-xl transition-all">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-sm font-bold text-white">Total Deposits</CardTitle>
+            <ArrowDownRight className="h-5 w-5 text-white/90" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalDeposits)}</div>
-            <p className="text-xs text-muted-foreground">All time deposits</p>
+            <div className="text-3xl font-bold text-white">{formatCurrency(stats.totalDeposits)}</div>
+            <p className="text-xs text-white/90 mt-1">All time deposits</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Withdrawals</CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-red-500" />
+        {/* Total Withdrawals */}
+        <Card className="relative overflow-hidden border border-border/50 bg-card shadow-md hover:shadow-lg hover:border-accent/30 transition-all">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-sm font-semibold">Total Withdrawals</CardTitle>
+            <ArrowUpRight className="h-5 w-5 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalWithdrawals)}</div>
-            <p className="text-xs text-muted-foreground">All time withdrawals</p>
+            <div className="text-3xl font-bold">{formatCurrency(stats.totalWithdrawals)}</div>
+            <p className="text-xs text-muted-foreground mt-1">All time withdrawals</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
+        {/* Pending Transactions */}
+        <Card className="relative overflow-hidden border border-border/50 bg-card shadow-md hover:shadow-lg hover:border-accent/30 transition-all">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-sm font-semibold">Pending</CardTitle>
+            <Clock className="h-5 w-5 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pendingTransactions}</div>
-            <p className="text-xs text-muted-foreground">Pending transactions</p>
+            <div className="text-3xl font-bold">{stats.pendingTransactions}</div>
+            <p className="text-xs text-muted-foreground mt-1">Pending transactions</p>
           </CardContent>
         </Card>
       </div>

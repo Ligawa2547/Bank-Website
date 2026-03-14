@@ -20,7 +20,7 @@ export function getTransactionEmailTemplate(
       <div style="max-width: 600px; margin: 0 auto; background-color: white;">
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center;">
-          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">IAE Bank</h1>
+          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">Alghahim Virtual Bank</h1>
           <p style="color: #e0e7ff; margin: 10px 0 0 0; font-size: 16px;">Your trusted banking partner</p>
         </div>
         
@@ -90,7 +90,7 @@ export function getTransactionEmailTemplate(
         <!-- Footer -->
         <div style="background-color: #f3f4f6; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
           <p style="margin: 0; color: #6b7280; font-size: 12px;">
-            This is an automated message from IAE Bank. Please do not reply to this email.
+            This is an automated message from Alghahim Virtual Bank. Please do not reply to this email.
           </p>
           <p style="margin: 10px 0 0 0; color: #6b7280; font-size: 12px;">
             If you have any questions, please contact our support team.

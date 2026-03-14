@@ -70,8 +70,8 @@ export default function SignupClient() {
 
       setSuccess(true)
       setTimeout(() => {
-        router.push("/onboarding")
-      }, 2000)
+        router.push("/login")
+      }, 3000)
     } catch (error: any) {
       setError(error.message || "An error occurred during registration")
     } finally {
@@ -87,8 +87,20 @@ export default function SignupClient() {
             <div className="text-center space-y-4">
               <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
               <h2 className="text-2xl font-bold text-green-700">Account Created!</h2>
+              <p className="text-gray-600 font-semibold">
+                A verification email has been sent to:
+              </p>
+              <p className="text-gray-800 break-all font-mono bg-gray-50 p-3 rounded">
+                {formData.email}
+              </p>
               <p className="text-gray-600">
-                Your account has been successfully created. Redirecting to complete your profile...
+                Please check your mailbox and click the verification link to confirm your email address. This step is required to complete your signup.
+              </p>
+              <p className="text-sm text-gray-500">
+                After confirming your email, you can sign in to your account.
+              </p>
+              <p className="text-xs text-gray-400 mt-4">
+                Redirecting to login page in a few moments...
               </p>
             </div>
           </CardContent>
@@ -105,7 +117,7 @@ export default function SignupClient() {
             <Image src="/images/iae-logo.png" alt="IAE Bank Logo" width={80} height={80} className="rounded-lg" />
           </div>
           <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-          <CardDescription>Join IAE Bank and start managing your finances securely</CardDescription>
+          <CardDescription>Join Alghahim Virtual Bank and start managing your finances securely</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

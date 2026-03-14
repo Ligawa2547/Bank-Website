@@ -4,14 +4,17 @@ import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import type { Session, User } from "@supabase/supabase-js"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import type { Database } from "@/types/supabase"
 import type { UserProfile } from "@/types/user"
 
 /* -----------------------------------------------------------------------------
  * Supabase (client-side, singleton)
  * -------------------------------------------------------------------------- */
-export const supabase = createClientComponentClient<Database>()
+export const supabase = createBrowserClient<Database>(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+)
 
 /* -----------------------------------------------------------------------------
  * Small in-memory cache for user profiles (avoids redundant XHR in RSC)
@@ -29,9 +32,9 @@ type AuthContextType = {
   isLoading: boolean
   refreshUserProfile: () => Promise<void>
   /* auth helpers */
-  signUp: (email: string, password: string) => Promise<{ error: any }>
-  signIn: (email: string, password: string) => Promise<{ error: any }>
-  signInWithMagicLink: (email: string) => Promise<{ error: any }>
+  signUp: (email: string, password: string, metadata?: any) => Promise<void>
+  signIn: (email: string, password: string) => Promise<any>
+  signInWithMagicLink: (email: string) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -51,39 +54,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /* --------------------- fetch profile helper --------------------- */
   const fetchUserProfile = useCallback(async (userId: string) => {
-    /* hit cache first */
-    const cached = profileCache.get(userId)
-    if (cached && Date.now() - cached.timestamp < PROFILE_CACHE_TTL) {
-      return cached.profile
-    }
+    try {
+      /* hit cache first */
+      const cached = profileCache.get(userId)
+      if (cached && Date.now() - cached.timestamp < PROFILE_CACHE_TTL) {
+        return cached.profile
+      }
 
-    const { data, error } = await supabase
-      .from("users")
-      .select(
-        `
-          id,
-          email,
-          first_name,
-          last_name,
-          phone_number,
-          city,
-          country,
-          account_no,
-          account_balance,
-          profile_pic,
-          status,
-          created_at,
-          updated_at,
-          email_verified,
-          phone_verified,
-          kyc_status
-        `,
-      )
-      .eq("id", userId)
-      .maybeSingle()
+      const { data, error } = await supabase
+        .from("users")
+        .select(
+          `
+            id,
+            email,
+            first_name,
+            last_name,
+            phone_number,
+            city,
+            country,
+            account_no,
+            account_balance,
+            profile_pic,
+            status,
+            created_at,
+            updated_at,
+            email_verified,
+            phone_verified,
+            kyc_status
+          `,
+        )
+        .eq("id", userId)
+        .maybeSingle()
 
-    if (error) {
-      console.error("Error fetching profile:", error)
+      if (error) {
+        console.error("[v0] Supabase profile fetch error:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        })
+        return null
+      }
+    } catch (err) {
+      console.error("[v0] Profile fetch exception:", err instanceof Error ? err.message : String(err))
       return null
     }
 
@@ -135,25 +148,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true
 
     const init = async () => {
-      setIsLoading(true)
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession()
-      if (error) console.error(error)
+      try {
+        setIsLoading(true)
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error("[v0] Session fetch error:", error.message)
+        }
 
-      if (!isMounted) return
+        if (!isMounted) return
 
-      setSession(session)
-      setUser(session?.user ?? null)
+        setSession(session)
+        setUser(session?.user ?? null)
 
-      if (session?.user) {
-        const prof = await fetchUserProfile(session.user.id)
-        if (isMounted) setProfile(prof)
-      } else {
-        setProfile(null)
+        if (session?.user) {
+          try {
+            const prof = await fetchUserProfile(session.user.id)
+            if (isMounted) setProfile(prof)
+          } catch (profileErr) {
+            console.error("[v0] Profile fetch failed:", profileErr instanceof Error ? profileErr.message : String(profileErr))
+            if (isMounted) setProfile(null)
+          }
+        } else {
+          setProfile(null)
+        }
+        setIsLoading(false)
+      } catch (err) {
+        console.error("[v0] Auth initialization error:", err instanceof Error ? err.message : String(err))
+        if (isMounted) {
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+          setIsLoading(false)
+        }
       }
-      setIsLoading(false)
     }
 
     init()
@@ -164,8 +195,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, sess) => {
       setSession(sess)
       setUser(sess?.user ?? null)
-      if (sess?.user) fetchUserProfile(sess.user.id).then(setProfile)
-      else setProfile(null)
+      if (sess?.user) {
+        fetchUserProfile(sess.user.id)
+          .then(setProfile)
+          .catch((err) => {
+            console.error("[v0] Profile update error:", err instanceof Error ? err.message : String(err))
+            setProfile(null)
+          })
+      } else {
+        setProfile(null)
+      }
     })
 
     return () => {
@@ -175,21 +214,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchUserProfile])
 
   /* --------------------- auth helpers ---------------------------- */
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, metadata?: any) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: metadata,
+      },
     })
-    return { error }
+    if (error) throw error
   }
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    return { error }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        throw error
+      }
+
+      if (data.user && !data.user.email_confirmed_at) {
+        // User exists but email not confirmed
+        await supabase.auth.signOut()
+        const err = new Error("Email not confirmed")
+        ;(err as any).code = "email_not_confirmed"
+        throw err
+      }
+
+      return data
+    } catch (error) {
+      throw error
+    }
   }
 
   const signInWithMagicLink = async (email: string) => {
@@ -197,7 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     })
-    return { error }
+    if (error) throw error
   }
 
   const signOut = async () => {

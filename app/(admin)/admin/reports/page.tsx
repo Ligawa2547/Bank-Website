@@ -5,9 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createBrowserClient } from "@supabase/ssr"
 import { BarChart3, Download, Users, CreditCard, DollarSign, TrendingUp, Calendar } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+
+export const dynamic = "force-dynamic"
 
 interface ReportData {
   totalUsers: number
@@ -49,7 +51,6 @@ export default function AdminReports() {
   const [reportPeriod, setReportPeriod] = useState("30")
   const [exporting, setExporting] = useState(false)
   const { toast } = useToast()
-  const supabase = createClientComponentClient()
 
   useEffect(() => {
     fetchReportData()
@@ -57,6 +58,10 @@ export default function AdminReports() {
 
   const fetchReportData = async () => {
     try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      )
       setLoading(true)
       console.log("Fetching report data...")
 
