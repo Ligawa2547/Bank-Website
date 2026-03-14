@@ -55,17 +55,17 @@ export default function DashboardPage() {
   const router = useRouter()
 
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && supabase) {
       if (!user) {
         router.push("/login")
       } else {
         loadDashboardData()
       }
     }
-  }, [authLoading, user, router])
+  }, [authLoading, user, supabase, router])
 
   const loadDashboardData = async () => {
-    if (!user) return
+    if (!user || !supabase) return
 
     try {
       setIsLoading(true)
