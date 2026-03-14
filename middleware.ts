@@ -25,22 +25,23 @@ export function middleware(request: NextRequest) {
   // Clone the request URL and set the pathname based on subdomain
   const url = request.nextUrl.clone()
 
-  // Handle redirects from main domain to subdomains
-  if (!subdomain) {
-    if (pathname.startsWith('/dashboard')) {
-      const appUrl = isProduction
-        ? `https://app.bank.alghahim.co.ke${pathname.replace('/dashboard', '')}`
-        : `http://localhost:3001${pathname.replace('/dashboard', '')}`
-      return NextResponse.redirect(appUrl, { status: 301 })
-    }
-
-    if (pathname.startsWith('/admin')) {
-      const adminUrl = isProduction
-        ? `https://admin.bank.alghahim.co.ke${pathname.replace('/admin', '')}`
-        : `http://localhost:3002${pathname.replace('/admin', '')}`
-      return NextResponse.redirect(adminUrl, { status: 301 })
-    }
-  }
+  // Handle redirects from main domain to subdomains (disabled for now)
+  // TODO: Re-enable when subdomain setup is complete
+  // if (!subdomain) {
+  //   if (pathname.startsWith('/dashboard')) {
+  //     const appUrl = isProduction
+  //       ? `https://app.bank.alghahim.co.ke${pathname.replace('/dashboard', '')}`
+  //       : `http://localhost:3001${pathname.replace('/dashboard', '')}`
+  //     return NextResponse.redirect(appUrl, { status: 301 })
+  //   }
+  //
+  //   if (pathname.startsWith('/admin')) {
+  //     const adminUrl = isProduction
+  //       ? `https://admin.bank.alghahim.co.ke${pathname.replace('/admin', '')}`
+  //       : `http://localhost:3002${pathname.replace('/admin', '')}`
+  //     return NextResponse.redirect(adminUrl, { status: 301 })
+  //   }
+  // }
 
   // Route handling based on subdomain
   if (subdomain === 'app') {
