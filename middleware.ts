@@ -81,13 +81,8 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(adminLoginUrl)
     }
   } else {
-    // Main domain - only public routes
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) {
-      // These should have been redirected above, but as safety net
-      return NextResponse.redirect('/')
-    }
-
-    // Rewrite public routes (they don't need special handling)
+    // Main domain - allow all routes (no subdomain separation for now)
+    // dashboard and admin routes are accessible directly on main domain
     url.pathname = pathname
   }
 
