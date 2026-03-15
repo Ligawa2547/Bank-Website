@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/auth-provider"
 import { Eye, EyeOff, UserPlus, AlertCircle, CheckCircle } from "lucide-react"
 
 export default function AdminSignup() {
@@ -32,10 +32,6 @@ export default function AdminSignup() {
 
   const router = useRouter()
   const { toast } = useToast()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
 
   const validateAdminEmail = (email: string) => {
     return email.endsWith("@iaenb.com")

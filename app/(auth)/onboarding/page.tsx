@@ -11,8 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
-import { useAuth } from "@/lib/auth-provider"
-import { createClient } from "@supabase/supabase-js"
+import { useAuth, supabase } from "@/lib/auth-provider"
 import { Steps, Step } from "@/components/ui/steps"
 
 export default function OnboardingPage() {
@@ -28,10 +27,6 @@ export default function OnboardingPage() {
   })
   const { toast } = useToast()
   const router = useRouter()
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
 
   // If no user, redirect to login
   if (!user) {
