@@ -76,17 +76,10 @@ export default function AdminTransactionsPage() {
       const supabase = createClient()
       setLoading(true)
 
-      // Fetch transactions with user details
+      // Fetch all transactions
       const { data: transactionsData, error: transactionsError } = await supabase
         .from("transactions")
-        .select(`
-          *,
-          users!inner(
-            account_no,
-            first_name,
-            last_name
-          )
-        `)
+        .select("*")
         .order("created_at", { ascending: false })
 
       if (transactionsError) {
@@ -99,15 +92,28 @@ export default function AdminTransactionsPage() {
         return
       }
 
+      // Fetch user details separately to avoid ambiguous relationship error
+      const userIds = Array.from(new Set(transactionsData?.map((t: any) => t.user_id).filter(Boolean) || []))
+      const { data: usersData } = await supabase
+        .from("users")
+        .select("id, account_no, first_name, last_name")
+        .in("id", userIds)
+
+      // Create a map of user data for quick lookup
+      const userMap = new Map(usersData?.map((u: any) => [u.id, u]) || [])
+
       // Transform the data to include user info
       const transformedTransactions =
-        transactionsData?.map((transaction: any) => ({
-          ...transaction,
-          account_no: transaction.users?.account_no || "N/A",
-          user_name: transaction.users
-            ? `${transaction.users.first_name} ${transaction.users.last_name}`
-            : "Unknown User",
-        })) || []
+        transactionsData?.map((transaction: any) => {
+          const user = userMap.get(transaction.user_id)
+          return {
+            ...transaction,
+            account_no: transaction.account_no || user?.account_no || "N/A",
+            user_name: user
+              ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
+              : "Unknown User",
+          }
+        }) || []
 
       setTransactions(transformedTransactions)
 
