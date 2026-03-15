@@ -95,44 +95,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
         return null
       }
+
+      if (!data) {
+        /* brand-new account (e.g. fresh admin) – no row yet */
+        return null
+      }
+
+      /* normalise balance */
+      const balance =
+        typeof data.account_balance === "number"
+          ? data.account_balance
+          : Number.parseFloat(data.account_balance ?? "0") || 0
+
+      const processed: UserProfile = {
+        id: data.id,
+        user_id: data.id,
+        email: data.email ?? "",
+        first_name: data.first_name ?? "",
+        last_name: data.last_name ?? "",
+        phone_number: data.phone_number ?? "",
+        city: data.city ?? "",
+        country: data.country ?? "",
+        account_number: data.account_no ?? "",
+        balance,
+        profile_pic: data.profile_pic ?? "",
+        status: data.status ?? "pending",
+        email_verified: !!data.email_verified,
+        phone_verified: !!data.phone_verified,
+        kyc_status: data.kyc_status ?? "not_submitted",
+        created_at: data.created_at ?? "",
+        updated_at: data.updated_at ?? "",
+      }
+
+      profileCache.set(userId, { profile: processed, timestamp: Date.now() })
+      return processed
     } catch (err) {
       console.error("[v0] Profile fetch exception:", err instanceof Error ? err.message : String(err))
       return null
     }
-
-    if (!data) {
-      /* brand-new account (e.g. fresh admin) – no row yet */
-      return null
-    }
-
-    /* normalise balance */
-    const balance =
-      typeof data.account_balance === "number"
-        ? data.account_balance
-        : Number.parseFloat(data.account_balance ?? "0") || 0
-
-    const processed: UserProfile = {
-      id: data.id,
-      user_id: data.id,
-      email: data.email ?? "",
-      first_name: data.first_name ?? "",
-      last_name: data.last_name ?? "",
-      phone_number: data.phone_number ?? "",
-      city: data.city ?? "",
-      country: data.country ?? "",
-      account_number: data.account_no ?? "",
-      balance,
-      profile_pic: data.profile_pic ?? "",
-      status: data.status ?? "pending",
-      email_verified: !!data.email_verified,
-      phone_verified: !!data.phone_verified,
-      kyc_status: data.kyc_status ?? "not_submitted",
-      created_at: data.created_at ?? "",
-      updated_at: data.updated_at ?? "",
-    }
-
-    profileCache.set(userId, { profile: processed, timestamp: Date.now() })
-    return processed
   }, [])
 
   /* --------------------- expose manual refresh ------------------- */
