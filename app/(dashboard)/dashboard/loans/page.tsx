@@ -19,14 +19,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth-provider"
 import { useToast } from "@/components/ui/use-toast"
-import { createBrowserClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 import { DollarSign, Clock, TrendingUp, AlertCircle, CheckCircle, XCircle } from "lucide-react"
 import type { LoanType, LoanApplication, LoanEligibility } from "@/types/loan"
 
 export default function LoansPage() {
   const { user, profile, refreshUserProfile } = useAuth()
   const { toast } = useToast()
-  const supabase = createBrowserClient(
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )

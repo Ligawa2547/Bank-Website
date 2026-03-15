@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
-import { createBrowserClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 import { Eye, EyeOff, UserPlus, AlertCircle, CheckCircle } from "lucide-react"
 
 export default function AdminSignup() {

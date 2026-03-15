@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
-import { createBrowserClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 import { Eye, EyeOff, Lock, AlertCircle, CheckCircle } from "lucide-react"
 
 export default function AdminResetPassword() {
@@ -26,7 +26,7 @@ export default function AdminResetPassword() {
   const router = useRouter()
   const search = useSearchParams()
   const { toast } = useToast()
-  const supabase = createBrowserClient(
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )

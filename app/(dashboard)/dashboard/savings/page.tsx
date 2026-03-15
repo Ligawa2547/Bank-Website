@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/auth-provider"
-import { createBrowserClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 import type { SavingsAccount } from "@/types/user"
 import {
   Dialog,
@@ -47,7 +47,7 @@ export default function SavingsPage() {
   const [selectedAccount, setSelectedAccount] = useState<SavingsAccount | null>(null)
   const [depositAmount, setDepositAmount] = useState("")
   const { toast } = useToast()
-  const supabase = createBrowserClient(
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   )
