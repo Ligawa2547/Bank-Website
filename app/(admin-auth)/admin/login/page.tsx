@@ -5,6 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -82,11 +83,17 @@ export default function AdminLogin() {
   return (
     <Card className="w-full">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-          <Shield className="h-6 w-6 text-red-600" />
+        <div className="mx-auto mb-4 flex items-center justify-center">
+          <Image
+            src="/images/avb-logo.png"
+            alt="AVB Logo"
+            width={60}
+            height={60}
+            className="h-16 w-16"
+          />
         </div>
         <CardTitle className="text-2xl font-bold">Admin Login</CardTitle>
-        <CardDescription>Sign in to access the I&E National Bank admin portal</CardDescription>
+        <CardDescription>Sign in to access the Alghahim Virtual Bank admin portal</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
