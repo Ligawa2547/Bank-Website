@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Save, Settings, Shield, Bell, DollarSign, Wrench, BarChart3 } from "lucide-react"
-import { supabase } from "@/lib/auth-provider"
+import { fetchSystemSettings, saveSystemSettings } from "@/app/actions/system-settings"
 import { useToast } from "@/hooks/use-toast"
 
 export const dynamic = "force-dynamic"
@@ -127,38 +127,12 @@ export default function AdminSettingsPage() {
       setIsLoading(true)
       setError("")
 
-      // Check if user is admin
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) {
-        setError("Authentication required")
-        return
-      }
-
-      // Get admin info - skip admin check to avoid RLS recursion issues
-      // If we reach here, the admin layout already verified access
-      const adminData = { role: "admin" }
-
-      if (!adminData) {
-        setError("Admin access required")
-        return
-      }
-
-      // Fetch system settings
-      const { data: settingsData, error: settingsError } = await supabase
-        .from("system_settings")
-        .select("category, settings")
-
-      if (settingsError) {
-        console.error("Settings fetch error:", settingsError)
-        setError("Failed to load settings. Using defaults.")
-        return
-      }
+      // Fetch system settings using server action
+      const settingsData = await fetchSystemSettings()
 
       if (settingsData && settingsData.length > 0) {
         const loadedSettings = { ...defaultSettings }
-        settingsData.forEach((item) => {
+        settingsData.forEach((item: any) => {
           if (item.category in loadedSettings) {
             loadedSettings[item.category as keyof SystemSettings] = {
               ...loadedSettings[item.category as keyof SystemSettings],
@@ -181,14 +155,7 @@ export default function AdminSettingsPage() {
       setIsSaving(true)
       setError("")
 
-      const { error } = await supabase.from("system_settings").upsert({
-        category,
-        settings: settings[category],
-      })
-
-      if (error) {
-        throw error
-      }
+      await saveSystemSettings(category, settings[category])
 
       toast({
         title: "Settings saved",
