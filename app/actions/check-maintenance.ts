@@ -11,10 +11,13 @@ export async function checkMaintenanceMode() {
   try {
     const { data, error } = await supabase
       .from('system_settings')
-      .select('settings')
+      .select('category, settings')
       .in('category', ['general', 'maintenance'])
 
-    if (error || !data) {
+    console.log('[v0] Maintenance check - data:', data, 'error:', error)
+
+    if (error || !data || data.length === 0) {
+      console.log('[v0] No maintenance settings found')
       return {
         isMaintenanceMode: false,
         isScheduled: false,
@@ -27,6 +30,9 @@ export async function checkMaintenanceMode() {
     // Get general settings and maintenance settings
     const generalSettings = data.find((item: any) => item.category === 'general')?.settings as any || {}
     const maintenanceSettings = data.find((item: any) => item.category === 'maintenance')?.settings as any || {}
+    
+    console.log('[v0] General settings:', generalSettings)
+    console.log('[v0] Maintenance settings:', maintenanceSettings)
 
     const now = new Date()
     const scheduledStart = maintenanceSettings?.maintenance_start ? new Date(maintenanceSettings.maintenance_start) : null
