@@ -3,6 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
+import { MaintenanceBanner } from "@/components/maintenance-banner"
 import { useState } from "react"
 import { Menu, X } from "lucide-react"
 
@@ -11,18 +12,20 @@ export function HomepageHeader() {
   const [logoError, setLogoError] = useState(false)
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <>
+      <MaintenanceBanner />
+      <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             {logoError ? (
               <div className="h-8 w-8 bg-[#0A3D62] rounded-md flex items-center justify-center text-white font-bold text-sm">
-                AV
+                AVB
               </div>
             ) : (
               <Image
-                src="/images/iae-logo.png"
+                src="/images/avb-logo.png"
                 alt="Alghahim Virtual Bank"
                 width={32}
                 height={32}
@@ -110,5 +113,6 @@ export function HomepageHeader() {
         )}
       </div>
     </header>
+    </>
   )
 }

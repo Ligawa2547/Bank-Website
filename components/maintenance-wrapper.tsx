@@ -12,6 +12,8 @@ interface MaintenanceWrapperProps {
 export function MaintenanceWrapper({ children, allowedPaths = [] }: MaintenanceWrapperProps) {
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false)
   const [message, setMessage] = useState('System Maintenance')
+  const [scheduledStart, setScheduledStart] = useState<string | null>(null)
+  const [scheduledEnd, setScheduledEnd] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -29,6 +31,8 @@ export function MaintenanceWrapper({ children, allowedPaths = [] }: MaintenanceW
         
         setIsMaintenanceMode(result.isMaintenanceMode && !isAllowedPath)
         setMessage(result.message)
+        setScheduledStart(result.scheduledStart)
+        setScheduledEnd(result.scheduledEnd)
       } catch (error) {
         console.error('Error checking maintenance mode:', error)
         setIsMaintenanceMode(false)
@@ -38,8 +42,8 @@ export function MaintenanceWrapper({ children, allowedPaths = [] }: MaintenanceW
     }
 
     checkMaintenance()
-    // Check every 30 seconds
-    const interval = setInterval(checkMaintenance, 30000)
+    // Check every 10 seconds for more responsive scheduled maintenance detection
+    const interval = setInterval(checkMaintenance, 10000)
     
     return () => clearInterval(interval)
   }, [allowedPaths])
@@ -49,7 +53,7 @@ export function MaintenanceWrapper({ children, allowedPaths = [] }: MaintenanceW
   }
 
   if (isMaintenanceMode) {
-    return <MaintenancePage message={message} />
+    return <MaintenancePage message={message} scheduledStart={scheduledStart} scheduledEnd={scheduledEnd} />
   }
 
   return children
