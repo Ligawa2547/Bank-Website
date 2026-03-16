@@ -9,7 +9,7 @@ interface MaintenanceWrapperProps {
   allowedPaths?: string[]
 }
 
-export function MaintenanceWrapper({ children, allowedPaths = ['/admin/login'] }: MaintenanceWrapperProps) {
+export function MaintenanceWrapper({ children, allowedPaths = [] }: MaintenanceWrapperProps) {
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false)
   const [message, setMessage] = useState('System Maintenance')
   const [loading, setLoading] = useState(true)
@@ -21,7 +21,11 @@ export function MaintenanceWrapper({ children, allowedPaths = ['/admin/login'] }
         
         // Check if current path is allowed during maintenance
         const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
-        const isAllowedPath = allowedPaths.some(path => currentPath.startsWith(path))
+        
+        // Always allow all admin paths to bypass maintenance mode
+        const isAdminPath = currentPath.startsWith('/admin')
+        // Also check any additional allowed paths
+        const isAllowedPath = isAdminPath || allowedPaths.some(path => currentPath.startsWith(path))
         
         setIsMaintenanceMode(result.isMaintenanceMode && !isAllowedPath)
         setMessage(result.message)

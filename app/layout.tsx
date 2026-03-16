@@ -83,7 +83,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <Providers>
-          <MaintenanceWrapper allowedPaths={['/admin/login', '/login', '/signup']}>
+          <MaintenanceWrapper allowedPaths={['/login', '/signup']}>
             {children}
           </MaintenanceWrapper>
           <Toaster />
