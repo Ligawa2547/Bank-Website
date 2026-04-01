@@ -142,19 +142,19 @@ export function Sidebar({
             <Link href="/" className="flex items-center gap-2 px-1 sm:px-2">
               {logoError ? (
                 <div className="h-6 w-6 sm:h-8 sm:w-8 bg-[#0A3D62] rounded-md flex items-center justify-center text-white font-bold text-xs sm:text-sm">
-                  I&E
+                  AVB
                 </div>
               ) : (
                 <Image
-                  src="/images/iae-logo.png"
-                  alt="I&E National Bank"
+                  src="/images/avb-logo.png"
+                  alt="Alghahim Virtual Bank"
                   width={32}
                   height={32}
                   className="h-6 w-auto sm:h-8"
                   onError={() => setLogoError(true)}
                 />
               )}
-              <span className="font-bold text-sm sm:text-lg text-[#0A3D62]">I&E National Bank</span>
+              <span className="font-bold text-sm sm:text-lg text-[#0A3D62]">Alghahim Virtual Bank</span>
             </Link>
             <button
               className="md:hidden text-gray-500 hover:text-gray-700 p-1"

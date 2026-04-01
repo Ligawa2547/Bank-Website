@@ -29,20 +29,20 @@ The Alghahim Virtual Bank system includes a comprehensive audit trail system tha
 
 ### Step 1: Import Audit Logger
 
-```typescript
+\`\`\`typescript
 import { 
   logLoginEvent, 
   logAdminAction, 
   logSecurityEvent, 
   logAuditEvent 
 } from '@/lib/audit/logger'
-```
+\`\`\`
 
 ### Step 2: Log Login Events
 
 **In your authentication flow** (e.g., login API route):
 
-```typescript
+\`\`\`typescript
 import { logLoginEvent } from '@/lib/audit/logger'
 
 export async function loginUser(email: string, password: string, ipAddress: string) {
@@ -81,13 +81,13 @@ export async function loginUser(email: string, password: string, ipAddress: stri
     throw error
   }
 }
-```
+\`\`\`
 
 ### Step 3: Log Admin Actions
 
 **When admins perform critical actions**:
 
-```typescript
+\`\`\`typescript
 import { logAdminAction } from '@/lib/audit/logger'
 
 export async function suspendUserAccount(adminId: string, targetUserId: string) {
@@ -113,13 +113,13 @@ export async function suspendUserAccount(adminId: string, targetUserId: string) 
     throw error
   }
 }
-```
+\`\`\`
 
 ### Step 4: Log Security Events
 
 **For suspicious activities**:
 
-```typescript
+\`\`\`typescript
 import { logSecurityEvent } from '@/lib/audit/logger'
 
 export async function detectAnomalousActivity(userId: string) {
@@ -132,13 +132,13 @@ export async function detectAnomalousActivity(userId: string) {
     resolved: false
   })
 }
-```
+\`\`\`
 
 ### Step 5: General Audit Logging
 
 **For compliance and general tracking**:
 
-```typescript
+\`\`\`typescript
 import { logAuditEvent } from '@/lib/audit/logger'
 
 export async function updateUserProfile(userId: string, changes: any) {
@@ -155,7 +155,7 @@ export async function updateUserProfile(userId: string, changes: any) {
     status: 'success'
   })
 }
-```
+\`\`\`
 
 ## Accessing Audit Trails
 
@@ -180,9 +180,9 @@ Navigate to `/admin/audit-trail` to view:
 All emails sent to `@bank.alghahim.co.ke` domain are automatically forwarded to the super admin email configured in:
 
 **Environment Variable:**
-```
+\`\`\`
 SUPER_ADMIN_EMAIL=admin@alghahim.co.ke
-```
+\`\`\`
 
 ### Email Audit Trail
 

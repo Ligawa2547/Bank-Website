@@ -3,8 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Bell, LogOut, Settings, User } from "lucide-react"
-import { useAuth } from "@/lib/auth-provider"
-import { createBrowserClient } from "@supabase/ssr"
+import { supabase } from "@/lib/auth-provider"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import {
@@ -39,10 +38,6 @@ export function AdminHeader() {
 
   const fetchNotifications = async () => {
     try {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      )
       const { data, error } = await supabase
         .from("admin_notifications")
         .select("*")
@@ -60,10 +55,6 @@ export function AdminHeader() {
 
   const handleLogout = async () => {
     try {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      )
       await supabase.auth.signOut()
       router.push("/admin/login")
     } catch (error) {
@@ -75,7 +66,7 @@ export function AdminHeader() {
     <header className="bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">I&E Bank Admin Portal</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Alghahim Virtual Bank Admin Portal</h1>
           <p className="text-sm text-gray-600">Manage your banking operations</p>
         </div>
 

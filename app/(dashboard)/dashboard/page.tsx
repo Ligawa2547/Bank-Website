@@ -78,11 +78,6 @@ export default function DashboardPage() {
         .single()
 
       if (profileError) {
-        console.error("[v0] Error fetching profile:", {
-          message: profileError.message,
-          code: profileError.code,
-          details: profileError.details,
-        })
         setUserProfile(null)
         setStats({
           totalBalance: 0,

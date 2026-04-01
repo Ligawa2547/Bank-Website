@@ -20,12 +20,12 @@ The component now includes:
 
 ### 2. Added Configuration Options
 New environment variables:
-```
+\`\`\`
 NEXT_PUBLIC_DISABLE_ZOHO_WIDGET=false    # Can be set to true to disable the widget
 NEXT_PUBLIC_SUPPORT_ENABLED=true         # Toggle support features
 NEXT_PUBLIC_VOICE_CALLS_ENABLED=true    # Toggle voice calls
 NEXT_PUBLIC_CHAT_ENABLED=true           # Toggle chat
-```
+\`\`\`
 
 ### 3. Deployment Configuration
 The fixed FloatingChat component now:
@@ -37,13 +37,13 @@ The fixed FloatingChat component now:
 ## Testing Recommendations
 
 1. **Local Testing**
-   ```bash
+   \`\`\`bash
    # Test with widget disabled
    NEXT_PUBLIC_DISABLE_ZOHO_WIDGET=true npm run dev
    
    # Test with widget enabled (default)
    npm run dev
-   ```
+   \`\`\`
 
 2. **Vercel Deployment**
    - Set `NEXT_PUBLIC_DISABLE_ZOHO_WIDGET=false` in production environment variables
@@ -58,11 +58,11 @@ The fixed FloatingChat component now:
 ## Verification Steps
 
 1. **Before Deployment**
-   ```bash
+   \`\`\`bash
    npm run build
    npm run dev
    # Check console - should show "Zoho SalesIQ widget loaded successfully" or gracefully skip
-   ```
+   \`\`\`
 
 2. **After Deployment**
    - Navigate to deployed URL
@@ -87,9 +87,9 @@ The fixed FloatingChat component now:
 ## Alternative: Disable Widget Temporarily
 
 If you need to deploy immediately without the Zoho widget:
-```
+\`\`\`
 Set NEXT_PUBLIC_DISABLE_ZOHO_WIDGET=true
-```
+\`\`\`
 
 The application will use the internal chat widget and all functionality will work normally.
 

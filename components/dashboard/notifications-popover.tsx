@@ -4,8 +4,7 @@ import { useState, useEffect } from "react"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useAuth } from "@/lib/auth-provider"
-import { createBrowserClient } from "@supabase/ssr"
+import { useAuth, supabase } from "@/lib/auth-provider"
 import type { Notification } from "@/types/user"
 import { formatDistanceToNow } from "date-fns"
 import Link from "next/link"
@@ -25,10 +24,6 @@ export function NotificationsPopover() {
     const fetchNotifications = async () => {
       setIsLoading(true)
       try {
-        const supabase = createBrowserClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        )
         const { data, error } = await supabase
           .from("notifications")
           .select("*")

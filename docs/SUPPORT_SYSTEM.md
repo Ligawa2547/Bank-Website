@@ -130,23 +130,23 @@ Audit trail for all support system activities.
 
 #### POST `/api/support/chat/start`
 Creates a new chat session.
-```json
+\`\`\`json
 {
   "userId": "string",
   "customerEmail": "string",
   "customerName": "string"
 }
-```
+\`\`\`
 
 #### POST `/api/support/chat/message`
 Sends a message in a chat session.
-```json
+\`\`\`json
 {
   "sessionId": "string",
   "message": "string",
   "messageType": "text|file|image"
 }
-```
+\`\`\`
 
 #### GET `/api/support/chat/:sessionId/messages`
 Retrieves chat message history.
@@ -208,22 +208,22 @@ Removes a support staff member.
 ## Installation & Setup
 
 ### 1. Database Migration
-```bash
+\`\`\`bash
 psql -U postgres -d your_db -f scripts/setup-support-system.sql
-```
+\`\`\`
 
 ### 2. Environment Variables
 Copy `.env.support.example` to `.env.local` and configure:
-```bash
+\`\`\`bash
 cp .env.support.example .env.local
-```
+\`\`\`
 
 ### 3. WebSocket Signaling Server Setup
 Deploy WebSocket signaling server (separate Node.js application):
-```bash
+\`\`\`bash
 npm install ws cors dotenv
 node signaling-server.js
-```
+\`\`\`
 
 ### 4. TURN Server Configuration
 For production, set up your own TURN server or use a service:
@@ -233,7 +233,7 @@ For production, set up your own TURN server or use a service:
 
 ### 5. Enable Support Widget
 Add to customer dashboard:
-```tsx
+\`\`\`tsx
 import { FloatingChatWidget } from '@/components/support/floating-chat-widget'
 
 <FloatingChatWidget 
@@ -241,7 +241,7 @@ import { FloatingChatWidget } from '@/components/support/floating-chat-widget'
   customerEmail={user.email}
   customerName={user.name}
 />
-```
+\`\`\`
 
 ## Security Considerations
 

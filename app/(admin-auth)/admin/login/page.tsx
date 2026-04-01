@@ -5,13 +5,14 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { supabase } from "@/lib/auth-provider"
 import { Eye, EyeOff, Shield, AlertCircle } from "lucide-react"
 
 export default function AdminLogin() {
@@ -23,7 +24,6 @@ export default function AdminLogin() {
 
   const router = useRouter()
   const { toast } = useToast()
-  const supabase = createClientComponentClient()
 
   const validateAdminEmail = (email: string) => {
     return email.endsWith("@bank.alghahim.co.ke") || email.endsWith("@alghahim.co.ke")
@@ -35,7 +35,7 @@ export default function AdminLogin() {
 
     // Validate admin email domain
     if (!validateAdminEmail(email)) {
-      setError("Access denied. Only @iaenb.com email addresses are permitted for admin access.")
+      setError("Access denied. Only @bank.alghahim.co.ke or @alghahim.co.ke email addresses are permitted for admin access.")
       return
     }
 
@@ -60,7 +60,7 @@ export default function AdminLogin() {
         // Double-check the email domain after successful authentication
         if (!validateAdminEmail(data.user.email || "")) {
           await supabase.auth.signOut()
-          setError("Access denied. Admin access is restricted to @iaenb.com email addresses.")
+          setError("Access denied. Admin access is restricted to @bank.alghahim.co.ke or @alghahim.co.ke email addresses.")
           return
         }
 
@@ -83,11 +83,17 @@ export default function AdminLogin() {
   return (
     <Card className="w-full">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-          <Shield className="h-6 w-6 text-red-600" />
+        <div className="mx-auto mb-4 flex items-center justify-center">
+          <Image
+            src="/images/avb-logo.png"
+            alt="AVB Logo"
+            width={60}
+            height={60}
+            className="h-16 w-16"
+          />
         </div>
         <CardTitle className="text-2xl font-bold">Admin Login</CardTitle>
-        <CardDescription>Sign in to access the I&E National Bank admin portal</CardDescription>
+        <CardDescription>Sign in to access the Alghahim Virtual Bank admin portal</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">

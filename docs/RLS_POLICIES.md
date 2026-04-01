@@ -80,7 +80,7 @@ RLS ensures that users can only access data that belongs to them. All policies u
 ## Dashboard Recent Transactions
 
 The dashboard already implements client-side filtering:
-```typescript
+\`\`\`typescript
 // Get recent transactions - only user's transactions
 const { data: transactions } = await supabase
   .from("transactions")
@@ -88,7 +88,7 @@ const { data: transactions } = await supabase
   .eq("user_id", user.id)  // Filter by user_id
   .order("created_at", { ascending: false })
   .limit(10)
-```
+\`\`\`
 
 With RLS policies now in place, even if someone tries to bypass client-side filtering, the database will enforce that they can only see their own transactions.
 

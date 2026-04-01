@@ -13,7 +13,7 @@ export const PAYPAL_CONFIG = {
 
   // App configuration
   APP_URL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-  APP_NAME: "IAE National Bank",
+  APP_NAME: "Alghahim Virtual Bank",
 
   // Runtime detected environment
   DETECTED_ENVIRONMENT: null as "sandbox" | "production" | null,

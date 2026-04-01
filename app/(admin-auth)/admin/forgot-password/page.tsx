@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { supabase } from "@/lib/auth-provider"
 import { KeyRound, AlertCircle, CheckCircle, ArrowLeft } from "lucide-react"
 
 export default function AdminForgotPassword() {
@@ -20,10 +20,9 @@ export default function AdminForgotPassword() {
   const [success, setSuccess] = useState(false)
 
   const { toast } = useToast()
-  const supabase = createClientComponentClient()
 
   const validateAdminEmail = (email: string) => {
-    return email.endsWith("@iaenb.com")
+    return email.endsWith("@bank.alghahim.co.ke") || email.endsWith("@alghahim.co.ke")
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -12,7 +12,7 @@ This guide helps you update existing components to work with the new multi-subdo
 ### 1. Navigation Links
 
 **Before:**
-```typescript
+\`\`\`typescript
 import Link from 'next/link'
 
 export function Header() {
@@ -23,10 +23,10 @@ export function Header() {
     </>
   )
 }
-```
+\`\`\`
 
 **After:**
-```typescript
+\`\`\`typescript
 import Link from 'next/link'
 import { getCurrentSubdomain, getAppUrl, getAdminUrl } from '@/lib/subdomain-utils'
 
@@ -44,12 +44,12 @@ export function Header() {
     </>
   )
 }
-```
+\`\`\`
 
 ### 2. Redirect After Login
 
 **Before:**
-```typescript
+\`\`\`typescript
 import { useRouter } from 'next/navigation'
 
 export function LoginForm() {
@@ -60,10 +60,10 @@ export function LoginForm() {
     router.push('/dashboard')
   }
 }
-```
+\`\`\`
 
 **After:**
-```typescript
+\`\`\`typescript
 import { getAppUrl } from '@/lib/subdomain-utils'
 
 export function LoginForm() {
@@ -73,21 +73,21 @@ export function LoginForm() {
     window.location.href = getAppUrl('/dashboard')
   }
 }
-```
+\`\`\`
 
 ### 3. Admin-Only Routes
 
 **Before:**
-```typescript
+\`\`\`typescript
 // In app/(admin)/layout.tsx
 export default function AdminLayout() {
   // No auth check, relied on folder structure
   return <>{children}</>
 }
-```
+\`\`\`
 
 **After:**
-```typescript
+\`\`\`typescript
 import { verifyAdminAccess } from '@/lib/auth-config'
 import { getAppUrl } from '@/lib/subdomain-utils'
 import { redirect } from 'next/navigation'
@@ -106,12 +106,12 @@ export default async function AdminLayout({
   
   return <>{children}</>
 }
-```
+\`\`\`
 
 ### 4. Logout
 
 **Before:**
-```typescript
+\`\`\`typescript
 import { useRouter } from 'next/navigation'
 import { useSupabase } from '@/providers/supabase-provider'
 
@@ -124,10 +124,10 @@ export function LogoutButton() {
     router.push('/login')
   }
 }
-```
+\`\`\`
 
 **After:**
-```typescript
+\`\`\`typescript
 import { logoutAcrossSubdomains, getMainUrl } from '@/lib/auth-config'
 
 export function LogoutButton() {
@@ -137,12 +137,12 @@ export function LogoutButton() {
     window.location.href = getMainUrl('/login')
   }
 }
-```
+\`\`\`
 
 ### 5. API Routes with Auth
 
 **Before:**
-```typescript
+\`\`\`typescript
 // app/api/dashboard/stats/route.ts
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 
@@ -150,10 +150,10 @@ export async function GET(request: Request) {
   const supabase = createRouteHandlerClient({ cookies })
   // ...
 }
-```
+\`\`\`
 
 **After:**
-```typescript
+\`\`\`typescript
 // app/api/dashboard/stats/route.ts
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
@@ -167,7 +167,7 @@ export async function GET(request: Request) {
   )
   // ...
 }
-```
+\`\`\`
 
 ## Configuration Updates
 
@@ -175,7 +175,7 @@ export async function GET(request: Request) {
 
 Add support for multiple subdomains:
 
-```javascript
+\`\`\`javascript
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Existing config...
@@ -201,13 +201,13 @@ const nextConfig = {
 }
 
 module.exports = nextConfig
-```
+\`\`\`
 
 ### Update Supabase Provider
 
 Ensure cookies are scoped correctly:
 
-```typescript
+\`\`\`typescript
 // lib/auth-provider.tsx (or similar)
 import { getSupabaseClient } from '@/lib/auth-config'
 
@@ -219,7 +219,7 @@ export function AuthProvider({ children }) {
   
   return <>{children}</>
 }
-```
+\`\`\`
 
 ## Testing Subdomain Navigation
 
@@ -227,7 +227,7 @@ export function AuthProvider({ children }) {
 
 Create `lib/test-subdomains.ts`:
 
-```typescript
+\`\`\`typescript
 export function testSubdomainNavigation() {
   if (typeof window === 'undefined') return
   
@@ -267,17 +267,17 @@ export function testSubdomainNavigation() {
     }
   })
 }
-```
+\`\`\`
 
 Use in development:
-```typescript
+\`\`\`typescript
 import { testSubdomainNavigation } from '@/lib/test-subdomains'
 
 // Call in a useEffect or page component
 useEffect(() => {
   testSubdomainNavigation()
 }, [])
-```
+\`\`\`
 
 ## Step-by-Step Migration
 
@@ -314,7 +314,7 @@ If issues occur:
 3. Monitor error rates during gradual rollout
 
 Example feature flag:
-```typescript
+\`\`\`typescript
 const USE_NEW_SUBDOMAINS = process.env.NEXT_PUBLIC_USE_SUBDOMAINS === 'true'
 
 export function navigateToApp(path: string) {
@@ -324,7 +324,7 @@ export function navigateToApp(path: string) {
     router.push(`/dashboard${path}`)
   }
 }
-```
+\`\`\`
 
 ## Common Issues & Solutions
 

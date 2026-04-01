@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+import { supabase } from "@/lib/auth-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -49,7 +49,6 @@ export default function AdminKYCPendingPage() {
   const [reviewNotes, setReviewNotes] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
 
-  const supabase = createBrowserClient()
   const { toast } = useToast()
 
   useEffect(() => {

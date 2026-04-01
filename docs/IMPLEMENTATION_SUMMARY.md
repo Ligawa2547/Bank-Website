@@ -67,7 +67,7 @@ Complete implementation for restructuring Alghahim Virtual Bank into three subdo
 
 ## Architecture at a Glance
 
-```
+\`\`\`
 ┌─────────────────────────────────────────────────────────────┐
 │                    Vercel Deployment                         │
 │  Single Next.js app serves all three subdomains             │
@@ -97,7 +97,7 @@ Complete implementation for restructuring Alghahim Virtual Bank into three subdo
                     │  Cookies scoped to parent    │
                     │  domain (.bank.alghahim...)  │
                     └──────────────────────────────┘
-```
+\`\`\`
 
 ## Key Features
 
@@ -143,21 +143,21 @@ Copy these new files to your project:
 - `.env.example` → Update your `.env.local`
 
 ### 2. Update Environment Variables
-```bash
+\`\`\`bash
 BASE_URL=https://bank.alghahim.co.ke
 NEXT_PUBLIC_APP_URL=https://app.bank.alghahim.co.ke
 NEXT_PUBLIC_ADMIN_URL=https://admin.bank.alghahim.co.ke
 NEXT_PUBLIC_BASE_URL=https://bank.alghahim.co.ke
-```
+\`\`\`
 
 ### 3. Configure DNS
 Add these DNS records:
-```
+\`\`\`
 bank.alghahim.co.ke          CNAME → your-project.vercel.app
 app.bank.alghahim.co.ke      CNAME → your-project.vercel.app
 admin.bank.alghahim.co.ke    CNAME → your-project.vercel.app
 *.bank.alghahim.co.ke        CNAME → your-project.vercel.app
-```
+\`\`\`
 
 ### 4. Update Supabase Auth Settings
 Add all three URLs to Supabase:
@@ -166,7 +166,7 @@ Add all three URLs to Supabase:
 - `https://admin.bank.alghahim.co.ke`
 
 ### 5. Test Locally
-```bash
+\`\`\`bash
 # Terminal 1: Main domain (port 3000)
 npm run dev
 
@@ -175,7 +175,7 @@ PORT=3001 npm run dev
 
 # Terminal 3: Admin subdomain (port 3002)
 PORT=3002 npm run dev
-```
+\`\`\`
 
 Visit:
 - `http://localhost:3000` - Main domain
@@ -183,11 +183,11 @@ Visit:
 - `http://localhost:3002` - Admin subdomain
 
 ### 6. Deploy to Vercel
-```bash
+\`\`\`bash
 git add .
 git commit -m "Implement multi-subdomain architecture"
 git push
-```
+\`\`\`
 
 Vercel automatically detects the new setup and deploys.
 
@@ -195,7 +195,7 @@ Vercel automatically detects the new setup and deploys.
 
 ### Navigation Between Subdomains
 
-```typescript
+\`\`\`typescript
 import { getAppUrl, getAdminUrl, getMainUrl } from '@/lib/subdomain-utils'
 
 // Navigate to customer dashboard
@@ -209,11 +209,11 @@ import { getAppUrl, getAdminUrl, getMainUrl } from '@/lib/subdomain-utils'
 
 // Programmatic navigation
 window.location.href = getAppUrl('/profile')
-```
+\`\`\`
 
 ### Authentication
 
-```typescript
+\`\`\`typescript
 import { 
   getSupabaseClient, 
   verifyAdminAccess,
@@ -228,19 +228,19 @@ const isAdmin = await verifyAdminAccess()
 
 // Logout from all subdomains
 await logoutAcrossSubdomains()
-```
+\`\`\`
 
 ## File Structure Impact
 
 Your existing file structure remains the same:
-```
+\`\`\`
 app/
 ├── (auth)/           # Auth pages
 ├── (dashboard)/      # Customer dashboard
 ├── (admin)/          # Admin pages
 ├── layout.tsx
 └── page.tsx
-```
+\`\`\`
 
 The middleware transparently handles routing:
 - `bank.alghahim.co.ke/` → `app/page.tsx` (public)

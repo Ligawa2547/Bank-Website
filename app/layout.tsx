@@ -5,6 +5,7 @@ import "./globals.css"
 import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/toaster"
 import { FloatingChat } from "@/components/floating-chat"
+import { MaintenanceWrapper } from "@/components/maintenance-wrapper"
 import { Analytics } from "@vercel/analytics/react"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -34,7 +35,7 @@ export const metadata: Metadata = {
     siteName: "Alghahim Virtual Bank",
     images: [
       {
-        url: "/images/iae-logo.png",
+        url: "/images/avb-logo.png",
         width: 1200,
         height: 630,
         alt: "Alghahim Virtual Bank Logo",
@@ -48,7 +49,7 @@ export const metadata: Metadata = {
     title: "Alghahim Virtual Bank - Your Trusted Banking Partner",
     description:
       "Experience secure and convenient banking with Alghahim Virtual Bank. Manage your finances, transfer money, and access banking services 24/7.",
-    images: ["/images/iae-logo.png"],
+    images: ["/images/avb-logo.png"],
   },
   robots: {
     index: true,
@@ -75,14 +76,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/images/iae-logo.png" />
+        <link rel="icon" href="/avb-favicon.png" />
+        <link rel="apple-touch-icon" href="/images/avb-logo.png" />
         <meta name="theme-color" content="#1f2937" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <Providers>
-          {children}
+          <MaintenanceWrapper allowedPaths={['/login', '/signup']}>
+            {children}
+          </MaintenanceWrapper>
           <Toaster />
           <Analytics />
           <FloatingChat />

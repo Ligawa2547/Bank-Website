@@ -23,11 +23,11 @@ export function HomepageFooter() {
             <Link href="/" className="flex items-center gap-2">
               {logoError ? (
                 <div className="h-8 w-8 bg-white rounded-md flex items-center justify-center text-[#0A3D62] font-bold text-sm">
-                  AV
+                  AVB
                 </div>
               ) : (
                 <Image
-                  src="/images/iae-logo.png"
+                  src="/images/avb-logo.png"
                   alt="Alghahim Virtual Bank"
                   width={32}
                   height={32}

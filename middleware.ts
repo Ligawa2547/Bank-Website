@@ -25,22 +25,23 @@ export function middleware(request: NextRequest) {
   // Clone the request URL and set the pathname based on subdomain
   const url = request.nextUrl.clone()
 
-  // Handle redirects from main domain to subdomains
-  if (!subdomain) {
-    if (pathname.startsWith('/dashboard')) {
-      const appUrl = isProduction
-        ? `https://app.bank.alghahim.co.ke${pathname.replace('/dashboard', '')}`
-        : `http://localhost:3001${pathname.replace('/dashboard', '')}`
-      return NextResponse.redirect(appUrl, { status: 301 })
-    }
-
-    if (pathname.startsWith('/admin')) {
-      const adminUrl = isProduction
-        ? `https://admin.bank.alghahim.co.ke${pathname.replace('/admin', '')}`
-        : `http://localhost:3002${pathname.replace('/admin', '')}`
-      return NextResponse.redirect(adminUrl, { status: 301 })
-    }
-  }
+  // Handle redirects from main domain to subdomains (disabled for now)
+  // TODO: Re-enable when subdomain setup is complete
+  // if (!subdomain) {
+  //   if (pathname.startsWith('/dashboard')) {
+  //     const appUrl = isProduction
+  //       ? `https://app.bank.alghahim.co.ke${pathname.replace('/dashboard', '')}`
+  //       : `http://localhost:3001${pathname.replace('/dashboard', '')}`
+  //     return NextResponse.redirect(appUrl, { status: 301 })
+  //   }
+  //
+  //   if (pathname.startsWith('/admin')) {
+  //     const adminUrl = isProduction
+  //       ? `https://admin.bank.alghahim.co.ke${pathname.replace('/admin', '')}`
+  //       : `http://localhost:3002${pathname.replace('/admin', '')}`
+  //     return NextResponse.redirect(adminUrl, { status: 301 })
+  //   }
+  // }
 
   // Route handling based on subdomain
   if (subdomain === 'app') {
@@ -80,13 +81,8 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(adminLoginUrl)
     }
   } else {
-    // Main domain - only public routes
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) {
-      // These should have been redirected above, but as safety net
-      return NextResponse.redirect('/')
-    }
-
-    // Rewrite public routes (they don't need special handling)
+    // Main domain - allow all routes (no subdomain separation for now)
+    // dashboard and admin routes are accessible directly on main domain
     url.pathname = pathname
   }
 

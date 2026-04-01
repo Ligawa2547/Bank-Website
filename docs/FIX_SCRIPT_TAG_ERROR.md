@@ -1,9 +1,9 @@
 # Fixing "Script Tag While Rendering React Component" Error
 
 ## Issue
-```
+\`\`\`
 Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client.
-```
+\`\`\`
 
 ## Root Causes
 1. **JSX containing literal `<script>` tags** - React doesn't allow script tags in JSX
@@ -43,10 +43,10 @@ If the error persists:
    - Identify the component name and line number
 
 3. **Search for Problem File**
-   ```bash
+   \`\`\`bash
    grep -r "<script" --include="*.tsx" --include="*.jsx"
    grep -r "dangerouslySetInnerHTML" --include="*.tsx" --include="*.jsx"
-   ```
+   \`\`\`
 
 4. **Verify Build**
    - Clear `.next` folder: `rm -rf .next`
