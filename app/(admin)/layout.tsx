@@ -74,12 +74,12 @@ export default function AdminLayout({
           <div className="flex items-center gap-2">
             {logoError ? (
               <div className="h-8 w-8 bg-white rounded-md flex items-center justify-center text-red-900 font-bold text-sm">
-                I&E
+                AVB
               </div>
             ) : (
               <Image
-                src="/images/iae-logo.png"
-                alt="I&E National Bank"
+                src="/images/avb-logo.png"
+                alt="Alghahim Virtual Bank"
                 width={32}
                 height={32}
                 className="h-8 w-auto"
