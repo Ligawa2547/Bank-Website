@@ -6,7 +6,7 @@ import type { Metadata } from "next"
 export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
-  title: "Profile – I&E Bank",
+  title: "Profile – Alghahim Virtual Bank",
 }
 
 export default async function ProfilePage() {

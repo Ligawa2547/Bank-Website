@@ -34,7 +34,7 @@ export default function AdminSignup() {
   const { toast } = useToast()
 
   const validateAdminEmail = (email: string) => {
-    return email.endsWith("@iaenb.com")
+    return email.endsWith("@bank.alghahim.co.ke") || email.endsWith("@alghahim.co.ke")
   }
 
   const validatePassword = (password: string) => {
@@ -52,7 +52,7 @@ export default function AdminSignup() {
 
     // Validate admin email domain
     if (!validateAdminEmail(formData.email)) {
-      setError("Access denied. Only @iaenb.com email addresses are permitted.")
+      setError("Access denied. Only @bank.alghahim.co.ke or @alghahim.co.ke email addresses are permitted.")
       return
     }
 
@@ -167,7 +167,7 @@ export default function AdminSignup() {
           <UserPlus className="h-6 w-6 text-red-600" />
         </div>
         <CardTitle className="text-2xl font-bold">Request Admin Access</CardTitle>
-        <CardDescription>Submit a request for I&E National Bank admin portal access</CardDescription>
+        <CardDescription>Submit a request for Alghahim Virtual Bank admin portal access</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -212,12 +212,12 @@ export default function AdminSignup() {
               id="email"
               name="email"
               type="email"
-              placeholder="your.name@iaenb.com"
+              placeholder="your.name@bank.alghahim.co.ke"
               value={formData.email}
               onChange={handleInputChange}
               required
             />
-            <p className="text-xs text-gray-500">Only @iaenb.com email addresses are permitted</p>
+            <p className="text-xs text-gray-500">Only @bank.alghahim.co.ke or @alghahim.co.ke email addresses are permitted</p>
           </div>
 
           <div className="space-y-2">
