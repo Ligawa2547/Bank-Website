@@ -320,7 +320,10 @@ export default function KYCPage() {
       const result = (await response.json()) as { url?: string; error?: string }
       if (!response.ok || !result.url) throw new Error(result.error || "Unable to start verification")
 
-      DiditSdk.shared.startVerification({ url: result.url })
+      await DiditSdk.shared.startVerification({
+        url: result.url,
+        configuration: { showCloseButton: true, closeModalOnComplete: true },
+      })
       toast({
         title: "Verification started",
         description: "Complete the secure identity check in the new tab. Return here when finished.",
@@ -591,9 +594,9 @@ export default function KYCPage() {
         </>
       )}
 
-      <Tabs defaultValue="documents" className="space-y-6">
+      <Tabs defaultValue="status" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
+
           <TabsTrigger value="status">Status</TabsTrigger>
         </TabsList>
 
