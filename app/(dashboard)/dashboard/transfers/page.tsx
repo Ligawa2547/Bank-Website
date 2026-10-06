@@ -183,8 +183,8 @@ export default function TransfersPage() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setShowBalance(!showBalance)}>
-                {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              <Button variant="ghost" size="sm" aria-label={showBalance ? "Hide balance" : "Show balance"} aria-pressed={showBalance} onClick={() => setShowBalance(!showBalance)}>
+                {showBalance ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
               </Button>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </div>
@@ -192,7 +192,7 @@ export default function TransfersPage() {
           <CardContent>
             <div className="text-2xl font-bold">
               {isLoadingBalance ? (
-                <div className="animate-pulse bg-gray-200 h-8 w-32 rounded"></div>
+                <div className="h-8 w-32 animate-pulse rounded bg-muted" aria-hidden="true" />
               ) : showBalance ? (
                 formatCurrency(accountBalance)
               ) : (

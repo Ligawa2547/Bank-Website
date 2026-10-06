@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { PlusCircle, Send, MessageSquare, Clock, CheckCircle, AlertCircle, XCircle } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/lib/supabase/client'
 
 export default function SupportPage() {
   const { user, profile } = useAuth()
@@ -26,7 +26,7 @@ export default function SupportPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showNewTicketForm, setShowNewTicketForm] = useState(false)
   const { toast } = useToast()
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   useEffect(() => {
     if (!user) return
