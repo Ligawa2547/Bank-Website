@@ -100,6 +100,7 @@ export default function KYCPage() {
   const [documents, setDocuments] = useState<KYCDocument[]>([])
   const [uploading, setUploading] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [startingDidit, setStartingDidit] = useState(false)
   const [loading, setLoading] = useState(true)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({})
@@ -299,6 +300,30 @@ export default function KYCPage() {
 
   const viewDocument = (url: string) => {
     window.open(url, "_blank")
+  }
+
+  const startDiditVerification = async () => {
+    setStartingDidit(true)
+    try {
+      const response = await fetch("/api/kyc/didit/session", { method: "POST" })
+      const result = (await response.json()) as { url?: string; error?: string }
+      if (!response.ok || !result.url) throw new Error(result.error || "Unable to start verification")
+
+      window.open(result.url, "_blank", "noopener,noreferrer")
+      toast({
+        title: "Verification started",
+        description: "Complete the secure identity check in the new tab. Return here when finished.",
+      })
+    } catch (error) {
+      console.error("Error starting Didit verification:", error)
+      toast({
+        title: "Unable to start verification",
+        description: "Please try again or contact support if the problem continues.",
+        variant: "destructive",
+      })
+    } finally {
+      setStartingDidit(false)
+    }
   }
 
   const handleSubmitKYC = async () => {
@@ -516,12 +541,30 @@ export default function KYCPage() {
       {renderKYCStatusMessage()}
 
       {profile?.kyc_status === "not_submitted" && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Complete your KYC verification to access all banking features. A one-time fee of ${KYC_FEE} applies.
-          </AlertDescription>
-        </Alert>
+        <>
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Complete your KYC verification to access all banking features. A one-time fee of ${KYC_FEE} applies.
+            </AlertDescription>
+          </Alert>
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-primary" />
+                Secure identity verification
+              </CardTitle>
+              <CardDescription>
+                Verify your identity securely with Didit. You will complete the check in a protected verification window.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button type="button" onClick={startDiditVerification} disabled={startingDidit}>
+                {startingDidit ? "Starting verification..." : "Start identity verification"}
+              </Button>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       <Tabs defaultValue="documents" className="space-y-6">
