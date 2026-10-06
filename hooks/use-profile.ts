@@ -33,23 +33,20 @@ export function useProfile() {
       try {
         setLoading(true)
 
-        // Try to fetch from both tables in parallel for best data
-        const [usersResponse, profilesResponse] = await Promise.all([
-          supabase.from("users").select("*").eq("id", user.id).single(),
-          supabase.from("user_profiles").select("*").eq("id", user.id).single(),
-        ])
+        const { data: profileData, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("user_id, first_name, last_name, email, phone, phone_number, profile_picture, account_no, account_number, balance, created_at, updated_at")
+          .eq("user_id", user.id)
+          .maybeSingle()
 
-        // Combine data from both sources, with profiles taking precedence
-        const userData = usersResponse.data || {}
-        const profileData = profilesResponse.data || {}
+        if (profileError) throw profileError
 
-        const combinedProfile = {
+        setProfile({
           id: user.id,
-          ...userData,
           ...profileData,
-        }
-
-        setProfile(combinedProfile as Profile)
+          avatar_url: profileData?.profile_picture,
+          account_balance: profileData?.balance ? Number(profileData.balance) : undefined,
+        } as Profile)
       } catch (err) {
         console.error("Error loading profile:", err)
         setError(err instanceof Error ? err : new Error("Failed to load profile"))
@@ -72,14 +69,13 @@ export function useProfile() {
     try {
       setLoading(true)
 
-      // Update both tables to keep them in sync
-      const [usersResponse, profilesResponse] = await Promise.all([
-        supabase.from("users").update(updates).eq("id", user.id),
-        supabase.from("user_profiles").update(updates).eq("id", user.id),
-      ])
+      const { error: profileError } = await supabase
+        .from("user_profiles")
+        .update(updates)
+        .eq("user_id", user.id)
 
-      if (usersResponse.error && profilesResponse.error) {
-        throw new Error(usersResponse.error.message || "Failed to update profile")
+      if (profileError) {
+        throw profileError
       }
 
       // Refresh profile data
@@ -102,21 +98,20 @@ export function useProfile() {
     try {
       setLoading(true)
 
-      const [usersResponse, profilesResponse] = await Promise.all([
-        supabase.from("users").select("*").eq("id", user.id).single(),
-        supabase.from("user_profiles").select("*").eq("id", user.id).single(),
-      ])
+      const { data: profileData, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("user_id, first_name, last_name, email, phone, phone_number, profile_picture, account_no, account_number, balance, created_at, updated_at")
+        .eq("user_id", user.id)
+        .maybeSingle()
 
-      const userData = usersResponse.data || {}
-      const profileData = profilesResponse.data || {}
+      if (profileError) throw profileError
 
-      const combinedProfile = {
+      setProfile({
         id: user.id,
-        ...userData,
         ...profileData,
-      }
-
-      setProfile(combinedProfile as Profile)
+        avatar_url: profileData?.profile_picture,
+        account_balance: profileData?.balance ? Number(profileData.balance) : undefined,
+      } as Profile)
     } catch (err) {
       console.error("Error refreshing profile:", err)
     } finally {
