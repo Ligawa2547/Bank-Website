@@ -59,63 +59,10 @@ export default function AdminKYCPendingPage() {
     try {
       setLoading(true)
 
-      // Fetch all pending KYC submissions without joins
-      const { data: kycData, error: kycError } = await supabase
-        .from("kyc_submissions")
-        .select("*")
-        .eq("status", "pending")
-        .order("submitted_at", { ascending: false })
-
-      if (kycError) {
-        console.error("KYC fetch error:", kycError)
-        throw kycError
-      }
-
-      if (!kycData || kycData.length === 0) {
-        setSubmissions([])
-        setLoading(false)
-        return
-      }
-
-      // Extract unique account numbers
-      const accountNos = [...new Set(kycData.map((kyc: any) => kyc.account_no))]
-
-      // Fetch users for these account numbers
-      const { data: usersData, error: usersError } = await supabase
-        .from("users")
-        .select("account_no, first_name, last_name, email, phone, date_of_birth")
-        .in("account_no", accountNos)
-
-      if (usersError) {
-        console.error("Users fetch error:", usersError)
-        throw usersError
-      }
-
-      // Create a map of users by account number
-      const usersMap = new Map<string, UserData>()
-      if (usersData) {
-        usersData.forEach((user: UserData) => {
-          usersMap.set(user.account_no, user)
-        })
-      }
-
-      // Combine KYC submissions with user data
-      const combinedData: KYCSubmission[] = kycData.map((kyc: any) => {
-        const user = usersMap.get(kyc.account_no)
-        return {
-          ...kyc,
-          user: user || {
-            account_no: kyc.account_no,
-            first_name: "Unknown",
-            last_name: "User",
-            email: "N/A",
-            phone: "N/A",
-            date_of_birth: "",
-          },
-        }
-      })
-
-      setSubmissions(combinedData)
+      const response = await fetch("/api/admin/kyc/pending", { cache: "no-store" })
+      const result = (await response.json()) as { submissions?: KYCSubmission[]; error?: string }
+      if (!response.ok) throw new Error(result.error || "Failed to fetch KYC submissions")
+      setSubmissions(result.submissions ?? [])
     } catch (error) {
       console.error("Error fetching KYC submissions:", error)
       toast({
