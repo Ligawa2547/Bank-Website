@@ -92,11 +92,13 @@ export async function POST(request: Request) {
       ? "approved"
       : status === "Declined"
         ? "declined"
-        : status === "In Review" || status === "Resubmitted"
+        : status === "In Review" || status === "Resubmitted" || status === "In Progress" || status === "Awaiting User"
           ? "pending"
-          : status === "Kyc Expired" || status === "Expired"
+          : status === "Kyc Expired" || status === "Expired" || status === "Abandoned"
             ? "expired"
-            : null
+            : status === "Not Started"
+              ? "not_submitted"
+              : null
 
   if (kycStatus) {
     const { error: profileUpdateError } = await supabase
