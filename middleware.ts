@@ -1,7 +1,27 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { createServerClient } from "@supabase/ssr"
+import { NextResponse, type NextRequest } from "next/server"
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({ request: { headers: request.headers } })
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          response = NextResponse.next({ request: { headers: request.headers } })
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+        },
+      },
+    },
+  )
+
+  // Refresh expired access tokens before page/API clients query Supabase.
+  await supabase.auth.getUser()
   const hostname = request.headers.get('host') || ''
   const pathname = request.nextUrl.pathname
   
@@ -86,13 +106,16 @@ export function middleware(request: NextRequest) {
     url.pathname = pathname
   }
 
-  // Return response with rewritten pathname
-  const response = NextResponse.rewrite(url)
+  // Return response with rewritten pathname while preserving refreshed auth cookies.
+  const rewrittenResponse = NextResponse.rewrite(url, { request: { headers: request.headers } })
+  response.cookies.getAll().forEach((cookie) => {
+    rewrittenResponse.cookies.set(cookie)
+  })
 
   // Add CORS and security headers for cross-subdomain requests
-  response.headers.set('Access-Control-Allow-Credentials', 'true')
-  
-  return response
+  rewrittenResponse.headers.set("Access-Control-Allow-Credentials", "true")
+
+  return rewrittenResponse
 }
 
 export const config = {
