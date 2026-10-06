@@ -115,6 +115,9 @@ importers:
       '@base-ui/react':
         specifier: ^1.5.0
         version: 1.8.0(@types/react@19.3.0)(date-fns@4.4.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@didit-protocol/sdk-web':
+        specifier: ^0.4.0
+        version: 0.4.0
       '@opentelemetry/api':
         specifier: latest
         version: 1.9.1
@@ -458,6 +461,10 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  '@didit-protocol/sdk-web@0.4.0':
+    resolution: {integrity: sha512-5urXia3DBjrB1+uOv1sI8+RsLU1ZUHDCxLECTHzVQWG0ewBczX5oirw+QbNfOa8JLDpY086TcfuRztbWSqAeig==}
+    engines: {node: '>=16.0.0'}
 
   '@dotenvx/dotenvx@1.75.1':
     resolution: {integrity: sha512-/BITOC9dmS/edY2zQwZNicQ059O6RKabtQfyEafV0nGtfYRNHYy1DIPiYVcov40+tob9hfmBnbR963dS+EQ1DQ==}
@@ -4747,6 +4754,8 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.3.0
 
+  '@didit-protocol/sdk-web@0.4.0': {}
+
   '@dotenvx/dotenvx@1.75.1':
     dependencies:
       '@dotenvx/primitives': 0.8.0
@@ -5866,7 +5875,7 @@ snapshots:
       immer: 11.1.21
       redux: 5.0.1
       redux-thunk: 3.1.0(redux@5.0.1)
-      reselect: 5.2.0
+      reselect: 5.3.0
     optionalDependencies:
       react: 19.3.0
       react-redux: 9.3.0(@types/react@19.3.0)(react@19.3.0)(redux@5.0.1)

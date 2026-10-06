@@ -2,12 +2,12 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
 const DIDIT_SESSION_URL = "https://verification.didit.me/v3/session/"
+const DIDIT_WORKFLOW_ID = "6096ba6d-3cca-4cc0-b539-af9796d75b5e"
 
 export async function POST() {
   const apiKey = process.env.DIDIT_API_KEY
-  const workflowId = process.env.DIDIT_WORKFLOW_ID
 
-  if (!apiKey || !workflowId) {
+  if (!apiKey) {
     return NextResponse.json({ error: "KYC verification is not configured" }, { status: 503 })
   }
 
@@ -41,7 +41,7 @@ export async function POST() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      workflow_id: workflowId,
+      workflow_id: DIDIT_WORKFLOW_ID,
       vendor_data: user.id,
     }),
     cache: "no-store",

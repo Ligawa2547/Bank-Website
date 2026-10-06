@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { DiditSdk } from "@didit-protocol/sdk-web"
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -101,6 +102,7 @@ export default function KYCPage() {
   const [uploading, setUploading] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [startingDidit, setStartingDidit] = useState(false)
+  const [diditConsent, setDiditConsent] = useState(false)
   const [loading, setLoading] = useState(true)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({})
@@ -303,13 +305,22 @@ export default function KYCPage() {
   }
 
   const startDiditVerification = async () => {
+    if (!diditConsent) {
+      toast({
+        title: "Consent required",
+        description: "Please confirm that you consent to identity verification before continuing.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setStartingDidit(true)
     try {
       const response = await fetch("/api/kyc/didit/session", { method: "POST" })
       const result = (await response.json()) as { url?: string; error?: string }
       if (!response.ok || !result.url) throw new Error(result.error || "Unable to start verification")
 
-      window.open(result.url, "_blank", "noopener,noreferrer")
+      DiditSdk.shared.startVerification({ url: result.url })
       toast({
         title: "Verification started",
         description: "Complete the secure identity check in the new tab. Return here when finished.",
@@ -558,8 +569,19 @@ export default function KYCPage() {
                 Verify your identity securely with Didit. You will complete the check in a protected verification window.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button type="button" onClick={startDiditVerification} disabled={startingDidit}>
+            <CardContent className="space-y-4">
+              <label className="flex items-start gap-3 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={diditConsent}
+                  onChange={(event) => setDiditConsent(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-input accent-primary"
+                />
+                <span>
+                  I consent to Didit processing my identity information for KYC verification. I understand that Didit&apos;s secure verification flow and privacy terms will apply.
+                </span>
+              </label>
+              <Button type="button" onClick={startDiditVerification} disabled={startingDidit || !diditConsent}>
                 {startingDidit ? "Starting verification..." : "Start identity verification"}
               </Button>
             </CardContent>
