@@ -99,9 +99,13 @@ export async function POST(request: Request) {
             : null
 
   if (kycStatus) {
-    const { error: updateError } = await supabase.from("users").update({ kyc_status: kycStatus }).eq("id", vendorData)
-    if (updateError) {
-      console.error("[KYC] Failed to update user status", updateError)
+    const { error: profileUpdateError } = await supabase
+      .from("user_profiles")
+      .update({ kyc_status: kycStatus, updated_at: new Date().toISOString() })
+      .eq("user_id", vendorData)
+
+    if (profileUpdateError) {
+      console.error("[KYC] Failed to update user profile status", profileUpdateError)
       return new NextResponse("temporary failure", { status: 500 })
     }
   }

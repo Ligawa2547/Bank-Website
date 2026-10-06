@@ -102,24 +102,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       /* normalise balance */
-      const balance =
-        typeof data.account_balance === "number"
-          ? data.account_balance
-          : Number.parseFloat(data.account_balance ?? "0") || 0
+      const balance = Number.parseFloat(String(data.balance ?? "0")) || 0
 
       const processed: UserProfile = {
-        id: data.id,
-        user_id: data.id,
+        id: data.user_id,
+        user_id: data.user_id,
         email: data.email ?? "",
         first_name: data.first_name ?? "",
         last_name: data.last_name ?? "",
         phone_number: data.phone_number ?? "",
         city: data.city ?? "",
         country: data.country ?? "",
-        account_number: data.account_no ?? "",
+        account_number: data.account_number ?? data.account_no ?? "",
         balance,
-        profile_pic: data.profile_pic ?? "",
-        status: data.status ?? "pending",
+        profile_pic: data.profile_picture ?? "",
+        status: "pending",
         email_verified: !!data.email_verified,
         phone_verified: !!data.phone_verified,
         kyc_status: data.kyc_status ?? "not_submitted",
