@@ -260,9 +260,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut({ scope: "local" })
+    if (error) {
+      console.warn("[v0] Local logout completed with a Supabase response:", error.message)
+    }
+    setSession(null)
+    setUser(null)
+    setProfile(null)
     profileCache.clear()
-    /* redirect to generic login preserving current path for potential return */
     router.push(`/login?next=${encodeURIComponent(pathname)}`)
   }
 
