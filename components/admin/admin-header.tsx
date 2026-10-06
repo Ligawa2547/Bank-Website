@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Bell, LogOut, Settings, User } from "lucide-react"
-import { supabase } from "@/lib/auth-provider"
+import { supabase, useAuth } from "@/lib/auth-provider"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import {
@@ -55,7 +55,7 @@ export function AdminHeader() {
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut()
+      await supabase.auth.signOut({ scope: "local" })
       router.push("/admin/login")
     } catch (error) {
       console.error("Error signing out:", error)
