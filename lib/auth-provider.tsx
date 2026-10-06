@@ -62,10 +62,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const { data, error } = await supabase
-        .from("users")
+        .from("user_profiles")
         .select(
           `
-            id,
+            user_id,
             email,
             first_name,
             last_name,
@@ -73,17 +73,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             city,
             country,
             account_no,
-            account_balance,
-            profile_pic,
-            status,
-            created_at,
-            updated_at,
+            account_number,
+            balance,
+            profile_picture,
             email_verified,
             phone_verified,
-            kyc_status
+            kyc_status,
+            created_at,
+            updated_at
           `,
         )
-        .eq("id", userId)
+        .eq("user_id", userId)
         .maybeSingle()
 
       if (error) {
