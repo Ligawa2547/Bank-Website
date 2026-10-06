@@ -26,7 +26,7 @@ export default function AdminLogin() {
   const { toast } = useToast()
 
   const validateAdminEmail = (email: string) => {
-    return email.endsWith("@bank.alghahim.co.ke") || email.endsWith("@alghahim.co.ke")
+    return email.trim().toLowerCase().endsWith("@iaenb.com")
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,7 +35,7 @@ export default function AdminLogin() {
 
     // Validate admin email domain
     if (!validateAdminEmail(email)) {
-      setError("Access denied. Only @bank.alghahim.co.ke or @alghahim.co.ke email addresses are permitted for admin access.")
+      setError("Access denied. Only @iaenb.com email addresses are permitted for admin access.")
       return
     }
 
@@ -60,7 +60,7 @@ export default function AdminLogin() {
         // Double-check the email domain after successful authentication
         if (!validateAdminEmail(data.user.email || "")) {
           await supabase.auth.signOut()
-          setError("Access denied. Admin access is restricted to @bank.alghahim.co.ke or @alghahim.co.ke email addresses.")
+          setError("Access denied. Admin access is restricted to @iaenb.com email addresses.")
           return
         }
 

@@ -36,7 +36,7 @@ export default function AdminLayout({
 
         // Check if user email is from correct admin domain
         const email = session.user.email
-        if (!email || (!email.endsWith("@bank.alghahim.co.ke") && !email.endsWith("@alghahim.co.ke"))) {
+        if (!email || !email.trim().toLowerCase().endsWith("@iaenb.com")) {
           await supabase.auth.signOut()
           router.push("/admin/login")
           return
