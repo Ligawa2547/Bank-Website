@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createClient } from "@/lib/supabase/server"
 import { sendTransactionNotification } from "@/lib/notifications/handler"
+import { logAuditEvent } from "@/lib/audit/logger"
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Reference is required" }, { status: 400 })
     }
 
-    const supabase = createRouteHandlerClient({ cookies })
+    const supabase = await createClient()
 
     // Verify payment with Paystack
     const paystackResponse = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
@@ -38,6 +38,22 @@ export async function POST(request: NextRequest) {
 
     if (userError || !user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    // Paystack references are unique. Replays must not credit the account twice.
+    const { data: existingTransaction } = await supabase
+      .from("transactions")
+      .select("id, amount, status")
+      .eq("reference", reference)
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    if (existingTransaction) {
+      return NextResponse.json({
+        success: true,
+        alreadyProcessed: true,
+        message: "Payment was already processed",
+      })
     }
 
     // Update user balance
@@ -79,6 +95,16 @@ export async function POST(request: NextRequest) {
       console.error("Error sending notification:", notificationError)
       // Don't fail the transaction if notification fails
     }
+
+    await logAuditEvent({
+      userId: user.id,
+      action: "paystack_deposit_verified",
+      resourceType: "transaction",
+      resourceId: reference,
+      description: "Paystack deposit verified and credited",
+      changes: { amount: amountInDollars, reference },
+      status: "success",
+    })
 
     return NextResponse.json({
       success: true,

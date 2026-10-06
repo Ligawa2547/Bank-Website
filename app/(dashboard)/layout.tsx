@@ -9,6 +9,7 @@ import { InactivityMonitor } from "@/components/inactivity-monitor"
 import { AuthProvider } from "@/lib/auth-provider"
 import { SupabaseProvider } from "@/providers/supabase-provider"
 import { SessionProvider, useSession } from "@/providers/session-provider"
+import { Skeleton } from "@/components/ui/skeleton"
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { session, isLoading } = useSession()
@@ -31,8 +32,12 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+      <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 p-6" aria-busy="true" aria-label="Loading dashboard">
+        <div className="flex w-full max-w-md flex-col gap-4 rounded-xl border bg-background p-6">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </div>
     )
   }
