@@ -21,16 +21,17 @@ export async function POST() {
   }
 
   const { data: profile } = await supabase
-    .from("users")
-    .select("id, account_number, kyc_status")
-    .eq("id", user.id)
+    .from("user_profiles")
+    .select("user_id, account_number, account_no, kyc_status")
+    .eq("user_id", user.id)
     .maybeSingle()
 
   if (!profile) {
     return NextResponse.json({ error: "Your account profile could not be found" }, { status: 404 })
   }
 
-  if (profile.kyc_status === "approved") {
+  const profileRecord = profile as { kyc_status?: string }
+  if (profileRecord.kyc_status === "approved") {
     return NextResponse.json({ error: "Your identity is already verified" }, { status: 409 })
   }
 

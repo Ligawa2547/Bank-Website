@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createBrowserClient } from "@supabase/ssr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -44,10 +43,6 @@ export default function AdminUsersPage() {
   const [notificationTitle, setNotificationTitle] = useState("")
   const [notificationMessage, setNotificationMessage] = useState("")
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
   const { toast } = useToast()
 
   useEffect(() => {
@@ -56,10 +51,10 @@ export default function AdminUsersPage() {
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: false })
-
-      if (error) throw error
-      setUsers(data || [])
+      const response = await fetch("/api/admin/users", { cache: "no-store" })
+      const result = (await response.json()) as { users?: AdminUser[]; error?: string }
+      if (!response.ok) throw new Error(result.error || "Failed to fetch users")
+      setUsers(result.users ?? [])
     } catch (error) {
       console.error("Error fetching users:", error)
       toast({
@@ -75,12 +70,12 @@ export default function AdminUsersPage() {
   const updateUserStatus = async (userId: string, field: string, value: string, reason?: string) => {
     setIsUpdating(true)
     try {
-      const { error } = await supabase
-        .from("users")
-        .update({ [field]: value, updated_at: new Date().toISOString() })
-        .eq("id", userId)
-
-      if (error) throw error
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, field, value }),
+      })
+      if (!response.ok) throw new Error("Failed to update user")
 
       // Send notification based on the field updated
       const user = users.find((u) => u.id === userId)
