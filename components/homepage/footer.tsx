@@ -117,11 +117,11 @@ export function HomepageFooter() {
             <div className="space-y-3 text-sm">
               <div className="flex items-center space-x-2">
                 <Phone className="h-4 w-4 text-blue-200" />
-                <span className="text-blue-200">1-800-IEBANK</span>
+                <span className="text-blue-200">+1 326-203-2223</span>
               </div>
               <div className="flex items-center space-x-2">
                 <Mail className="h-4 w-4 text-blue-200" />
-                <span className="text-blue-200">support@iebank.com</span>
+                <span className="text-blue-200">info@unfcc.org</span>
               </div>
               <div className="flex items-start space-x-2">
                 <MapPin className="h-4 w-4 text-blue-200 mt-0.5" />
