@@ -126,11 +126,9 @@ export function HomepageFooter() {
               <div className="flex items-start space-x-2">
                 <MapPin className="h-4 w-4 text-blue-200 mt-0.5" />
                 <span className="text-blue-200">
-                  123 Banking Street
+                  1013 Bill Street
                   <br />
-                  Financial District
-                  <br />
-                  New York, NY 10001
+                  New York, NY
                 </span>
               </div>
             </div>
